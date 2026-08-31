@@ -397,3 +397,39 @@
   outline: none;
   box-shadow: 0 1px 0 var(--accent);
 }
+
+/* ── quick add ──────────────────────────────────────────── */
+
+.quick {
+  background-color: var(--paper);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  padding: 14px 18px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quick-field {
+  border: none;
+  background: none;
+  font-family: var(--font-body);
+  font-size: 20px;
+  color: var(--ink);
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.quick-field:focus { outline: none; }
+.quick-field::placeholder { color: var(--dim); }
+
+/* What the line was understood to mean, in the face reserved for anything
+   the app worked out rather than the user typed. */
+.quick-preview {
+  font-family: var(--font-meta);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+.quick-preview[hidden] { display: none; }

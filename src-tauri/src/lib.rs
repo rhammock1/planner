@@ -6,6 +6,7 @@
 //! `src/core/`, in JavaScript, where it can be tested in half a second
 //! without a Rust toolchain (spec §4.2).
 
+mod quick_add;
 mod tray;
 mod vault_io;
 
@@ -63,6 +64,29 @@ fn read_config() -> ConfigFile {
             .map(|home| home.to_string_lossy().into_owned())
             .unwrap_or_default(),
     }
+}
+
+/// The shortcut that opens quick add, from `config.toml`.
+#[tauri::command]
+fn set_hotkey(app: AppHandle, accelerator: String) -> Result<(), String> {
+    // Said out loud once per launch, because a shortcut that failed to
+    // register looks exactly like one that works until you press it.
+    match quick_add::set_shortcut(&app, &accelerator) {
+        Ok(()) => {
+            eprintln!("planner: {accelerator} opens quick add");
+            Ok(())
+        }
+        Err(error) => {
+            eprintln!("planner: {error}");
+            Err(error)
+        }
+    }
+}
+
+/// Called by the quick-add window when it is finished with, or dismissed.
+#[tauri::command]
+fn close_quick_add(app: AppHandle) {
+    quick_add::hide(&app);
 }
 
 #[tauri::command]
@@ -158,9 +182,12 @@ fn write_page(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(SharedVault::default())
         .invoke_handler(tauri::generate_handler![
             read_config,
+            set_hotkey,
+            close_quick_add,
             read_theme,
             set_vault,
             read_vault,

@@ -22,6 +22,8 @@
  * @typedef {object} Host
  * @property {() => Promise<{text: string, home: string}>} readConfig
  * @property {(path: string) => Promise<{exists: boolean}>} setVault
+ * @property {(accelerator: string) => Promise<void>} setHotkey
+ * @property {() => Promise<void>} closeQuickAdd
  * @property {(name: string) => Promise<{toml: string, css: string}>} readTheme
  * @property {() => Promise<PageFile[]>} readVault
  * @property {(page: string) => Promise<string|null>} readPage
@@ -74,6 +76,25 @@ export async function readTheme(name) {
   return (await getHost()).readTheme(name)
 }
 
+/**
+ * Registers the shortcut that opens quick add, replacing any earlier one.
+ *
+ * @param {string} accelerator  e.g. `Alt+Space`
+ * @returns {Promise<void>}
+ */
+export async function setHotkey(accelerator) {
+  return (await getHost()).setHotkey(accelerator)
+}
+
+/**
+ * Puts the quick-add window away once it has done its job.
+ *
+ * @returns {Promise<void>}
+ */
+export async function closeQuickAdd() {
+  return (await getHost()).closeQuickAdd()
+}
+
 /** @returns {Promise<PageFile[]>} every page in the vault */
 export async function readVault() {
   return (await getHost()).readVault()
@@ -119,6 +140,8 @@ function tauriHost() {
   return {
     readConfig: () => invoke('read_config'),
     setVault: (path) => invoke('set_vault', { path }),
+    setHotkey: (accelerator) => invoke('set_hotkey', { accelerator }),
+    closeQuickAdd: () => invoke('close_quick_add'),
     readTheme: (name) => invoke('read_theme', { name }),
     readVault: () => invoke('read_vault'),
     readPage: (page) => invoke('read_page', { page }),

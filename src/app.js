@@ -45,6 +45,7 @@ async function start() {
   config = await loadConfig()
   await applyTheme(config.theme)
   await openVault()
+  await registerHotkey()
 
   dayPage.mount(root, {
     onNavigate: (page) => {
@@ -190,6 +191,22 @@ async function loadConfig() {
   const result = parseConfig(file.text)
   notices = [...notices, ...result.notices]
   return result.config
+}
+
+/**
+ * Registers the shortcut that opens quick add from anywhere.
+ *
+ * A shortcut the system will not give us is worth saying out loud: the
+ * alternative is a hotkey that silently does nothing.
+ *
+ * @returns {Promise<void>}
+ */
+async function registerHotkey() {
+  try {
+    await ipc.setHotkey(config.hotkey)
+  } catch (error) {
+    notices = [...notices, `Could not register ${config.hotkey}: ${error instanceof Error ? error.message : String(error)}`]
+  }
 }
 
 /**
