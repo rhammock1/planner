@@ -164,3 +164,71 @@ describe('inline tokens', () => {
     assert.equal(it.text, 'Both @25:99')
   })
 })
+
+describe('notes', () => {
+  test('attaches a note to the item above it', () => {
+    const doc = parse([
+      '# 2026-08-31',
+      '- [ ] Review PR #4412 — printer retry',
+      '  > ask about the 30s timeout',
+    ].join('\n'))
+
+    assert.equal(doc.nodes.length, 1)
+    const node = doc.nodes[0]
+    assert.equal(node?.kind === 'item' && node.note, 'ask about the 30s timeout')
+  })
+
+  test('joins consecutive note lines with a newline', () => {
+    const doc = parse([
+      '# 2026-08-31',
+      '- [ ] Firmware sign-off',
+      '  > checklist is in the wiki',
+      '  > ping Marcus for the serials',
+    ].join('\n'))
+
+    const node = doc.nodes[0]
+    assert.equal(node?.kind === 'item' && node.note,
+      'checklist is in the wiki\nping Marcus for the serials')
+  })
+
+  test('an empty note line contributes an empty line', () => {
+    const doc = parse('# 2026-08-31\n- [ ] Thing\n  >\n')
+    const node = doc.nodes[0]
+    assert.equal(node?.kind === 'item' && node.note, '')
+  })
+
+  test('a note line with no item above it is opaque', () => {
+    const doc = parse('# 2026-08-31\n  > orphaned\n')
+    assert.deepEqual(doc.nodes, [{ kind: 'opaque', raw: '  > orphaned' }])
+  })
+
+  test('a note line after an opaque line is opaque', () => {
+    const doc = parse('# 2026-08-31\n| table |\n  > not a note\n')
+    assert.deepEqual(doc.nodes, [
+      { kind: 'opaque', raw: '| table |' },
+      { kind: 'opaque', raw: '  > not a note' },
+    ])
+  })
+
+  test('a blank line ends the note', () => {
+    const doc = parse([
+      '# 2026-08-31',
+      '- [ ] Thing',
+      '  > first',
+      '',
+      '  > second',
+    ].join('\n'))
+
+    const first = doc.nodes[0]
+    assert.equal(first?.kind === 'item' && first.note, 'first')
+    assert.deepEqual(doc.nodes[1], { kind: 'opaque', raw: '' })
+    assert.deepEqual(doc.nodes[2], { kind: 'opaque', raw: '  > second' })
+  })
+
+  test('tokens inside a note are not parsed', () => {
+    const doc = parse('# 2026-08-31\n- [ ] Thing\n  > due !2026-09-02 maybe\n')
+    const node = doc.nodes[0]
+    assert.equal(node?.kind === 'item' && node.note, 'due !2026-09-02 maybe')
+    assert.equal(node?.kind === 'item' && node.due, null)
+  })
+})

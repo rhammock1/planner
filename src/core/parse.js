@@ -17,6 +17,7 @@ import { stateFor, createItem, isValidDate, isValidTime } from './model.js'
 const HEADER_DAY = /^# (\d{4}-\d{2}-\d{2})\s*$/
 const HEADER_SOMEDAY = /^# Someday\s*$/i
 const ITEM = /^- \[([ xX>-])\] ?(.*)$/
+const NOTE = /^ {2,}> ?(.*)$/
 
 // Each token must be preceded by start-of-line or whitespace and followed by
 // whitespace or end-of-line, so `dana@gotab.io` and `5~10` stay prose.
@@ -53,8 +54,22 @@ export function parse(text) {
 
   /** @type {Node[]} */
   const nodes = []
+  // A note only attaches to the item immediately above it, and only while no
+  // other line has intervened — so a blank line ends the note.
+  /** @type {Item|null} */
+  let openItem = null
+
   for (const line of lines.slice(start)) {
-    nodes.push(parseLine(line))
+    const noteMatch = line.match(NOTE)
+    if (noteMatch && openItem !== null) {
+      const body = noteMatch[1] ?? ''
+      openItem.note = openItem.note === null ? body : `${openItem.note}\n${body}`
+      continue
+    }
+
+    const node = parseLine(line)
+    nodes.push(node)
+    openItem = node.kind === 'item' ? node : null
   }
 
   return { kind, date, nodes, dailyNote: '' }
