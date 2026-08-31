@@ -1,3 +1,4 @@
 docs/superpowers/
 .superpowers/
 node_modules/
+.playwright-mcp/

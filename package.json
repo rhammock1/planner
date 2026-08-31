@@ -5,8 +5,9 @@
   "type": "module",
   "description": "A macOS menu bar daily planner",
   "scripts": {
-    "test": "node --test",
-    "typecheck": "tsc --noEmit"
+    "test": "node --test test/*.test.js",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "serve": "node tools/serve.js"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
