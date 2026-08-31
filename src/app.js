@@ -10,6 +10,9 @@
  */
 
 import { parse } from './core/parse.js'
+import { serialize } from './core/serialize.js'
+import { createDayDocument, createItem } from './core/model.js'
+import { setItemState, appendItem } from './core/edit.js'
 import { buildIndex, getPage, withPage } from './core/vaultIndex.js'
 import { horizon } from './core/horizon.js'
 import { readConfig as parseConfig, DEFAULTS } from './core/config.js'
@@ -40,6 +43,8 @@ async function start() {
       showing = page
       draw()
     },
+    onToggle: (index) => { void toggle(index) },
+    onAdd: (line) => add(line),
   })
 
   const files = await ipc.readVault()
@@ -63,6 +68,62 @@ function draw() {
     horizon: horizon(vault, today(), config.horizonLeadDays),
     notices,
   })
+}
+
+/**
+ * Open becomes done and done becomes open. Migrated and dropped lines are
+ * historical record; clicking one brings it back as done rather than pretending
+ * it was never settled.
+ *
+ * @param {number} index position in the page's doc.nodes
+ * @returns {Promise<void>}
+ */
+async function toggle(index) {
+  const doc = getPage(vault, showing)
+  if (doc === null) return
+  const node = doc.nodes[index]
+  if (node === undefined || node.kind !== 'item') return
+
+  await commit(showing, setItemState(doc, index, node.state === 'done' ? 'open' : 'done'))
+}
+
+/**
+ * The line is stored as typed. Any `@time` or `!due` in it is extracted when
+ * the file is read back, which is the same path a line typed in nvim takes -
+ * so there is one parser, used once, and no second implementation here.
+ *
+ * Natural-language dates belong to quick add, where a preview makes the
+ * reading visible before it is committed (spec §5.2). A line typed here means
+ * what it says.
+ *
+ * @param {string} line
+ * @returns {Promise<boolean>} false when nothing was written
+ */
+async function add(line) {
+  const text = line.trim()
+  if (text === '') return false
+  const doc = getPage(vault, showing) ?? createDayDocument(showing)
+  return commit(showing, appendItem(doc, createItem(text)))
+}
+
+/**
+ * The one place a document leaves the app. Nothing else writes.
+ *
+ * @param {string} page
+ * @param {import('./core/model.js').Document} doc
+ * @returns {Promise<boolean>}
+ */
+async function commit(page, doc) {
+  try {
+    await ipc.writePage(page, serialize(doc))
+    return true
+  } catch (error) {
+    // The atomic write means the file on disk is untouched. Say so, and leave
+    // what the user typed where it is (spec §8).
+    notices = [...notices, `Could not save ${page}: ${error instanceof Error ? error.message : String(error)}`]
+    draw()
+    return false
+  }
 }
 
 /** @returns {Promise<import('./core/config.js').Config>} */

@@ -27,6 +27,8 @@ import { el, setText, setClass } from '../ui/dom.js'
 /**
  * @typedef {object} DayHandlers
  * @property {(page: string) => void} onNavigate
+ * @property {(index: number) => void} onToggle  index in the page's doc.nodes
+ * @property {(line: string) => Promise<boolean>} onAdd  false if it was not saved
  */
 
 /** @typedef {{kind: string, index: number, node: Node}} Row */
@@ -88,7 +90,15 @@ export function mount(root, handlers) {
   horizon.append(el('span', 'horizon-label', 'Ahead'), mask)
 
   const items = el('ul', 'items')
-  const add = el('div', 'add', 'Write something down')
+
+  const field = el('input')
+  if (!(field instanceof HTMLInputElement)) throw new Error('input element expected')
+  field.className = 'add-field'
+  field.placeholder = 'Write something down'
+  field.setAttribute('aria-label', 'Add an item')
+  const add = el('div', 'add')
+  add.append(field)
+
   const note = el('div', 'note')
 
   const count = el('span', 'count')
@@ -105,6 +115,30 @@ export function mount(root, handlers) {
   previous.addEventListener('click', () => handlers.onNavigate(step(-1)))
   next.addEventListener('click', () => handlers.onNavigate(step(1)))
   today.addEventListener('click', () => handlers.onNavigate(currentState?.today ?? ''))
+
+  // Delegated, so a row that is patched in later needs no wiring of its own.
+  items.addEventListener('click', (event) => {
+    const target = event.target
+    if (!(target instanceof HTMLElement) || !target.classList.contains('item-check')) return
+    const row = target.closest('.item')
+    const index = row instanceof HTMLElement ? Number(row.dataset['key']?.split(':')[1]) : Number.NaN
+    if (Number.isInteger(index)) handlers.onToggle(index)
+  })
+
+  field.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      field.value = ''
+      field.blur()
+      return
+    }
+    if (event.key !== 'Enter' || field.value.trim() === '') return
+    const line = field.value
+    // The field is cleared only once the write has come back. A failed save
+    // leaves what was typed where it is (spec §8).
+    handlers.onAdd(line).then((saved) => {
+      if (saved && field.value === line) field.value = ''
+    })
+  })
 
   mounted = {
     root,
