@@ -21,6 +21,7 @@ import { el, setText, setClass } from '../ui/dom.js'
  * @property {string} page  the day being shown
  * @property {Document|null} doc  null when the day has no file yet
  * @property {HorizonEntry[]} horizon
+ * @property {import('../core/carry.js').CarryGroup[]} carry  empty unless today
  * @property {string[]} notices
  */
 
@@ -29,6 +30,7 @@ import { el, setText, setClass } from '../ui/dom.js'
  * @property {(page: string) => void} onNavigate
  * @property {(index: number) => void} onToggle  index in the page's doc.nodes
  * @property {(line: string) => Promise<boolean>} onAdd  false if it was not saved
+ * @property {(decisions: import('../core/carry.js').CarryDecision[]) => void} onCarry
  */
 
 /** @typedef {{kind: string, index: number, node: Node}} Row */
@@ -36,6 +38,9 @@ import { el, setText, setClass } from '../ui/dom.js'
 const WEEKDAY = new Intl.DateTimeFormat('en-GB', { weekday: 'long', timeZone: 'UTC' })
 const FULL_DATE = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+})
+const SHORT_DATE = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric', month: 'short', timeZone: 'UTC',
 })
 
 /** @type {{root: HTMLElement, parts: Parts}|null} */
@@ -47,6 +52,10 @@ let mounted = null
  * @property {HTMLElement} date
  * @property {HTMLElement} today
  * @property {HTMLElement} notices
+ * @property {HTMLElement} carry
+ * @property {HTMLElement} carryLabel
+ * @property {HTMLElement} carryItems
+ * @property {HTMLElement} review
  * @property {HTMLElement} horizon
  * @property {HTMLElement} horizonTrack
  * @property {HTMLElement} items
@@ -83,6 +92,16 @@ export function mount(root, handlers) {
 
   const notices = el('ul', 'notices')
 
+  const carryLabel = el('span', 'carry-label')
+  const keepAll = el('button', 'carry-action', 'Keep all')
+  const review = el('button', 'carry-action', 'Review')
+  const carryHead = el('div', 'carry-head')
+  carryHead.append(carryLabel, keepAll, review)
+  const carryItems = el('ul', 'carry-items')
+  carryItems.hidden = true
+  const carry = el('div', 'carry')
+  carry.append(carryHead, carryItems)
+
   const horizonTrack = el('div', 'horizon-track')
   const mask = el('div', 'horizon-mask')
   mask.append(horizonTrack)
@@ -109,7 +128,7 @@ export function mount(root, handlers) {
   const foot = el('div', 'page-foot')
   foot.append(tabs, count)
 
-  page.append(head, notices, horizon, items, add, note, foot)
+  page.append(head, notices, carry, horizon, items, add, note, foot)
   root.replaceChildren(page)
 
   previous.addEventListener('click', () => handlers.onNavigate(step(-1)))
@@ -123,6 +142,27 @@ export function mount(root, handlers) {
     const row = target.closest('.item')
     const index = row instanceof HTMLElement ? Number(row.dataset['key']?.split(':')[1]) : Number.NaN
     if (Number.isInteger(index)) handlers.onToggle(index)
+  })
+
+  keepAll.addEventListener('click', () => {
+    handlers.onCarry(decisionsFor(currentState?.carry ?? [], 'keep'))
+  })
+
+  review.addEventListener('click', () => {
+    carryItems.hidden = !carryItems.hidden
+    setText(review, carryItems.hidden ? 'Review' : 'Hide')
+  })
+
+  carryItems.addEventListener('click', (event) => {
+    const target = event.target
+    if (!(target instanceof HTMLElement)) return
+    const action = target.dataset['action']
+    const row = target.closest('li')
+    const ref = row instanceof HTMLElement ? row.dataset['ref'] : undefined
+    if (ref === undefined || (action !== 'keep' && action !== 'drop')) return
+    const [page, index] = ref.split('@')
+    if (page === undefined || index === undefined) return
+    handlers.onCarry([{ page, index: Number(index), action }])
   })
 
   field.addEventListener('keydown', (event) => {
@@ -142,7 +182,10 @@ export function mount(root, handlers) {
 
   mounted = {
     root,
-    parts: { weekday, date, today, notices, horizon, horizonTrack, items, note, count },
+    parts: {
+      weekday, date, today, notices, carry, carryLabel, carryItems, review,
+      horizon, horizonTrack, items, note, count,
+    },
   }
 }
 
@@ -175,6 +218,7 @@ export function render(state) {
   setClass(parts.today, 'now', state.page === state.today)
 
   renderNotices(parts.notices, state.notices)
+  renderCarry(parts, state.carry)
   renderHorizon(parts.horizon, parts.horizonTrack, state.horizon)
   renderItems(parts.items, state.doc)
   renderNote(parts.note, state.doc)
@@ -196,6 +240,77 @@ function renderNotices(list, notices) {
     create: (notice) => el('li', undefined, notice),
     update: (element, notice) => setText(element, notice),
   })
+}
+
+/**
+ * The band that says what did not get done (spec §5.4). It is the only place
+ * the app nags, and it stops as soon as every line is answered - keeping or
+ * dropping settles an item, and a settled item is not open any more.
+ *
+ * @param {Parts} parts
+ * @param {import('../core/carry.js').CarryGroup[]} groups
+ * @returns {void}
+ */
+function renderCarry(parts, groups) {
+  parts.carry.hidden = groups.length === 0
+  if (groups.length === 0) {
+    parts.carryItems.hidden = true
+    setText(parts.review, 'Review')
+    return
+  }
+
+  const total = groups.reduce((sum, group) => sum + group.items.length, 0)
+  const from = groups.length === 1 && groups[0] !== undefined
+    ? dayName(groups[0].from)
+    : `${groups.length} earlier days`
+  setText(parts.carryLabel, `${total} unfinished from ${from}`)
+
+  /** @type {{page: string, index: number, text: string}[]} */
+  const rows = groups.flatMap((group) => group.items.map((entry) => ({
+    page: entry.page, index: entry.index, text: entry.item.text,
+  })))
+
+  patchList(parts.carryItems, rows, {
+    keyOf: (row) => `${row.page}@${row.index}`,
+    create: () => {
+      const row = el('li')
+      const keep = el('button', 'carry-action', 'Keep')
+      keep.dataset['action'] = 'keep'
+      const drop = el('button', 'carry-action', 'Drop')
+      drop.dataset['action'] = 'drop'
+      row.append(el('span', 'carry-text'), keep, drop)
+      return row
+    },
+    update: (element, row) => {
+      element.dataset['ref'] = `${row.page}@${row.index}`
+      const text = element.firstElementChild
+      if (text instanceof HTMLElement) setText(text, row.text)
+    },
+  })
+}
+
+/**
+ * A weekday for the last few days, a date beyond that - the way a person
+ * refers to a day they can still picture, versus one they cannot.
+ *
+ * @param {string} date `YYYY-MM-DD`
+ * @returns {string}
+ */
+function dayName(date) {
+  const when = new Date(`${date}T00:00:00Z`)
+  const days = Math.round((Date.now() - when.getTime()) / 86400000)
+  return days <= 6 ? WEEKDAY.format(when) : SHORT_DATE.format(when)
+}
+
+/**
+ * @param {import('../core/carry.js').CarryGroup[]} groups
+ * @param {'keep'|'drop'} action
+ * @returns {import('../core/carry.js').CarryDecision[]}
+ */
+function decisionsFor(groups, action) {
+  return groups.flatMap((group) => group.items.map(
+    (entry) => ({ page: entry.page, index: entry.index, action }),
+  ))
 }
 
 /**

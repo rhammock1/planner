@@ -15,6 +15,7 @@ import { createDayDocument, createItem } from './core/model.js'
 import { setItemState, appendItem } from './core/edit.js'
 import { buildIndex, getPage, withPage } from './core/vaultIndex.js'
 import { horizon } from './core/horizon.js'
+import { unfinished, carryForward } from './core/carry.js'
 import { readConfig as parseConfig, DEFAULTS } from './core/config.js'
 import { readTheme as parseTheme, themeCss, LEDGER } from './core/theme.js'
 import { today } from './clock.js'
@@ -45,6 +46,7 @@ async function start() {
     },
     onToggle: (index) => { void toggle(index) },
     onAdd: (line) => add(line),
+    onCarry: (decisions) => { void carry(decisions) },
   })
 
   const files = await ipc.readVault()
@@ -61,11 +63,15 @@ async function start() {
 }
 
 function draw() {
+  const now = today()
   dayPage.render({
-    today: today(),
+    today: now,
     page: showing,
     doc: getPage(vault, showing),
-    horizon: horizon(vault, today(), config.horizonLeadDays),
+    horizon: horizon(vault, now, config.horizonLeadDays),
+    // Carry-forward is about arriving at today. Looking back at last Tuesday
+    // is reading, not triage, so the band stays out of the way there.
+    carry: showing === now ? unfinished(vault, now, config.carryForwardScanDays) : [],
     notices,
   })
 }
@@ -104,6 +110,23 @@ async function add(line) {
   if (text === '') return false
   const doc = getPage(vault, showing) ?? createDayDocument(showing)
   return commit(showing, appendItem(doc, createItem(text)))
+}
+
+/**
+ * Keeps or drops unfinished items from earlier days.
+ *
+ * The writes are applied in the order carryForward returns them - today
+ * first - so a failure part way through can only leave an item on two pages,
+ * never on none (spec §8).
+ *
+ * @param {import('./core/carry.js').CarryDecision[]} decisions
+ * @returns {Promise<void>}
+ */
+async function carry(decisions) {
+  if (decisions.length === 0) return
+  for (const write of carryForward(vault, today(), decisions)) {
+    if (!await commit(write.page, write.doc)) return
+  }
 }
 
 /**

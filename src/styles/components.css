@@ -334,3 +334,59 @@
   color: var(--alert);
   border-bottom: 1px solid var(--edge-soft);
 }
+
+/* ── carry-forward band ─────────────────────────────────── */
+
+.carry {
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--edge-soft);
+}
+
+.carry[hidden] { display: none; }
+
+.carry-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.carry-label {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--ink);
+}
+
+.carry-action {
+  font-family: var(--font-meta);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.carry-action:hover { text-decoration: underline; }
+
+.carry-items {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.carry-items[hidden] { display: none; }
+
+.carry-items li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 3px 0;
+}
+
+.carry-text {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--dim);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
