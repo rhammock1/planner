@@ -87,4 +87,9 @@ describe('constructors', () => {
     assert.equal(doc.date, null)
     assert.deepEqual(doc.nodes, [{ kind: 'opaque', raw: '' }])
   })
+
+  test('a new document has no frontmatter', () => {
+    assert.equal(createDayDocument('2026-08-31').frontmatter, null)
+    assert.equal(createSomedayDocument().frontmatter, null)
+  })
 })

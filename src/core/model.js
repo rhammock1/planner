@@ -41,6 +41,8 @@
  * @typedef {object} Document
  * @property {'day'|'someday'} kind
  * @property {string|null} date  `YYYY-MM-DD` for a day file, null for the back page
+ * @property {string[]|null} frontmatter  raw lines between a leading pair of `---`
+ *   delimiters, exclusive of them; null when the file has no such block
  * @property {Node[]} nodes
  * @property {string} dailyNote  free text after the final `---`; '' if absent
  */
@@ -134,10 +136,10 @@ export function createItem(text, overrides = {}) {
  * @returns {Document}
  */
 export function createDayDocument(date) {
-  return { kind: 'day', date, nodes: [{ kind: 'opaque', raw: '' }], dailyNote: '' }
+  return { kind: 'day', date, frontmatter: null, nodes: [{ kind: 'opaque', raw: '' }], dailyNote: '' }
 }
 
 /** @returns {Document} */
 export function createSomedayDocument() {
-  return { kind: 'someday', date: null, nodes: [{ kind: 'opaque', raw: '' }], dailyNote: '' }
+  return { kind: 'someday', date: null, frontmatter: null, nodes: [{ kind: 'opaque', raw: '' }], dailyNote: '' }
 }

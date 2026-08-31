@@ -280,3 +280,45 @@ describe('daily note', () => {
     assert.equal(doc.nodes.length, 2)
   })
 })
+
+describe('frontmatter', () => {
+  test('a leading block is captured and the rest parses normally', () => {
+    const doc = parse('---\ntags: work\n---\n# 2026-08-31\n\n- [ ] thing @10:30\n')
+    assert.deepEqual(doc.frontmatter, ['tags: work'])
+    assert.equal(doc.kind, 'day')
+    assert.equal(doc.date, '2026-08-31')
+    assert.equal(doc.nodes.filter((n) => n.kind === 'item').length, 1)
+    assert.equal(doc.dailyNote, '')
+  })
+
+  test('the closing delimiter does not become the daily-note rule', () => {
+    const doc = parse('---\ntags: work\n---\n# 2026-08-31\n- [ ] x\n')
+    assert.equal(doc.dailyNote, '')
+    assert.equal(doc.nodes.filter((n) => n.kind === 'item').length, 1)
+  })
+
+  test('an empty block is an empty array, not null', () => {
+    const doc = parse('---\n---\n# Someday\n')
+    assert.deepEqual(doc.frontmatter, [])
+    assert.equal(doc.kind, 'someday')
+  })
+
+  test('a file with no block has null', () => {
+    assert.equal(parse('# 2026-08-31\n- [ ] thing\n').frontmatter, null)
+  })
+
+  test('an unclosed leading rule is not frontmatter', () => {
+    // Preserves the Task 5 behaviour: this is a file that is nothing but a
+    // daily note, and the leading --- is an ordinary rule.
+    const doc = parse('---\n\nJust a note.\n')
+    assert.equal(doc.frontmatter, null)
+    assert.equal(doc.dailyNote, 'Just a note.')
+  })
+
+  test('frontmatter and a daily note coexist', () => {
+    const doc = parse('---\ntags: work\n---\n# 2026-08-31\n- [ ] x\n\n---\n\nLong day.\n')
+    assert.deepEqual(doc.frontmatter, ['tags: work'])
+    assert.equal(doc.nodes.filter((n) => n.kind === 'item').length, 1)
+    assert.equal(doc.dailyNote, 'Long day.')
+  })
+})

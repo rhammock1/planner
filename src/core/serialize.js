@@ -21,6 +21,10 @@ export function serialize(doc) {
   /** @type {string[]} */
   const lines = []
 
+  if (doc.frontmatter !== null) {
+    lines.push('---', ...doc.frontmatter, '---')
+  }
+
   lines.push(doc.kind === 'day' ? `# ${doc.date}` : '# Someday')
 
   for (const node of doc.nodes) {

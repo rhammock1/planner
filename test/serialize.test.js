@@ -99,3 +99,21 @@ describe('opaque nodes and the daily note', () => {
     assert.equal(out.endsWith('\n\n'), false)
   })
 })
+
+describe('frontmatter', () => {
+  test('is written above the header', () => {
+    const doc = createDayDocument('2026-08-31')
+    doc.frontmatter = ['tags: work']
+    assert.equal(serialize(doc), '---\ntags: work\n---\n# 2026-08-31\n\n')
+  })
+
+  test('an empty block writes bare delimiters', () => {
+    const doc = createDayDocument('2026-08-31')
+    doc.frontmatter = []
+    assert.equal(serialize(doc), '---\n---\n# 2026-08-31\n\n')
+  })
+
+  test('null writes nothing at all', () => {
+    assert.equal(serialize(createDayDocument('2026-08-31')), '# 2026-08-31\n\n')
+  })
+})

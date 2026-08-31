@@ -32,7 +32,7 @@ const MOVED = /(?:^|\s)>(\d{4}-\d{2}-\d{2})(?=\s|$)/
  * @returns {Document}
  */
 export function parse(text) {
-  const lines = splitLines(text)
+  const { frontmatter, rest: lines } = takeFrontmatter(splitLines(text))
 
   // The daily note is everything after the LAST column-0 rule. Choosing the
   // last one keeps the rule deterministic when a file contains more than one.
@@ -85,7 +85,7 @@ export function parse(text) {
     openItem = node.kind === 'item' ? node : null
   }
 
-  return { kind, date, nodes, dailyNote }
+  return { kind, date, frontmatter, nodes, dailyNote }
 }
 
 /**
@@ -195,4 +195,27 @@ function trimBlankEdges(lines) {
   while (first < last && (lines[first] ?? '').trim() === '') first += 1
   while (last > first && (lines[last - 1] ?? '').trim() === '') last -= 1
   return lines.slice(first, last)
+}
+
+/**
+ * Splits a leading `---`-delimited block off the front of the file.
+ *
+ * This runs before anything else so the backward rule scan never sees the
+ * block's closing delimiter. Without it, frontmatter's own `---` becomes the
+ * last rule in the file, and the entire document is read as one daily note.
+ *
+ * An opening delimiter with no closing one is NOT frontmatter — that is an
+ * ordinary rule, and the file is read the normal way.
+ *
+ * @param {string[]} lines
+ * @returns {{frontmatter: string[]|null, rest: string[]}}
+ */
+function takeFrontmatter(lines) {
+  if (!RULE.test(lines[0] ?? '')) return { frontmatter: null, rest: lines }
+  for (let i = 1; i < lines.length; i += 1) {
+    if (RULE.test(lines[i] ?? '')) {
+      return { frontmatter: lines.slice(1, i), rest: lines.slice(i + 1) }
+    }
+  }
+  return { frontmatter: null, rest: lines }
 }
