@@ -11,6 +11,7 @@
  */
 
 import { createDayDocument, createItem } from './model.js'
+import { appendItem } from './edit.js'
 import { addDays } from './dates.js'
 import { getPage } from './vaultIndex.js'
 
@@ -139,8 +140,8 @@ export function carryForward(index, today, decisions) {
   /** @type {PageWrite[]} */
   const writes = []
   if (kept.length > 0) {
-    const doc = getPage(index, today) ?? createDayDocument(today)
-    writes.push({ page: today, doc: { ...doc, nodes: [...doc.nodes, ...kept] } })
+    const base = getPage(index, today) ?? createDayDocument(today)
+    writes.push({ page: today, doc: kept.reduce(appendItem, base) })
   }
   for (const [page, nodes] of rewritten) {
     writes.push({ page, doc: { ...pageDoc(index, page), nodes } })
