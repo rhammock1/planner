@@ -1,0 +1,19 @@
+# Ledger - the default theme. Paper, a green ink accent, and a red pencil for
+# anything overdue.
+
+name       = "Ledger"
+author     = "Robert Hammock"
+appearance = "light"
+
+[tokens]
+paper       = "#FBFAF6"
+edge        = "#D9D6CC"
+ink         = "#23262A"
+dim         = "#8B8981"
+accent      = "#17605B"
+alert       = "#A8452C"
+font-head   = "Newsreader, Georgia, serif"
+font-body   = "Public Sans, system-ui, sans-serif"
+font-meta   = "IBM Plex Mono, monospace"
+radius      = "10px"
+texture     = "radial-gradient(#E2DFD4 1px, transparent 1px)"
