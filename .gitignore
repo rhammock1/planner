@@ -2,3 +2,5 @@ docs/superpowers/
 .superpowers/
 node_modules/
 .playwright-mcp/
+src-tauri/target/
+.DS_Store
