@@ -34,6 +34,9 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Fixed
 
+-   Ticking a checkbox now shows immediately - a click focuses the box, and the rule protecting text being typed was holding off the row's repaint
+-   Two quick changes no longer discard one another - each one read the page as it was before the other was written
+-   Space toggles the item under the keyboard focus
 -   A daily-note rule with nothing after it is no longer deleted on save - a file ending in `---` lost one rule per save until none were left
 -   Files with CRLF line endings now parse their items instead of reading as an empty day
 -   A leading blank line or byte-order mark no longer demotes a day file to the back page
