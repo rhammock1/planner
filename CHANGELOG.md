@@ -22,6 +22,7 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 -   Carry-forward - unfinished items from past days are kept or dropped, and today is written first so a failed write can only duplicate an item, never lose one
 -   Natural-language entry - `tomorrow`, weekday names, `in 3 days`, `9/2`, `sep 2`, `8:40`, `4pm`, `at 4`, and `by friday` or `due sep 2` for deadlines
 -   UTC calendar arithmetic, so no date shifts under a daylight saving transition
+-   Quick add - a global shortcut (`Alt+Space` by default) opens one field anywhere on the system, with a live preview of how the line was read before it is committed
 -   The macOS shell - a menu bar item, a popover that opens under it, atomic writes, and a file watcher so an edit made in an editor shows up in the app
 -   `PLANNER_HOME` to relocate config and installed themes, for running against a throwaway setup
 -   The day page - date header with day-to-day navigation, horizon strip, item list, add row, daily note and footer count
@@ -36,6 +37,7 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Fixed
 
+-   The vault is watched and the shortcut registered from launch, rather than from the first time the popover was opened
 -   A vault reached through a symlink is now watched - the watcher reports canonical paths, so `/tmp/vault` never matched `/private/tmp/vault` and edits made elsewhere went unnoticed
 -   Ticking a checkbox now shows immediately - a click focuses the box, and the rule protecting text being typed was holding off the row's repaint
 -   Two quick changes no longer discard one another - each one read the page as it was before the other was written

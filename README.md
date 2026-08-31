@@ -6,9 +6,9 @@ notebook. Flip to other days. See what is coming. Close it.
 
 It is not a task manager, and it is trying hard not to become one.
 
-*Early days — the vault format, the domain logic, the day page and the menu
-bar shell are built. Quick add, the detached window, plugins and notifications
-are not.*
+*Early days — the vault format, the domain logic, the day page, the menu bar
+shell and quick add are built. The detached window, plugins, notifications and
+search are not.*
 
 ## Goals
 
@@ -99,7 +99,8 @@ npm run app       # cargo run, from src-tauri/
 ```
 
 It puts an item in the menu bar and nothing else — no dock icon, no window
-until you click it. Settings and installed themes live in `~/.planner`, and
+until you click it. `⌥Space` opens the quick-add field from anywhere; the
+shortcut is `hotkey` in `config.toml`. Settings and installed themes live in `~/.planner`, and
 the vault at whatever `config.toml` says, defaulting to `~/Planner`. Set
 `PLANNER_HOME` to point the first of those somewhere else, which is how the
 app gets run against a throwaway config:
