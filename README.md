@@ -1,0 +1,1 @@
+Planner macOS StatusBar App
