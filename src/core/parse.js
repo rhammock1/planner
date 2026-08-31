@@ -8,7 +8,7 @@
  * file can contain whatever the user likes without risk.
  */
 
-import { stateFor, createItem, isValidDate } from './model.js'
+import { stateFor, createItem, isValidDate, isValidTime } from './model.js'
 
 /** @typedef {import('./model.js').Document} Document */
 /** @typedef {import('./model.js').Node} Node */
@@ -17,6 +17,13 @@ import { stateFor, createItem, isValidDate } from './model.js'
 const HEADER_DAY = /^# (\d{4}-\d{2}-\d{2})\s*$/
 const HEADER_SOMEDAY = /^# Someday\s*$/i
 const ITEM = /^- \[([ xX>-])\] ?(.*)$/
+
+// Each token must be preceded by start-of-line or whitespace and followed by
+// whitespace or end-of-line, so `dana@gotab.io` and `5~10` stay prose.
+const TIME = /(?:^|\s)@(\d{1,2}):(\d{2})(?=\s|$)/
+const DUE = /(?:^|\s)!(\d{4}-\d{2}-\d{2})(?=\s|$)/
+const LEAD = /(?:^|\s)~(\d+)d(?=\s|$)/
+const MOVED = /(?:^|\s)>(\d{4}-\d{2}-\d{2})(?=\s|$)/
 
 /**
  * @param {string} text
@@ -76,8 +83,72 @@ function parseLine(line) {
   if (match) {
     const state = stateFor(match[1] ?? '')
     if (state !== null) {
-      return createItem((match[2] ?? '').trimEnd(), { state })
+      const { text, ...tokens } = extractTokens(match[2] ?? '')
+      return createItem(text, { state, ...tokens })
     }
   }
   return { kind: 'opaque', raw: line }
+}
+
+/**
+ * Pulls inline tokens out of an item's raw text.
+ *
+ * A token that fails validation is deliberately left in the text: a typo the
+ * user can see and fix beats metadata silently invented from it.
+ *
+ * @param {string} raw
+ * @returns {{text: string, time: string|null, due: string|null, lead: number|null, movedTo: string|null}}
+ */
+function extractTokens(raw) {
+  let text = raw
+  /** @type {string|null} */ let time = null
+  /** @type {string|null} */ let due = null
+  /** @type {number|null} */ let lead = null
+  /** @type {string|null} */ let movedTo = null
+
+  /**
+   * Scans every occurrence and keeps the last one that validates. `accept`
+   * validates before assigning, so a rejected match leaves the previous
+   * winner in place.
+   *
+   * @param {RegExp} pattern
+   * @param {(match: RegExpMatchArray) => boolean} accept returns false to leave the match in place
+   */
+  const take = (pattern, accept) => {
+    const scan = new RegExp(pattern.source, 'g')
+    /** @type {RegExpMatchArray|null} */
+    let chosen = null
+    for (const match of text.matchAll(scan)) {
+      if (accept(match)) chosen = match
+    }
+    if (chosen === null || chosen.index === undefined) return
+    text = `${text.slice(0, chosen.index)} ${text.slice(chosen.index + chosen[0].length)}`
+  }
+
+  take(TIME, (m) => {
+    const hours = Number(m[1])
+    const minutes = Number(m[2])
+    if (!isValidTime(hours, minutes)) return false
+    time = `${String(hours).padStart(2, '0')}:${m[2]}`
+    return true
+  })
+
+  take(DUE, (m) => {
+    if (m[1] === undefined || !isValidDate(m[1])) return false
+    due = m[1]
+    return true
+  })
+
+  take(LEAD, (m) => {
+    lead = Number(m[1])
+    return true
+  })
+
+  take(MOVED, (m) => {
+    if (m[1] === undefined || !isValidDate(m[1])) return false
+    movedTo = m[1]
+    return true
+  })
+
+  return { text: text.replace(/\s+/g, ' ').trim(), time, due, lead, movedTo }
 }
