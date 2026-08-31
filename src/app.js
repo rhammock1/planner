@@ -16,7 +16,7 @@ import { setItemState, setItemText, appendItem } from './core/edit.js'
 import { buildIndex, getPage, withPage } from './core/vaultIndex.js'
 import { horizon } from './core/horizon.js'
 import { unfinished, carryForward } from './core/carry.js'
-import { readConfig as parseConfig, DEFAULTS } from './core/config.js'
+import { readConfig as parseConfig, DEFAULTS, expandHome } from './core/config.js'
 import { readTheme as parseTheme, themeCss, LEDGER } from './core/theme.js'
 import { today } from './clock.js'
 import { createWriteQueue } from './writeQueue.js'
@@ -44,6 +44,7 @@ async function start() {
 
   config = await loadConfig()
   await applyTheme(config.theme)
+  await openVault()
 
   dayPage.mount(root, {
     onNavigate: (page) => {
@@ -179,11 +180,32 @@ async function change(page, mutate) {
   }
 }
 
+/** @type {string} */
+let home = ''
+
 /** @returns {Promise<import('./core/config.js').Config>} */
 async function loadConfig() {
-  const result = parseConfig(await ipc.readConfig())
+  const file = await ipc.readConfig()
+  home = file.home
+  const result = parseConfig(file.text)
   notices = [...notices, ...result.notices]
   return result.config
+}
+
+/**
+ * Points the shell at the vault and starts the watcher on it.
+ *
+ * A vault that is not there is reported rather than created: the app does not
+ * put a folder somewhere the user did not ask for (spec §8).
+ *
+ * @returns {Promise<void>}
+ */
+async function openVault() {
+  const path = expandHome(config.vault, home)
+  const { exists } = await ipc.setVault(path)
+  if (!exists) {
+    notices = [...notices, `No vault at ${path}. Create the folder, or set another path in config.toml.`]
+  }
 }
 
 /**

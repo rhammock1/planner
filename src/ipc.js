@@ -20,7 +20,8 @@
  * What the Rust side must provide. The command names are the contract.
  *
  * @typedef {object} Host
- * @property {() => Promise<string>} readConfig
+ * @property {() => Promise<{text: string, home: string}>} readConfig
+ * @property {(path: string) => Promise<{exists: boolean}>} setVault
  * @property {(name: string) => Promise<{toml: string, css: string}>} readTheme
  * @property {() => Promise<PageFile[]>} readVault
  * @property {(page: string) => Promise<string|null>} readPage
@@ -42,12 +43,27 @@ function getHost() {
 
 /** @returns {boolean} */
 export function hasTauriHost() {
-  return '__TAURI_INTERNALS__' in window
+  return '__TAURI__' in window
 }
 
-/** @returns {Promise<string>} the contents of ~/.planner/config.toml */
+/**
+ * @returns {Promise<{text: string, home: string}>} the contents of
+ *   ~/.planner/config.toml, and the home directory to resolve `~` against
+ */
 export async function readConfig() {
   return (await getHost()).readConfig()
+}
+
+/**
+ * Tells the shell where the vault is, and starts the watcher on it. Rust does
+ * not read the config: there is one TOML reader in this project and it is the
+ * one the settings pane uses.
+ *
+ * @param {string} path  absolute, with any `~` already resolved
+ * @returns {Promise<{exists: boolean}>}
+ */
+export async function setVault(path) {
+  return (await getHost()).setVault(path)
 }
 
 /**
@@ -94,23 +110,21 @@ export async function onVaultChanged(handler) {
  * @returns {Host}
  */
 function tauriHost() {
+  /** @type {any} */
+  const tauri = (/** @type {any} */ (window)).__TAURI__
+
   /** @param {string} command @param {Record<string, unknown>} [args] */
-  const invoke = (command, args) => {
-    /** @type {any} */
-    const internals = (/** @type {any} */ (window)).__TAURI_INTERNALS__
-    return internals.invoke(command, args ?? {})
-  }
+  const invoke = (command, args) => tauri.core.invoke(command, args ?? {})
 
   return {
     readConfig: () => invoke('read_config'),
+    setVault: (path) => invoke('set_vault', { path }),
     readTheme: (name) => invoke('read_theme', { name }),
     readVault: () => invoke('read_vault'),
     readPage: (page) => invoke('read_page', { page }),
     writePage: (page, text) => invoke('write_page', { page, text }),
     onVaultChanged: (handler) => {
-      /** @type {any} */
-      const internals = (/** @type {any} */ (window)).__TAURI_INTERNALS__
-      internals.event.listen('vault:changed', (/** @type {any} */ event) => {
+      tauri.event.listen('vault:changed', (/** @type {any} */ event) => {
         handler(String(event.payload?.page ?? ''))
       })
     },

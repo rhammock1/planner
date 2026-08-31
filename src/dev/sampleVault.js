@@ -31,8 +31,11 @@ export function sampleHost() {
     // without editing a config file.
     readConfig: async () => {
       const chosen = new URLSearchParams(location.search).get('theme') ?? 'ledger'
-      return `vault = "~/Planner"\ntheme = "${chosen}"\n`
+      return { text: `vault = "~/Planner"\ntheme = "${chosen}"\n`, home: '/home/sample' }
     },
+
+    // Nothing to open: the pages below are the vault.
+    setVault: async () => ({ exists: true }),
     // The bundled themes, served as files - so the browser exercises the real
     // theme path, not a shortcut past it. A theme that is not there falls back
     // to the built-in Ledger tokens.
