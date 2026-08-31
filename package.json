@@ -1,0 +1,15 @@
+{
+  "name": "planner",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A macOS menu bar daily planner",
+  "scripts": {
+    "test": "node --test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}
