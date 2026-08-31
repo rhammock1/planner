@@ -1,0 +1,336 @@
+/*
+ * The day page: header, horizon strip, item list, add row, daily note, footer.
+ *
+ * Structure only. Anything a theme might reasonably want to move - padding,
+ * line height, the shape of a checkbox - is either a token or something the
+ * theme's own theme.css overrides.
+ */
+
+.page {
+  width: 380px;
+  max-width: 100%;
+  background-color: var(--paper);
+  background-image: var(--texture);
+  background-size: 14px 14px;
+  background-position: 8px 8px;
+  color: var(--ink);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── header ─────────────────────────────────────────────── */
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 14px 16px 11px;
+  border-bottom: 1px solid var(--edge-soft);
+}
+
+.page-date {
+  font-family: var(--font-head);
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.page-date small {
+  display: block;
+  font-family: var(--font-meta);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-top: 6px;
+}
+
+.page-nav { display: flex; gap: 2px; }
+
+.page-nav button {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  color: var(--dim);
+  border: 1px solid var(--edge-soft);
+  border-radius: 5px;
+}
+
+.page-nav button:hover { color: var(--ink); }
+.page-nav button.now { color: var(--accent); }
+
+/* ── horizon strip ──────────────────────────────────────── */
+
+.horizon {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 16px;
+  overflow: hidden;
+  background: var(--surface);
+  border-bottom: 1px solid var(--edge-soft);
+}
+
+.horizon[hidden] { display: none; }
+
+.horizon-label {
+  flex: none;
+  font-family: var(--font-meta);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.horizon-mask {
+  flex: 1;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, #000 14px, #000 88%, transparent);
+}
+
+.horizon-track {
+  display: flex;
+  width: max-content;
+}
+
+/* Only a strip that overflows scrolls; the class is set from a measurement. */
+.horizon-track.marquee { animation: horizon-march 26s linear infinite; }
+
+.horizon:hover .horizon-track { animation-play-state: paused; }
+
+.horizon-run {
+  display: flex;
+  gap: 22px;
+  padding-right: 22px;
+  flex: none;
+}
+
+@keyframes horizon-march { to { transform: translateX(-50%); } }
+
+/* Reduced motion turns the marquee into something you scroll yourself
+ * (spec §5.3), rather than something that simply stops half-read. */
+@media (prefers-reduced-motion: reduce) {
+  .horizon-mask { overflow-x: auto; mask-image: none; }
+  .horizon-track { animation: none; }
+  .horizon-run.repeat { display: none; }
+}
+
+.hz {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.hz b {
+  font-family: var(--font-meta);
+  font-weight: 600;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+}
+
+.hz.due b { color: var(--alert); }
+
+/* ── the list ───────────────────────────────────────────── */
+
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0 4px;
+  overflow-y: auto;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: 0 10px;
+  align-items: baseline;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--edge-soft);
+}
+
+.item:last-child { border-bottom: none; }
+
+.item-check {
+  grid-row: 1;
+  align-self: center;
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid var(--edge);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.item-text {
+  font-size: 14.5px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.item-time {
+  font-family: var(--font-meta);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  padding: 1px 5px;
+  border: 1px solid var(--edge-soft);
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.item-note {
+  grid-column: 2 / -1;
+  font-family: var(--font-meta);
+  font-size: 11.5px;
+  color: var(--dim);
+  padding-top: 2px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.item.done .item-text,
+.item.dropped .item-text,
+.item.migrated .item-text {
+  color: var(--dim);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.item.done .item-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.item.dropped .item-check,
+.item.migrated .item-check {
+  border-style: dashed;
+}
+
+/* A dated item wears one mark, in the one colour reserved for lateness. */
+.item.due .item-text::after {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 7px;
+  background: var(--alert);
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.opaque {
+  padding: 4px 16px;
+  font-family: var(--font-meta);
+  font-size: 11.5px;
+  color: var(--dim);
+  white-space: pre-wrap;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* ── add row, daily note, footer ────────────────────────── */
+
+.add {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 16px;
+  font-size: 14.5px;
+  border-top: 1px solid var(--edge-soft);
+}
+
+.add::before {
+  content: "+";
+  font-family: var(--font-meta);
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.add-field {
+  flex: 1;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.add-field::placeholder { color: var(--dim); }
+.add-field:focus { outline: none; }
+
+.note {
+  padding: 9px 16px;
+  border-top: 1px solid var(--edge-soft);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--dim);
+  white-space: pre-wrap;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.note[hidden] { display: none; }
+
+.page-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-top: 1px solid var(--edge-soft);
+  background: var(--surface);
+}
+
+.tabs { display: flex; gap: 3px; }
+
+.tab {
+  font-family: var(--font-meta);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+
+.tab.on {
+  color: var(--paper);
+  background: var(--accent);
+}
+
+.count {
+  font-family: var(--font-meta);
+  font-size: 10.5px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── notices ────────────────────────────────────────────── */
+
+.notices {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notices li {
+  padding: 7px 16px;
+  font-family: var(--font-meta);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--alert);
+  border-bottom: 1px solid var(--edge-soft);
+}

@@ -1,0 +1,9 @@
+/*
+ * Ledger's structural quirks: the dot grid is a token, but the serif date
+ * wants a little more room than the default, and the list reads better with
+ * hairlines that stop short of the edge.
+ */
+
+.page-date { font-variant-numeric: lining-nums; }
+
+.item { border-bottom-color: color-mix(in srgb, var(--edge-soft) 70%, transparent); }
