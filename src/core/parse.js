@@ -52,16 +52,23 @@ export function parse(text) {
   let date = null
   let start = 0
 
-  const first = lines[0]
-  if (first !== undefined) {
-    const day = first.match(HEADER_DAY)
+  // Look past leading blank lines so a stray newline at the top of a file does
+  // not demote a day page to the back page. Those blanks are dropped as
+  // canonicalisation; only a file whose first non-blank line is a header is
+  // promoted, so a genuinely headerless file is untouched.
+  let headerAt = 0
+  while (headerAt < body.length && (body[headerAt] ?? '').trim() === '') headerAt += 1
+
+  const candidate = body[headerAt]
+  if (candidate !== undefined) {
+    const day = candidate.match(HEADER_DAY)
     if (day && day[1] !== undefined && isValidDate(day[1])) {
       kind = 'day'
       date = day[1]
-      start = 1
-    } else if (HEADER_SOMEDAY.test(first)) {
+      start = headerAt + 1
+    } else if (HEADER_SOMEDAY.test(candidate)) {
       kind = 'someday'
-      start = 1
+      start = headerAt + 1
     }
   }
 
@@ -89,15 +96,21 @@ export function parse(text) {
 }
 
 /**
- * Splits on newlines and drops the single trailing empty string produced by a
- * file that ends with a newline — otherwise every well-formed file would gain
- * a spurious blank node on each round trip.
+ * Splits a file into lines, tolerating CRLF and a leading BOM.
+ *
+ * Line endings are normalised to LF on write. A file arriving from Windows
+ * tooling would otherwise parse its header and rule (whose patterns end in
+ * `\s*$` and swallow the `\r`) while every item line fell through to Opaque,
+ * leaving the day looking empty.
+ *
+ * The trailing empty string from a file that ends in a newline is dropped, or
+ * every well-formed file would gain a blank node on each round trip.
  *
  * @param {string} text
  * @returns {string[]}
  */
 function splitLines(text) {
-  const lines = text.split('\n')
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/)
   if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
   return lines
 }
@@ -150,7 +163,15 @@ function extractTokens(raw) {
       if (accept(match)) chosen = match
     }
     if (chosen === null || chosen.index === undefined) return
-    text = `${text.slice(0, chosen.index)} ${text.slice(chosen.index + chosen[0].length)}`
+    const before = text.slice(0, chosen.index)
+    const after = text.slice(chosen.index + chosen[0].length)
+    // Rejoin with a single space only when removing the token would weld two
+    // words together. A global \s+ collapse here would rewrite tabs, NBSP and
+    // U+3000 inside prose the user typed.
+    const join = before === '' || after === '' || /\s$/.test(before) || /^\s/.test(after)
+      ? ''
+      : ' '
+    text = `${before}${join}${after}`
   }
 
   take(TIME, (m) => {
@@ -178,7 +199,7 @@ function extractTokens(raw) {
     return true
   })
 
-  return { text: text.replace(/\s+/g, ' ').trim(), time, due, lead, movedTo }
+  return { text: text.trim(), time, due, lead, movedTo }
 }
 
 /**

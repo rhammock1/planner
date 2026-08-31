@@ -95,3 +95,8 @@ When the app writes a file it normalises the lines it understands: tokens in
 the order `@time !due ~lead >moved`, `[x]` lowercase, times zero-padded,
 notes indented exactly two spaces, no trailing whitespace, one trailing
 newline. Reading and writing a canonical file returns it byte-for-byte.
+
+Files are read with either LF or CRLF line endings and written with LF. A
+leading byte-order mark and blank lines above the date header are dropped.
+Text inside an item is never reflowed — tabs, non-breaking spaces and
+repeated spaces are yours to keep.

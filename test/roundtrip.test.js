@@ -101,6 +101,12 @@ describe('a daily-note rule survives the round trip', () => {
     const src = '# 2026-08-31\n- [ ] a\n'
     assert.equal(serialize(parse(src)), src)
   })
+
+  test('a CRLF file is normalised to LF once and then holds', () => {
+    const once = serialize(parse('# 2026-08-31\r\n\r\n- [ ] a\r\n'))
+    assert.equal(once, '# 2026-08-31\n\n- [ ] a\n')
+    assert.equal(serialize(parse(once)), once)
+  })
 })
 
 describe('golden parse output', () => {
