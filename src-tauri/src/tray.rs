@@ -21,6 +21,7 @@ struct Watchers(Mutex<Vec<notify::RecommendedWatcher>>);
 
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
     app.manage(Watchers(Mutex::new(Vec::new())));
+    create_popover(app);
 
     let icon = app.default_window_icon().cloned();
     let mut tray = TrayIconBuilder::with_id("planner");
@@ -44,21 +45,15 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Opens the popover under the menu bar item, or closes it if it is already
-/// open. Clicking the icon a second time putting it away is the behaviour
-/// every other menu bar app has, and the one people expect.
-fn toggle_popover(app: &AppHandle, at: tauri::LogicalPosition<f64>) {
-    if let Some(window) = app.get_webview_window(POPOVER) {
-        if window.is_visible().unwrap_or(false) {
-            let _ = window.hide();
-        } else {
-            position(&window, at);
-            let _ = window.show();
-            let _ = window.set_focus();
-        }
-        return;
-    }
-
+/// Builds the popover at launch, hidden.
+///
+/// Not on first click, for two reasons. The frontend is what reads the config,
+/// so until it has run there is no vault being watched and no shortcut
+/// registered - an app that did nothing until you opened it once would be a
+/// menu bar app that has to be woken up before its global hotkey works. And
+/// building a webview takes long enough to feel, which is not what the first
+/// click of the day should feel like.
+fn create_popover(app: &AppHandle) {
     let built = WebviewWindowBuilder::new(app, POPOVER, WebviewUrl::App("index.html".into()))
         .title("Planner")
         .inner_size(WIDTH, HEIGHT)
@@ -70,15 +65,29 @@ fn toggle_popover(app: &AppHandle, at: tauri::LogicalPosition<f64>) {
         .visible(false)
         .build();
 
-    match built {
-        Ok(window) => {
-            position(&window, at);
-            let _ = window.show();
-            let _ = window.set_focus();
-        }
-        // Nothing else can report this: there is no window to report it in.
-        Err(error) => eprintln!("planner: could not open the popover: {error}"),
+    // Nothing else can report this: there is no window to report it in.
+    if let Err(error) = built {
+        eprintln!("planner: could not create the popover: {error}");
     }
+}
+
+/// Shows the popover under the menu bar item, or puts it away if it is
+/// already up. Clicking the icon a second time closing it is what every other
+/// menu bar app does, and what people expect.
+fn toggle_popover(app: &AppHandle, at: tauri::LogicalPosition<f64>) {
+    let Some(window) = app.get_webview_window(POPOVER) else {
+        eprintln!("planner: the popover is missing");
+        return;
+    };
+
+    if window.is_visible().unwrap_or(false) {
+        let _ = window.hide();
+        return;
+    }
+
+    position(&window, at);
+    let _ = window.show();
+    let _ = window.set_focus();
 }
 
 /// Centres the popover under the icon, nudged down so it clears the menu bar.
