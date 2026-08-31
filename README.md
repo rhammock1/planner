@@ -6,7 +6,8 @@ notebook. Flip to other days. See what is coming. Close it.
 
 It is not a task manager, and it is trying hard not to become one.
 
-*Early days — the vault format is built and the app is being assembled around it.*
+*Early days — the vault format, the domain logic and the day page are built.
+The Tauri shell is not, so what runs today runs in a browser.*
 
 ## Goals
 
@@ -67,9 +68,23 @@ in under a second.
 
 ```bash
 npm install
-npm test          # node --test
-npm run typecheck # tsc --noEmit
+npm test          # node --test, the domain logic
+npm run typecheck # tsc over core and the frontend, separately
+npm run serve     # a static server on 127.0.0.1:8731
 ```
+
+`npm run typecheck` runs twice: `core/` is checked without the DOM library, so
+a pure module that reaches for `document` fails to compile rather than failing
+review.
+
+With the server running:
+
+- <http://127.0.0.1:8731/src/index.html> — the day page. There is no Tauri host
+  in a browser, so `ipc.js` falls back to an in-memory sample vault. The data
+  flow is the real one: an edit is serialised, written, and read back before
+  anything on screen changes.
+- <http://127.0.0.1:8731/test/browser/keyed-list.html> — the checks that need a
+  real browser, because they are about focus and the caret.
 
 Inspect a vault file:
 

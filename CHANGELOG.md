@@ -22,6 +22,13 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 -   Carry-forward - unfinished items from past days are kept or dropped, and today is written first so a failed write can only duplicate an item, never lose one
 -   Natural-language entry - `tomorrow`, weekday names, `in 3 days`, `9/2`, `sep 2`, `8:40`, `4pm`, `at 4`, and `by friday` or `due sep 2` for deadlines
 -   UTC calendar arithmetic, so no date shifts under a daylight saving transition
+-   The day page - date header with day-to-day navigation, horizon strip, item list, add row, daily note and footer count
+-   Carry-forward on the page - keep everything from an earlier day in one click, or review it line by line
+-   Toggling and adding items, written through the same path an edit made in an editor takes
+-   `config.toml` - read with defaults for anything missing, written back without disturbing comments, alignment or keys the app does not know
+-   Themes - `theme.toml` tokens published as a contract in `docs/themes.md`, with Ledger bundled
+-   A keyed list patcher that leaves a row alone while the caret is in it
+-   `npm run serve` and a sample vault, so the frontend runs in a browser before the Tauri shell exists
 -   Project toolchain - `node --test`, TypeScript as a checker only, no build step, zero runtime dependencies
 
 ### Fixed
