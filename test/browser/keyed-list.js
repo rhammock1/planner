@@ -13,11 +13,9 @@ const stage = found
 /** @type {import('../../src/ui/keyedList.js').ListSpec<Row>} */
 const spec = {
   keyOf: (row) => row.id,
-  create: (row) => {
+  create: () => {
     const element = document.createElement('div')
-    const field = document.createElement('input')
-    field.value = row.text
-    element.append(field)
+    element.append(document.createElement('input'))
     return element
   },
   update: (element, row) => {
@@ -48,6 +46,13 @@ const keys = (container) => [...container.children].map(
 check('builds the list in order', () => {
   const container = listOf([{ id: 'a', text: 'A' }, { id: 'b', text: 'B' }])
   equal(keys(container).join(','), 'a,b', 'keys')
+})
+
+// create makes the shell; only update knows what goes in it. A new row that
+// never gets updated is an empty row.
+check('fills a row it has just created', () => {
+  const container = listOf([{ id: 'a', text: 'A' }])
+  equal(container.querySelector('input')?.value, 'A', 'value')
 })
 
 check('keeps the same element for a key that stays', () => {

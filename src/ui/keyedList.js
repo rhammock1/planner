@@ -50,8 +50,12 @@ export function patchList(container, items, spec) {
     const found = existing.get(key)
 
     if (found === undefined) {
+      // create builds the shell, update fills it. Doing both here means a row
+      // has exactly one code path for its contents, whether it was just made
+      // or has been on the page all along.
       const created = spec.create(item)
       created.dataset['key'] = key
+      spec.update(created, item)
       container.insertBefore(created, cursor)
       continue
     }
