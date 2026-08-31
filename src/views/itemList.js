@@ -117,9 +117,11 @@ export function openCount(doc) {
 function createRow() {
   const row = el('li', 'item')
 
-  const check = el('span', 'item-check')
+  // A button, not a styled span: Space and Enter activate it for free, which
+  // is what spec §5.1 asks of the keyboard and what a screen reader expects.
+  const check = el('button', 'item-check')
+  check.setAttribute('type', 'button')
   check.setAttribute('role', 'checkbox')
-  check.setAttribute('tabindex', '0')
 
   const text = el('span', 'item-text')
   // plaintext-only keeps the line a line; where it is not supported the paste

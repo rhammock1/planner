@@ -130,6 +130,38 @@ check('does not move a focused row out from under the caret', () => {
   equal(document.activeElement, field, 'focus survives the reorder')
 })
 
+// A focused button is not a caret. Skipping the update for one leaves a row
+// showing the opposite of what the document says until it loses focus - which
+// is exactly what a ticked checkbox looked like before this was fixed.
+check('updates a row whose button has focus', () => {
+  const container = document.createElement('div')
+  stage.append(container)
+
+  /** @type {import('../../src/ui/keyedList.js').ListSpec<Row>} */
+  const withButton = {
+    keyOf: (row) => row.id,
+    create: () => {
+      const element = document.createElement('div')
+      element.append(document.createElement('button'), document.createElement('span'))
+      return element
+    },
+    update: (element, row) => {
+      element.className = row.text
+      const label = element.querySelector('span')
+      if (label !== null) label.textContent = row.text
+    },
+  }
+
+  patchList(container, [{ id: 'a', text: 'open' }], withButton)
+  const button = container.querySelector('button')
+  ok(button !== null, 'button exists')
+  button.focus()
+
+  patchList(container, [{ id: 'a', text: 'done' }], withButton)
+  equal(container.firstElementChild?.className, 'done', 'the row repainted')
+  equal(document.activeElement, button, 'the button kept focus')
+})
+
 check('updates the rows around a focused one', () => {
   const container = listOf([{ id: 'a', text: 'A' }, { id: 'b', text: 'B' }])
   const field = container.querySelector('input')

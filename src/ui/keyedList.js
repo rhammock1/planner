@@ -62,19 +62,18 @@ export function patchList(container, items, spec) {
 
     existing.delete(key)
 
-    // An element holding the caret is neither moved nor updated. Moving it
-    // would blur it, and updating it would overwrite what is being typed;
-    // both are worse than a row briefly sitting in the wrong place, which
-    // corrects itself on the next render after the field is left.
-    if (holdsFocus(found, focused)) {
-      if (found === cursor) cursor = cursor.nextElementSibling
-      continue
-    }
-
+    // A row is never moved while it holds focus, because moving it blurs
+    // whatever was focused. It is only left un-updated when the focus is on
+    // something being typed into - overwriting that would take the words out
+    // from under the user.
+    //
+    // The distinction matters: a focused button is not a caret. Treating it
+    // as one leaves a ticked checkbox showing as unticked until the row loses
+    // focus, which is a page disagreeing with the file it came from.
     if (found === cursor) cursor = cursor.nextElementSibling
-    else container.insertBefore(found, cursor)
+    else if (!holdsFocus(found, focused)) container.insertBefore(found, cursor)
 
-    spec.update(found, item)
+    if (!holdsCaret(found, focused)) spec.update(found, item)
   }
 
   for (const orphan of existing.values()) orphan.remove()
@@ -87,4 +86,19 @@ export function patchList(container, items, spec) {
  */
 function holdsFocus(element, focused) {
   return focused !== null && element.contains(focused)
+}
+
+/**
+ * Whether the focus inside this element is somewhere text is being entered -
+ * a field, or anything made editable.
+ *
+ * @param {HTMLElement} element
+ * @param {Element|null} focused
+ * @returns {boolean}
+ */
+function holdsCaret(element, focused) {
+  if (!holdsFocus(element, focused) || !(focused instanceof HTMLElement)) return false
+  return focused.isContentEditable
+    || focused instanceof HTMLInputElement
+    || focused instanceof HTMLTextAreaElement
 }
