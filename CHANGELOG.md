@@ -17,6 +17,11 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 -   YAML frontmatter is preserved and never interpreted, so a vault opened in Obsidian keeps parsing correctly
 -   `tools/dump.js` for inspecting a vault file - parsed structure, canonical rewrite, or a round-trip check
 -   `docs/format.md` publishing the vault format as a contract
+-   An in-memory index over the vault, keyed by day or `someday`, mapping page keys to file paths and back
+-   The horizon strip's rules - an item enters when its due date falls inside its lead time, overdue items sort first, and nothing ages out until it is dealt with
+-   Carry-forward - unfinished items from past days are kept or dropped, and today is written first so a failed write can only duplicate an item, never lose one
+-   Natural-language entry - `tomorrow`, weekday names, `in 3 days`, `9/2`, `sep 2`, `8:40`, `4pm`, `at 4`, and `by friday` or `due sep 2` for deadlines
+-   UTC calendar arithmetic, so no date shifts under a daylight saving transition
 -   Project toolchain - `node --test`, TypeScript as a checker only, no build step, zero runtime dependencies
 
 ### Fixed
