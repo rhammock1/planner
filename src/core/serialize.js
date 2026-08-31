@@ -40,8 +40,11 @@ export function serialize(doc) {
     }
   }
 
-  if (doc.dailyNote !== '') {
-    lines.push('---', '', doc.dailyNote)
+  // The rule is written whenever the source had one. Keying this off a
+  // non-empty note is what deleted a bare trailing `---` on every save.
+  if (doc.dailyNote !== null) {
+    lines.push('---')
+    if (doc.dailyNote !== '') lines.push('', doc.dailyNote)
   }
 
   return `${lines.join('\n')}\n`

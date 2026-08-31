@@ -77,7 +77,7 @@ describe('constructors', () => {
     const doc = createDayDocument('2026-08-31')
     assert.equal(doc.kind, 'day')
     assert.equal(doc.date, '2026-08-31')
-    assert.equal(doc.dailyNote, '')
+    assert.equal(doc.dailyNote, null)
     assert.deepEqual(doc.nodes, [{ kind: 'opaque', raw: '' }])
   })
 

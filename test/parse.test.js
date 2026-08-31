@@ -271,12 +271,12 @@ describe('daily note', () => {
 
   test('no rule means no note', () => {
     const doc = parse('# 2026-08-31\n- [ ] Thing\n')
-    assert.equal(doc.dailyNote, '')
+    assert.equal(doc.dailyNote, null)
   })
 
   test('an indented rule is not a rule', () => {
     const doc = parse('# 2026-08-31\n  ---\nstill body\n')
-    assert.equal(doc.dailyNote, '')
+    assert.equal(doc.dailyNote, null)
     assert.equal(doc.nodes.length, 2)
   })
 })
@@ -288,12 +288,12 @@ describe('frontmatter', () => {
     assert.equal(doc.kind, 'day')
     assert.equal(doc.date, '2026-08-31')
     assert.equal(doc.nodes.filter((n) => n.kind === 'item').length, 1)
-    assert.equal(doc.dailyNote, '')
+    assert.equal(doc.dailyNote, null)
   })
 
   test('the closing delimiter does not become the daily-note rule', () => {
     const doc = parse('---\ntags: work\n---\n# 2026-08-31\n- [ ] x\n')
-    assert.equal(doc.dailyNote, '')
+    assert.equal(doc.dailyNote, null)
     assert.equal(doc.nodes.filter((n) => n.kind === 'item').length, 1)
   })
 

@@ -85,10 +85,16 @@ describe('opaque nodes and the daily note', () => {
     assert.equal(serialize(doc), '# 2026-08-31\n\n---\n\nLong day.\n')
   })
 
-  test('an empty daily note writes no rule', () => {
+  test('a null daily note writes no rule', () => {
+    const doc = createDayDocument('2026-08-31')
+    doc.dailyNote = null
+    assert.equal(serialize(doc), '# 2026-08-31\n\n')
+  })
+
+  test('an empty daily note still writes its rule', () => {
     const doc = createDayDocument('2026-08-31')
     doc.dailyNote = ''
-    assert.equal(serialize(doc), '# 2026-08-31\n\n')
+    assert.equal(serialize(doc), '# 2026-08-31\n\n---\n')
   })
 
   test('output always ends with exactly one newline', () => {

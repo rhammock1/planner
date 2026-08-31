@@ -43,7 +43,7 @@ export function parse(text) {
 
   const body = ruleIndex === -1 ? lines : lines.slice(0, ruleIndex)
   const dailyNote = ruleIndex === -1
-    ? ''
+    ? null
     : trimBlankEdges(lines.slice(ruleIndex + 1)).join('\n')
 
   /** @type {'day'|'someday'} */

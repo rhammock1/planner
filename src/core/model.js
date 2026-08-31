@@ -44,7 +44,8 @@
  * @property {string[]|null} frontmatter  raw lines between a leading pair of `---`
  *   delimiters, exclusive of them; null when the file has no such block
  * @property {Node[]} nodes
- * @property {string} dailyNote  free text after the final `---`; '' if absent
+ * @property {string|null} dailyNote  free text after the final `---`; `''` when
+ *   the rule is present but empty; null when the file has no rule at all
  */
 
 /** @type {readonly ItemState[]} */
@@ -136,10 +137,10 @@ export function createItem(text, overrides = {}) {
  * @returns {Document}
  */
 export function createDayDocument(date) {
-  return { kind: 'day', date, frontmatter: null, nodes: [{ kind: 'opaque', raw: '' }], dailyNote: '' }
+  return { kind: 'day', date, frontmatter: null, nodes: [{ kind: 'opaque', raw: '' }], dailyNote: null }
 }
 
 /** @returns {Document} */
 export function createSomedayDocument() {
-  return { kind: 'someday', date: null, frontmatter: null, nodes: [{ kind: 'opaque', raw: '' }], dailyNote: '' }
+  return { kind: 'someday', date: null, frontmatter: null, nodes: [{ kind: 'opaque', raw: '' }], dailyNote: null }
 }

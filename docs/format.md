@@ -63,6 +63,9 @@ not subtasks — there is no nesting.
 Everything after the last `---` at the start of a line. Free text, never
 parsed.
 
+A `---` you have typed is kept even when nothing follows it yet, so an
+unfinished daily note is never removed on save.
+
 ## Frontmatter
 
 A file may open with a YAML frontmatter block, the kind Obsidian and most
