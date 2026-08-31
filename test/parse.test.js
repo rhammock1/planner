@@ -232,3 +232,51 @@ describe('notes', () => {
     assert.equal(node?.kind === 'item' && node.due, null)
   })
 })
+
+describe('daily note', () => {
+  test('reads the text after the rule', () => {
+    const doc = parse([
+      '# 2026-08-31',
+      '- [ ] Thing',
+      '',
+      '---',
+      '',
+      'Shipped the retry fix.',
+    ].join('\n'))
+
+    assert.equal(doc.dailyNote, 'Shipped the retry fix.')
+    assert.equal(doc.nodes.length, 2)
+    assert.equal(doc.nodes[0]?.kind, 'item')
+    assert.deepEqual(doc.nodes[1], { kind: 'opaque', raw: '' })
+  })
+
+  test('keeps a multi-line note intact', () => {
+    const doc = parse('# 2026-08-31\n---\n\nLine one.\n\nLine two.\n')
+    assert.equal(doc.dailyNote, 'Line one.\n\nLine two.')
+  })
+
+  test('only the last rule starts the note', () => {
+    const doc = parse('# 2026-08-31\n---\nmiddle\n---\nthe note\n')
+    assert.equal(doc.dailyNote, 'the note')
+    assert.deepEqual(doc.nodes, [
+      { kind: 'opaque', raw: '---' },
+      { kind: 'opaque', raw: 'middle' },
+    ])
+  })
+
+  test('a rule with nothing after it leaves an empty note', () => {
+    const doc = parse('# 2026-08-31\n- [ ] Thing\n---\n')
+    assert.equal(doc.dailyNote, '')
+  })
+
+  test('no rule means no note', () => {
+    const doc = parse('# 2026-08-31\n- [ ] Thing\n')
+    assert.equal(doc.dailyNote, '')
+  })
+
+  test('an indented rule is not a rule', () => {
+    const doc = parse('# 2026-08-31\n  ---\nstill body\n')
+    assert.equal(doc.dailyNote, '')
+    assert.equal(doc.nodes.length, 2)
+  })
+})

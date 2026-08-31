@@ -18,6 +18,7 @@ const HEADER_DAY = /^# (\d{4}-\d{2}-\d{2})\s*$/
 const HEADER_SOMEDAY = /^# Someday\s*$/i
 const ITEM = /^- \[([ xX>-])\] ?(.*)$/
 const NOTE = /^ {2,}> ?(.*)$/
+const RULE = /^---\s*$/
 
 // Each token must be preceded by start-of-line or whitespace and followed by
 // whitespace or end-of-line, so `dana@gotab.io` and `5~10` stay prose.
@@ -32,6 +33,18 @@ const MOVED = /(?:^|\s)>(\d{4}-\d{2}-\d{2})(?=\s|$)/
  */
 export function parse(text) {
   const lines = splitLines(text)
+
+  // The daily note is everything after the LAST column-0 rule. Choosing the
+  // last one keeps the rule deterministic when a file contains more than one.
+  let ruleIndex = -1
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    if (RULE.test(lines[i] ?? '')) { ruleIndex = i; break }
+  }
+
+  const body = ruleIndex === -1 ? lines : lines.slice(0, ruleIndex)
+  const dailyNote = ruleIndex === -1
+    ? ''
+    : trimBlankEdges(lines.slice(ruleIndex + 1)).join('\n')
 
   /** @type {'day'|'someday'} */
   let kind = 'someday'
@@ -59,7 +72,7 @@ export function parse(text) {
   /** @type {Item|null} */
   let openItem = null
 
-  for (const line of lines.slice(start)) {
+  for (const line of body.slice(start)) {
     const noteMatch = line.match(NOTE)
     if (noteMatch && openItem !== null) {
       const body = noteMatch[1] ?? ''
@@ -72,7 +85,7 @@ export function parse(text) {
     openItem = node.kind === 'item' ? node : null
   }
 
-  return { kind, date, nodes, dailyNote: '' }
+  return { kind, date, nodes, dailyNote }
 }
 
 /**
@@ -166,4 +179,20 @@ function extractTokens(raw) {
   })
 
   return { text: text.replace(/\s+/g, ' ').trim(), time, due, lead, movedTo }
+}
+
+/**
+ * Drops blank lines from both ends. The canonical layout puts exactly one
+ * blank line after the rule (spec §3.2), and serialize re-emits it, so the
+ * note itself must not carry it.
+ *
+ * @param {string[]} lines
+ * @returns {string[]}
+ */
+function trimBlankEdges(lines) {
+  let first = 0
+  let last = lines.length
+  while (first < last && (lines[first] ?? '').trim() === '') first += 1
+  while (last > first && (lines[last - 1] ?? '').trim() === '') last -= 1
+  return lines.slice(first, last)
 }
