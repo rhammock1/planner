@@ -22,7 +22,9 @@ appearance = "light"        # "light" or "dark"
 
 [tokens]
 paper       = "#FBFAF6"
+surface     = "#F4F2EA"
 edge        = "#D9D6CC"
+edge-soft   = "#E7E4DA"
 ink         = "#23262A"
 dim         = "#8B8981"
 accent      = "#17605B"
@@ -43,7 +45,9 @@ lives in.
 | Token         | What it paints                                                  |
 |---------------|-----------------------------------------------------------------|
 | `paper`       | The page itself — the surface everything sits on                 |
-| `edge`        | Rules, borders, the line under the date header                   |
+| `surface`     | Recessed bands: the horizon strip and the footer                 |
+| `edge`        | The outer border, and any line meant to be seen                  |
+| `edge-soft`   | Interior hairlines: between items, under the header              |
 | `ink`         | Item text, the date, anything meant to be read                   |
 | `dim`         | Times, dates, counts — present but not competing                 |
 | `accent`      | The app's one colour: checkmarks, today, the active surface      |
