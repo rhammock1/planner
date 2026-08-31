@@ -4,7 +4,8 @@
  * Document -> canonical Markdown.
  *
  * Canonical means: tokens in the order @time !due ~lead >moved, notes indented
- * exactly two spaces, no trailing whitespace, times zero-padded (spec §3.4).
+ * exactly two spaces, no trailing whitespace on item lines, times zero-padded
+ * (spec §3.4).
  * Opaque nodes are exempt and written back exactly as they were read.
  */
 

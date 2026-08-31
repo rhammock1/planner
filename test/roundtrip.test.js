@@ -109,6 +109,16 @@ describe('a daily-note rule survives the round trip', () => {
   })
 })
 
+describe('the back page behaves like any other page', () => {
+  // docs/format.md promises someday.md may carry a daily note. Nothing in the
+  // daily-note path reads doc.kind, but nothing asserted that either.
+  test('a someday file keeps its daily note', () => {
+    const src = '# Someday\n- [ ] learn C\n\n---\n\nRead K&R first.\n'
+    assert.equal(serialize(parse(src)), src)
+    assert.equal(parse(src).dailyNote, 'Read K&R first.')
+  })
+})
+
 describe('golden parse output', () => {
   // Stability tests prove the format does not drift; only a pinned expected
   // structure proves the parse is CORRECT. C1 shipped because nothing here

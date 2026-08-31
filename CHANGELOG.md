@@ -18,3 +18,10 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 -   `tools/dump.js` for inspecting a vault file - parsed structure, canonical rewrite, or a round-trip check
 -   `docs/format.md` publishing the vault format as a contract
 -   Project toolchain - `node --test`, TypeScript as a checker only, no build step, zero runtime dependencies
+
+### Fixed
+
+-   A daily-note rule with nothing after it is no longer deleted on save - a file ending in `---` lost one rule per save until none were left
+-   Files with CRLF line endings now parse their items instead of reading as an empty day
+-   A leading blank line or byte-order mark no longer demotes a day file to the back page
+-   Tabs, non-breaking spaces and repeated spaces inside item text are preserved instead of collapsed to a single space

@@ -82,8 +82,8 @@ export function parse(text) {
   for (const line of body.slice(start)) {
     const noteMatch = line.match(NOTE)
     if (noteMatch && openItem !== null) {
-      const body = noteMatch[1] ?? ''
-      openItem.note = openItem.note === null ? body : `${openItem.note}\n${body}`
+      const noteText = noteMatch[1] ?? ''
+      openItem.note = openItem.note === null ? noteText : `${openItem.note}\n${noteText}`
       continue
     }
 
@@ -111,7 +111,7 @@ export function parse(text) {
  */
 function splitLines(text) {
   const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/)
-  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
+  if (lines[lines.length - 1] === '') lines.pop()
   return lines
 }
 
@@ -163,15 +163,11 @@ function extractTokens(raw) {
       if (accept(match)) chosen = match
     }
     if (chosen === null || chosen.index === undefined) return
-    const before = text.slice(0, chosen.index)
-    const after = text.slice(chosen.index + chosen[0].length)
-    // Rejoin with a single space only when removing the token would weld two
-    // words together. A global \s+ collapse here would rewrite tabs, NBSP and
-    // U+3000 inside prose the user typed.
-    const join = before === '' || after === '' || /\s$/.test(before) || /^\s/.test(after)
-      ? ''
-      : ' '
-    text = `${before}${join}${after}`
+    // Every token pattern ends in a zero-width (?=\s|$), so the separator that
+    // followed the token is still in `after`. Splicing the token out therefore
+    // never welds two words together, and no rejoin character is needed - which
+    // is what lets tabs, NBSP and U+3000 in the user's prose survive.
+    text = text.slice(0, chosen.index) + text.slice(chosen.index + chosen[0].length)
   }
 
   take(TIME, (m) => {

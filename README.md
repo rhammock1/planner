@@ -55,7 +55,7 @@ recognise is preserved exactly as you wrote it. The full contract is in
 |---|---|
 | Shell | Tauri 2 (Rust) - menu bar item, windows, global hotkey, atomic writes, file watcher, notifications |
 | App | Plain ES modules. No framework, no build step, zero runtime dependencies |
-| Types | TypeScript as a checker only - `tsc --checkJs --noEmit` over JSDoc |
+| Types | TypeScript as a checker only - `tsc --noEmit` over JSDoc |
 | Tests | `node --test` - no toolchain, no app launch |
 | Storage | Markdown files in a folder you choose |
 
@@ -68,7 +68,7 @@ in under a second.
 ```bash
 npm install
 npm test          # node --test
-npm run typecheck # tsc --checkJs --noEmit
+npm run typecheck # tsc --noEmit
 ```
 
 Inspect a vault file:

@@ -10,6 +10,8 @@ Edit them by hand, grep them, put them in git.
       2026/08/2026-08-31.md    one file per day, created lazily
       someday.md               the back page
 
+A `someday.md` file may carry a daily note; it is preserved like any other.
+
 ## A day file
 
     # 2026-08-31
@@ -35,6 +37,9 @@ Edit them by hand, grep them, put them in git.
 | `[>]` | Migrated to another day  |
 | `[-]` | Dropped                  |
 
+The `# Someday` header is matched case-insensitively and rewritten to
+`# Someday`.
+
 ## Inline tokens
 
 | Token           | Meaning                                        |
@@ -44,7 +49,7 @@ Edit them by hand, grep them, put them in git.
 | `~Nd`           | Lead time — days before the due date it appears in the horizon. |
 | `>YYYY-MM-DD`   | Where the item went when it was carried forward. |
 
-A token is only a token when it has whitespace on both sides, so
+A token is only a token when it has whitespace or a line boundary on both sides, so
 `dana@gotab.io` and `5~10` stay prose. A token whose value is impossible —
 `@25:99`, `!2026-02-30` — is left in the text rather than guessed at.
 
@@ -93,10 +98,11 @@ understands and never rewrites the rest.
 
 When the app writes a file it normalises the lines it understands: tokens in
 the order `@time !due ~lead >moved`, `[x]` lowercase, times zero-padded,
-notes indented exactly two spaces, no trailing whitespace, one trailing
-newline. Reading and writing a canonical file returns it byte-for-byte.
+notes indented exactly two spaces, no trailing whitespace on item lines, one
+trailing newline. Reading and writing a canonical file returns it
+byte-for-byte.
 
 Files are read with either LF or CRLF line endings and written with LF. A
-leading byte-order mark and blank lines above the date header are dropped.
+leading byte-order mark and blank lines above the header are dropped.
 Text inside an item is never reflowed — tabs, non-breaking spaces and
 repeated spaces are yours to keep.
