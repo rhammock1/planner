@@ -26,7 +26,8 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 -   Carry-forward on the page - keep everything from an earlier day in one click, or review it line by line
 -   Toggling and adding items, written through the same path an edit made in an editor takes
 -   `config.toml` - read with defaults for anything missing, written back without disturbing comments, alignment or keys the app does not know
--   Themes - `theme.toml` tokens published as a contract in `docs/themes.md`, with Ledger bundled
+-   Themes - `theme.toml` tokens published as a contract in `docs/themes.md`, with Ledger, Composition Book and Console bundled
+-   Editing an item's text in place, with Enter to finish and Escape to put back what was there
 -   A keyed list patcher that leaves a row alone while the caret is in it
 -   `npm run serve` and a sample vault, so the frontend runs in a browser before the Tauri shell exists
 -   Project toolchain - `node --test`, TypeScript as a checker only, no build step, zero runtime dependencies

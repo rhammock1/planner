@@ -10,9 +10,9 @@
   width: 380px;
   max-width: 100%;
   background-color: var(--paper);
+  /* The texture's scale and origin belong to the theme that drew it: a dot
+     grid and a ruled line want different ones. */
   background-image: var(--texture);
-  background-size: 14px 14px;
-  background-position: 8px 8px;
   color: var(--ink);
   border: 1px solid var(--edge);
   border-radius: var(--radius);

@@ -4,6 +4,11 @@
  * hairlines that stop short of the edge.
  */
 
+.page {
+  background-size: 14px 14px;
+  background-position: 8px 8px;
+}
+
 .page-date { font-variant-numeric: lining-nums; }
 
 .item { border-bottom-color: color-mix(in srgb, var(--edge-soft) 70%, transparent); }

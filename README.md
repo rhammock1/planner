@@ -82,7 +82,9 @@ With the server running:
 - <http://127.0.0.1:8731/src/index.html> — the day page. There is no Tauri host
   in a browser, so `ipc.js` falls back to an in-memory sample vault. The data
   flow is the real one: an edit is serialised, written, and read back before
-  anything on screen changes.
+  anything on screen changes. Add `?theme=console` or `?theme=composition-book`
+  to see the other bundled themes; they load exactly as they will from
+  `~/.planner/themes/`.
 - <http://127.0.0.1:8731/test/browser/keyed-list.html> — the checks that need a
   real browser, because they are about focus and the caret.
 

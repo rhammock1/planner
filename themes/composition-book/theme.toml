@@ -1,0 +1,21 @@
+# Composition Book - the marbled notebook from school. Blue rules, a red
+# margin, and handwriting.
+
+name       = "Composition Book"
+author     = "Robert Hammock"
+appearance = "light"
+
+[tokens]
+paper       = "#F3F0E7"
+surface     = "#EDE7D6"
+edge        = "#D3CDBC"
+edge-soft   = "#DED8C8"
+ink         = "#1F2E48"
+dim         = "#8A8574"
+accent      = "#B8483C"
+alert       = "#B8483C"
+font-head   = "Special Elite, Courier New, monospace"
+font-body   = "Caveat, Bradley Hand, cursive"
+font-meta   = "Special Elite, Courier New, monospace"
+radius      = "5px"
+texture     = "repeating-linear-gradient(180deg, transparent 0 27px, #C4D0DE 27px 28px)"

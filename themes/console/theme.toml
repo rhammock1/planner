@@ -1,0 +1,21 @@
+# Console - for the hours spent in a terminal. Monospace throughout, amber for
+# time, and checkboxes drawn the way you would type them.
+
+name       = "Console"
+author     = "Robert Hammock"
+appearance = "dark"
+
+[tokens]
+paper       = "#12151C"
+surface     = "#1A1F2B"
+edge        = "#2A3040"
+edge-soft   = "#232937"
+ink         = "#C7D0DD"
+dim         = "#5D6779"
+accent      = "#E0A458"
+alert       = "#DE6E5F"
+font-head   = "IBM Plex Mono, ui-monospace, monospace"
+font-body   = "IBM Plex Mono, ui-monospace, monospace"
+font-meta   = "IBM Plex Mono, ui-monospace, monospace"
+radius      = "4px"
+texture     = "none"

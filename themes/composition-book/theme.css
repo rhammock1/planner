@@ -1,0 +1,64 @@
+/*
+ * Composition Book's structural quirks: blue rules the writing sits on, and
+ * the red margin every school notebook has down its left side.
+ *
+ * The rules are a repeating gradient behind the list, so they carry on into
+ * the empty space below the last line. Keeping the writing ON them is the
+ * whole trick: every row is a whole number of rules tall, because the line
+ * height is the rule spacing. A line that wraps takes two rules instead of
+ * one and the next row still starts on a rule.
+ */
+
+.items {
+  position: relative;
+  padding: 0 0 6px;
+  background-image: var(--texture);
+  background-position: 0 0;
+}
+
+.items::before {
+  content: "";
+  position: absolute;
+  left: 34px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #D0857C;
+}
+
+.item {
+  padding: 0 16px 0 44px;
+  border-bottom: none;
+  align-items: baseline;
+}
+
+.item-text {
+  font-size: 18px;
+  line-height: 28px;
+}
+
+.item-note,
+.opaque {
+  line-height: 28px;
+  padding-top: 0;
+}
+
+.item-check {
+  transform: rotate(-2deg);
+  border-radius: 1px;
+  border-color: #4A5670;
+}
+
+.item.done .item-check {
+  background: #4A5670;
+  border-color: #4A5670;
+}
+
+.page-head { border-bottom: 2px solid var(--ink); }
+.page-date { font-size: 19px; letter-spacing: 0; }
+.page-nav button { border: none; }
+
+.add { padding-left: 44px; font-size: 18px; }
+.add-field { font-size: 18px; }
+
+.tab.on { color: var(--paper); background: var(--ink); }

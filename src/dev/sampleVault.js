@@ -27,9 +27,19 @@ export function sampleHost() {
   const handlers = []
 
   return {
-    readConfig: async () => 'vault = "~/Planner"\ntheme = "ledger"\n',
-    // No theme folder here: the app falls back to the built-in Ledger tokens.
-    readTheme: async () => ({ toml: '', css: '' }),
+    // ?theme=console picks a bundled theme, so the three can be compared
+    // without editing a config file.
+    readConfig: async () => {
+      const chosen = new URLSearchParams(location.search).get('theme') ?? 'ledger'
+      return `vault = "~/Planner"\ntheme = "${chosen}"\n`
+    },
+    // The bundled themes, served as files - so the browser exercises the real
+    // theme path, not a shortcut past it. A theme that is not there falls back
+    // to the built-in Ledger tokens.
+    readTheme: async (name) => ({
+      toml: await fetchOrEmpty(`/themes/${name}/theme.toml`),
+      css: await fetchOrEmpty(`/themes/${name}/theme.css`),
+    }),
     readVault: async () => [...pages].map(([page, text]) => ({ page, text })),
     readPage: async (page) => pages.get(page) ?? null,
     writePage: async (page, text) => {
@@ -39,6 +49,15 @@ export function sampleHost() {
     },
     onVaultChanged: (handler) => { handlers.push(handler) },
   }
+}
+
+/**
+ * @param {string} path
+ * @returns {Promise<string>} empty when the file is not there
+ */
+async function fetchOrEmpty(path) {
+  const response = await fetch(path)
+  return response.ok ? response.text() : ''
 }
 
 /**
