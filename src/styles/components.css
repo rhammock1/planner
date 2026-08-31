@@ -390,3 +390,10 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+/* An item's text is edited where it sits; nothing swaps in, so the line does
+   not move under the caret. */
+.item-text:focus {
+  outline: none;
+  box-shadow: 0 1px 0 var(--accent);
+}

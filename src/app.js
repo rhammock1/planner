@@ -12,7 +12,7 @@
 import { parse } from './core/parse.js'
 import { serialize } from './core/serialize.js'
 import { createDayDocument, createItem } from './core/model.js'
-import { setItemState, appendItem } from './core/edit.js'
+import { setItemState, setItemText, appendItem } from './core/edit.js'
 import { buildIndex, getPage, withPage } from './core/vaultIndex.js'
 import { horizon } from './core/horizon.js'
 import { unfinished, carryForward } from './core/carry.js'
@@ -45,6 +45,7 @@ async function start() {
       draw()
     },
     onToggle: (index) => { void toggle(index) },
+    onEdit: (index, text) => edit(index, text),
     onAdd: (line) => add(line),
     onCarry: (decisions) => { void carry(decisions) },
   })
@@ -91,6 +92,18 @@ async function toggle(index) {
   if (node === undefined || node.kind !== 'item') return
 
   await commit(showing, setItemState(doc, index, node.state === 'done' ? 'open' : 'done'))
+}
+
+/**
+ * @param {number} index position in the page's doc.nodes
+ * @param {string} text
+ * @returns {Promise<boolean>} false when nothing was written
+ */
+async function edit(index, text) {
+  const doc = getPage(vault, showing)
+  const node = doc?.nodes[index]
+  if (doc === null || node === undefined || node.kind !== 'item') return false
+  return commit(showing, setItemText(doc, index, text))
 }
 
 /**

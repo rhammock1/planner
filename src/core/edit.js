@@ -32,6 +32,30 @@ export function setItemState(doc, index, state) {
 }
 
 /**
+ * Replaces an item's display text, leaving its state and every token alone.
+ *
+ * The text here is the text without tokens - what the page shows. A `@10:30`
+ * typed into it survives as text, is written to the file as written, and is
+ * read back as a time on the next pass, exactly as though it had been typed
+ * in an editor. There is one parser and it runs in one place.
+ *
+ * @param {Document} doc
+ * @param {number} index  position in `doc.nodes`
+ * @param {string} text
+ * @returns {Document}
+ */
+export function setItemText(doc, index, text) {
+  const node = doc.nodes[index]
+  if (node === undefined || node.kind !== 'item') {
+    throw new Error(`line ${index} is not an item`)
+  }
+
+  const nodes = [...doc.nodes]
+  nodes[index] = { ...node, text: text.trim() }
+  return { ...doc, nodes }
+}
+
+/**
  * Adds an item to the end of the page's content.
  *
  * End of the content, not end of the file: a page that ends in a blank line

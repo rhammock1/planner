@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { parse } from '../src/core/parse.js'
 import { serialize } from '../src/core/serialize.js'
 import { createItem, createDayDocument } from '../src/core/model.js'
-import { setItemState, appendItem, setDailyNote } from '../src/core/edit.js'
+import { setItemState, setItemText, appendItem, setDailyNote } from '../src/core/edit.js'
 
 const day = '# 2026-08-31\n\n- [ ] Pair with Dana @10:30\n  > about the queue\n- [x] Standup\n'
 
@@ -37,6 +37,35 @@ describe('setItemState', () => {
   test('a line that is not an item is refused', () => {
     assert.throws(() => setItemState(parse(day), 0, 'done'), /not an item/)
     assert.throws(() => setItemState(parse(day), 99, 'done'), /not an item/)
+  })
+})
+
+describe('setItemText', () => {
+  test('replaces the text and keeps everything else on the line', () => {
+    const next = setItemText(parse(day), 1, 'Pair with Dana on the retry path')
+    assert.equal(
+      serialize(next),
+      '# 2026-08-31\n\n- [ ] Pair with Dana on the retry path @10:30\n  > about the queue\n- [x] Standup\n',
+    )
+  })
+
+  test('surrounding whitespace is trimmed', () => {
+    const next = setItemText(parse(day), 1, '  Trimmed  ')
+    assert.match(serialize(next), /- \[ \] Trimmed @10:30/)
+  })
+
+  // A token typed into the text is written as typed and read back as a token
+  // on the next pass - the same path a line typed in nvim takes.
+  test('a token typed into the text becomes a token on the next read', () => {
+    const next = setItemText(parse('# 2026-08-31\n\n- [ ] Call the vet\n'), 1, 'Call the vet !2026-09-04')
+    const reread = parse(serialize(next))
+    const item = reread.nodes[1]
+    assert.equal(item?.kind === 'item' && item.due, '2026-09-04')
+    assert.equal(item?.kind === 'item' && item.text, 'Call the vet')
+  })
+
+  test('a line that is not an item is refused', () => {
+    assert.throws(() => setItemText(parse(day), 0, 'nope'), /not an item/)
   })
 })
 

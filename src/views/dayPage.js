@@ -34,6 +34,7 @@ import { createCarryBand } from './carryBand.js'
  * @typedef {object} DayHandlers
  * @property {(page: string) => void} onNavigate
  * @property {(index: number) => void} onToggle  index in the page's doc.nodes
+ * @property {(index: number, text: string) => Promise<boolean>} onEdit
  * @property {(line: string) => Promise<boolean>} onAdd  false if it was not saved
  * @property {(decisions: import('../core/carry.js').CarryDecision[]) => void} onCarry
  */
