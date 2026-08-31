@@ -19,10 +19,16 @@ import { unfinished, carryForward } from './core/carry.js'
 import { readConfig as parseConfig, DEFAULTS } from './core/config.js'
 import { readTheme as parseTheme, themeCss, LEDGER } from './core/theme.js'
 import { today } from './clock.js'
+import { createWriteQueue } from './writeQueue.js'
 import * as ipc from './ipc.js'
 import * as dayPage from './views/dayPage.js'
 
 /** @typedef {import('./core/vaultIndex.js').VaultIndex} VaultIndex */
+/** @typedef {import('./core/model.js').Document} Document */
+
+// One change at a time, and nothing reads a page it has just written but not
+// yet seen come back (see writeQueue.js).
+const writes = createWriteQueue(async (page, doc) => { await ipc.writePage(page, serialize(doc)) })
 
 /** @type {VaultIndex} */
 let vault = buildIndex([])
@@ -59,6 +65,9 @@ async function start() {
   await ipc.onVaultChanged(async (page) => {
     const text = await ipc.readPage(page)
     vault = withPage(vault, page, text === null ? null : parse(text))
+    // Whatever we may have written to this page has now arrived, so the file
+    // is the only thing worth believing about it.
+    writes.observed(page)
     draw()
   })
 }
@@ -79,19 +88,18 @@ function draw() {
 
 /**
  * Open becomes done and done becomes open. Migrated and dropped lines are
- * historical record; clicking one brings it back as done rather than pretending
- * it was never settled.
+ * historical record; clicking one brings it back as done rather than
+ * pretending it was never settled.
  *
  * @param {number} index position in the page's doc.nodes
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>}
  */
-async function toggle(index) {
-  const doc = getPage(vault, showing)
-  if (doc === null) return
-  const node = doc.nodes[index]
-  if (node === undefined || node.kind !== 'item') return
-
-  await commit(showing, setItemState(doc, index, node.state === 'done' ? 'open' : 'done'))
+function toggle(index) {
+  return change(showing, (doc) => {
+    const node = doc?.nodes[index]
+    if (doc === null || node === undefined || node.kind !== 'item') return null
+    return setItemState(doc, index, node.state === 'done' ? 'open' : 'done')
+  })
 }
 
 /**
@@ -99,11 +107,12 @@ async function toggle(index) {
  * @param {string} text
  * @returns {Promise<boolean>} false when nothing was written
  */
-async function edit(index, text) {
-  const doc = getPage(vault, showing)
-  const node = doc?.nodes[index]
-  if (doc === null || node === undefined || node.kind !== 'item') return false
-  return commit(showing, setItemText(doc, index, text))
+function edit(index, text) {
+  return change(showing, (doc) => {
+    const node = doc?.nodes[index]
+    if (doc === null || node === undefined || node.kind !== 'item') return null
+    return setItemText(doc, index, text)
+  })
 }
 
 /**
@@ -118,11 +127,10 @@ async function edit(index, text) {
  * @param {string} line
  * @returns {Promise<boolean>} false when nothing was written
  */
-async function add(line) {
+function add(line) {
   const text = line.trim()
-  if (text === '') return false
-  const doc = getPage(vault, showing) ?? createDayDocument(showing)
-  return commit(showing, appendItem(doc, createItem(text)))
+  if (text === '') return Promise.resolve(false)
+  return change(showing, (doc) => appendItem(doc ?? createDayDocument(showing), createItem(text)))
 }
 
 /**
@@ -137,8 +145,18 @@ async function add(line) {
  */
 async function carry(decisions) {
   if (decisions.length === 0) return
-  for (const write of carryForward(vault, today(), decisions)) {
-    if (!await commit(write.page, write.doc)) return
+
+  // Decided against the freshest state, not against the index: an item added
+  // a moment ago may still be in the post.
+  const now = today()
+  const touched = new Set([now, ...decisions.map((decision) => decision.page)])
+  let fresh = vault
+  for (const page of touched) {
+    fresh = withPage(fresh, page, writes.current(page, () => getPage(vault, page)))
+  }
+
+  for (const write of carryForward(fresh, now, decisions)) {
+    if (!await change(write.page, () => write.doc)) return
   }
 }
 
@@ -146,13 +164,12 @@ async function carry(decisions) {
  * The one place a document leaves the app. Nothing else writes.
  *
  * @param {string} page
- * @param {import('./core/model.js').Document} doc
+ * @param {(doc: Document|null) => Document|null} mutate  null writes nothing
  * @returns {Promise<boolean>}
  */
-async function commit(page, doc) {
+async function change(page, mutate) {
   try {
-    await ipc.writePage(page, serialize(doc))
-    return true
+    return await writes.change(page, () => getPage(vault, page), mutate)
   } catch (error) {
     // The atomic write means the file on disk is untouched. Say so, and leave
     // what the user typed where it is (spec §8).
