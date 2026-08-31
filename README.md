@@ -6,8 +6,9 @@ notebook. Flip to other days. See what is coming. Close it.
 
 It is not a task manager, and it is trying hard not to become one.
 
-*Early days — the vault format, the domain logic and the day page are built.
-The Tauri shell is not, so what runs today runs in a browser.*
+*Early days — the vault format, the domain logic, the day page and the menu
+bar shell are built. Quick add, the detached window, plugins and notifications
+are not.*
 
 ## Goals
 
@@ -87,6 +88,28 @@ With the server running:
   `~/.planner/themes/`.
 - <http://127.0.0.1:8731/test/browser/keyed-list.html> — the checks that need a
   real browser, because they are about focus and the caret.
+
+### Running the app
+
+Needs a Rust toolchain ([rustup](https://rustup.rs)); the JavaScript above
+does not.
+
+```bash
+npm run app       # cargo run, from src-tauri/
+```
+
+It puts an item in the menu bar and nothing else — no dock icon, no window
+until you click it. Settings and installed themes live in `~/.planner`, and
+the vault at whatever `config.toml` says, defaulting to `~/Planner`. Set
+`PLANNER_HOME` to point the first of those somewhere else, which is how the
+app gets run against a throwaway config:
+
+```bash
+PLANNER_HOME=/tmp/planner-home npm run app
+```
+
+`cd src-tauri && cargo test` runs the Rust side: path mapping, atomic writes
+and echo suppression.
 
 Inspect a vault file:
 
