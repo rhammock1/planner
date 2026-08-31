@@ -8,7 +8,10 @@
 
 mod quick_add;
 mod tray;
-mod vault_io;
+
+/// Public so the tests in `tests/` can reach it; nothing outside this crate
+/// has any business calling it.
+pub mod vault_io;
 
 use std::path::PathBuf;
 use std::sync::Mutex;
