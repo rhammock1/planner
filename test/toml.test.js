@@ -97,3 +97,23 @@ describe('what is refused', () => {
     assert.throws(() => parseToml('[tokens]\npaper = "a"\npaper = "b"\n'), /line 3/)
   })
 })
+
+describe('keys that mean something to JavaScript', () => {
+  // Assigning `table['__proto__']` sets the prototype instead of adding a
+  // key: the value would be silently lost rather than read back.
+  test('a key named __proto__ is an ordinary key', () => {
+    const parsed = parseToml('__proto__ = "kept"\n')
+    assert.equal(getPath(parsed, ['__proto__']), 'kept')
+    assert.deepEqual(Object.keys(parsed), ['__proto__'])
+  })
+
+  test('a table named __proto__ is an ordinary table', () => {
+    const parsed = parseToml('[plugins.__proto__]\nenabled = true\n')
+    assert.equal(getPath(parsed, ['plugins', '__proto__', 'enabled']), true)
+  })
+
+  test('nothing leaks onto other objects', () => {
+    parseToml('[__proto__]\npolluted = true\n')
+    assert.equal(/** @type {any} */ ({}).polluted, undefined)
+  })
+})

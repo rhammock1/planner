@@ -65,7 +65,7 @@ export function parseToml(text) {
     // would mean guessing which folder the user meant.
     if (seen.has(prefix + key[1])) fail(`${key[1]} is set twice`)
     seen.add(prefix + key[1])
-    table[key[1]] = scanned.value
+    setKey(table, key[1], scanned.value)
   })
 
   return root
@@ -83,7 +83,7 @@ export function getPath(table, path) {
   let node = table
   for (const key of path) {
     if (node === undefined || typeof node !== 'object' || Array.isArray(node)) return undefined
-    node = node[key]
+    node = Object.hasOwn(node, key) ? node[key] : undefined
   }
   if (node === undefined || (typeof node === 'object' && !Array.isArray(node))) return undefined
   return node
@@ -163,17 +163,37 @@ function scanArray(line, start) {
 function descend(root, path) {
   let table = root
   for (const key of path) {
-    const next = table[key]
+    // Own properties only. Reading `table['__proto__']` returns the prototype
+    // itself, and the next key would then be written onto Object.prototype -
+    // from a file the app was handed.
+    const next = Object.hasOwn(table, key) ? table[key] : undefined
     if (next === undefined || typeof next !== 'object' || Array.isArray(next)) {
       /** @type {TomlTable} */
       const created = {}
-      table[key] = created
+      setKey(table, key, created)
       table = created
       continue
     }
     table = next
   }
   return table
+}
+
+/**
+ * Assignment by hand, because plain `table[key] = value` treats a key named
+ * `__proto__` as the prototype setter: the key vanishes from the parsed table
+ * and the file's own contents are silently lost. A plugin folder can be named
+ * anything, so a key can be too.
+ *
+ * @param {TomlTable} table
+ * @param {string} key
+ * @param {TomlValue|TomlTable} value
+ * @returns {void}
+ */
+function setKey(table, key, value) {
+  Object.defineProperty(table, key, {
+    value, writable: true, enumerable: true, configurable: true,
+  })
 }
 
 /**
