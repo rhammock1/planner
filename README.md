@@ -1,1 +1,87 @@
-Planner macOS StatusBar App
+# Planner
+
+A macOS menu bar planner. Click the icon, get today's page: a short list of
+what you are doing, written the way you would write it in a school assignment
+notebook. Flip to other days. See what is coming. Close it.
+
+It is not a task manager, and it is trying hard not to become one.
+
+*Early days — the vault format is built and the app is being assembled around it.*
+
+## Goals
+
+- **A page per day.** One list. Some lines carry a time, a due date, or a note
+  underneath. No projects, no boards, no nesting.
+- **Deadlines you see coming.** A thin horizon strip above the list, with a
+  per-item lead time so distant things stay quiet until they matter.
+- **Nothing rots.** Unfinished items surface on the next day to keep or drop,
+  and the old page records which.
+- **Three seconds to capture.** A global hotkey, one line, Enter.
+- **Yours, in plain files.** No database, no account, no sync service.
+- **Extensible without bloating.** Themes are colour tokens in a folder;
+  plugins are sandboxed JS. Calendar and Reminders are plugins, not core.
+
+## Your data is a folder of Markdown
+
+One file per day, plus `someday.md` for things without a day yet.
+
+```
+~/Planner/
+  2026/08/2026-08-31.md
+  someday.md
+```
+
+```markdown
+# 2026-08-31
+
+- [x] Standup - flag the merchant sync bug
+- [ ] Pair with Dana on the offline queue @10:30
+- [ ] Review PR #4412 - printer retry
+  > ask about the 30s timeout
+- [ ] Firmware sign-off !2026-09-02 ~10d
+
+---
+
+Shipped the retry fix.
+```
+
+Edit them in any editor, grep them, put them in git. Anything the app does not
+recognise is preserved exactly as you wrote it. The full contract is in
+[docs/format.md](docs/format.md).
+
+## Stack
+
+| Layer | What |
+|---|---|
+| Shell | Tauri 2 (Rust) - menu bar item, windows, global hotkey, atomic writes, file watcher, notifications |
+| App | Plain ES modules. No framework, no build step, zero runtime dependencies |
+| Types | TypeScript as a checker only - `tsc --checkJs --noEmit` over JSDoc |
+| Tests | `node --test` - no toolchain, no app launch |
+| Storage | Markdown files in a folder you choose |
+
+Domain logic lives in `src/core/` and is pure - no DOM, no file access, no
+clock - so the code most likely to lose your writing is testable in a terminal
+in under a second.
+
+## Development
+
+```bash
+npm install
+npm test          # node --test
+npm run typecheck # tsc --checkJs --noEmit
+```
+
+Inspect a vault file:
+
+```bash
+node tools/dump.js path/to/2026-08-31.md          # parsed structure
+node tools/dump.js path/to/2026-08-31.md --canon  # canonical rewrite
+node tools/dump.js path/to/2026-08-31.md --check  # does it round-trip?
+```
+
+## What it will never do
+
+No subtasks or outlines. No projects, boards, or kanban. No time tracking. No
+accounts, sharing, or sync service. No priorities or tags. No AI in core.
+
+If it does not fit on a ruled page, it belongs in a plugin.
