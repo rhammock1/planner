@@ -14,6 +14,8 @@
 import { addDays } from '../core/dates.js'
 import { el, setText, setClass } from '../ui/dom.js'
 import { patchList } from '../ui/keyedList.js'
+import { VIEWS, viewLabel } from './spreadViews.js'
+import { createAddRow } from './addRow.js'
 import { createHorizonStrip } from './horizonStrip.js'
 import { createItemList, openCount } from './itemList.js'
 import { createCarryBand } from './carryBand.js'
@@ -42,6 +44,7 @@ import { createCarryBand } from './carryBand.js'
  * @property {(line: string) => Promise<boolean>} onAdd  false if it was not saved
  * @property {(decisions: import('../core/carry.js').CarryDecision[]) => void} onCarry
  * @property {(pinned: boolean) => void} onPin
+ * @property {(view: string) => void} onOpenSpread  week, month or someday
  */
 
 /**
@@ -127,44 +130,30 @@ export function mount(root, handlers) {
   note.setAttribute('role', 'textbox')
   note.setAttribute('aria-label', "A note on the day")
 
-  const field = document.createElement('input')
-  field.className = 'add-field'
-  field.placeholder = 'Write something down'
-  field.setAttribute('aria-label', 'Add an item')
-  const add = el('div', 'add')
-  add.append(field)
+  const add = createAddRow(handlers.onAdd, 'Write something down')
 
   const count = el('span', 'count')
+  // The popover only ever shows a day; the other three open the window that
+  // shows more than one (spec §5.1). Buttons, not labels: they do something,
+  // and the keyboard has to be able to reach them.
   const tabs = el('div', 'tabs')
-  for (const name of ['Day', 'Week', 'Month', 'Someday']) {
-    tabs.append(el('span', name === 'Day' ? 'tab on' : 'tab', name))
+  for (const view of VIEWS) {
+    const tab = el('button', 'tab', viewLabel(view))
+    tab.setAttribute('type', 'button')
+    tab.addEventListener('click', () => handlers.onOpenSpread(view))
+    tabs.append(tab)
   }
+  tabs.prepend(el('span', 'tab on', 'Day'))
   const foot = el('div', 'page-foot')
   foot.append(tabs, count)
 
   const surface = el('div', 'page')
-  surface.append(head, notices, carry.element, horizon.element, items.element, add, note, foot)
+  surface.append(head, notices, carry.element, horizon.element, items.element, add.element, note, foot)
   root.replaceChildren(surface)
 
   previous.addEventListener('click', () => handlers.onNavigate(step(-1)))
   next.addEventListener('click', () => handlers.onNavigate(step(1)))
   todayButton.addEventListener('click', () => handlers.onNavigate(currentState?.today ?? ''))
-
-  field.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      field.value = ''
-      field.blur()
-      return
-    }
-    if (event.key !== 'Enter' || field.value.trim() === '') return
-
-    // The field is cleared only once the write has come back. A failed save
-    // leaves what was typed where it is (spec §8).
-    const line = field.value
-    handlers.onAdd(line).then((saved) => {
-      if (saved && field.value === line) field.value = ''
-    })
-  })
 
   pin.addEventListener('click', () => {
     handlers.onPin(pin.getAttribute('aria-pressed') !== 'true')

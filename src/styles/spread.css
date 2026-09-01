@@ -1,0 +1,69 @@
+/*
+ * The detached window (spec §5.6).
+ *
+ * A real window with the system's own frame, so unlike the popover it draws
+ * no border and no corners of its own. Everything inside it - items, the add
+ * row, notices - is the same component the day page uses, in the same theme
+ * tokens; this file is the chrome around them.
+ */
+
+.spread {
+  width: 100%;
+  height: 100%;
+  background-color: var(--paper);
+  background-image: var(--texture);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+}
+
+.spread-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--edge-soft);
+  background: var(--surface);
+}
+
+/* The body is the whole window under the tabs, and the view inside it does
+   its own scrolling. `min-height: 0` is what lets it shrink to the window
+   rather than pushing past the bottom of it. */
+.spread-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.view {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.view[hidden] { display: none; }
+
+.view-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 14px 18px 8px;
+}
+
+.view-title {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* One list, however wide the window is dragged. A line of text stretched
+   across 900px is not a line anybody reads comfortably, so the back page
+   keeps a page's measure and sits in the middle of the window. */
+.back-page { align-items: center; }
+.back-page > * { width: 100%; max-width: 680px; }
+.back-page .items { padding: 2px 0 6px; }
+.back-page .item { padding: 8px 18px; }
+.back-page .add { padding: 10px 18px; }

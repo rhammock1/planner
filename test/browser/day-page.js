@@ -48,6 +48,7 @@ function show(count) {
     onAdd: async () => true,
     onCarry: () => {},
     onPin: () => {},
+    onOpenSpread: () => {},
   })
   dayPage.render({
     today: '2026-09-01',

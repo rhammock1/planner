@@ -26,6 +26,9 @@
  * @property {() => Promise<void>} closeQuickAdd
  * @property {(pinned: boolean) => Promise<void>} setPinned
  * @property {() => Promise<void>} closePopover
+ * @property {(view: string) => Promise<void>} openSpread
+ * @property {() => Promise<string|null>} spreadView
+ * @property {(handler: (view: string) => void) => void|Promise<void>} onSpreadView
  * @property {(name: string) => Promise<{toml: string, css: string}>} readTheme
  * @property {() => Promise<PageFile[]>} readVault
  * @property {(page: string) => Promise<string|null>} readPage
@@ -114,6 +117,36 @@ export async function closePopover() {
   return (await getHost()).closePopover()
 }
 
+/**
+ * Opens the detached window on one of its views, or brings it forward and
+ * switches to that view (spec §5.6).
+ *
+ * @param {string} view
+ * @returns {Promise<void>}
+ */
+export async function openSpread(view) {
+  return (await getHost()).openSpread(view)
+}
+
+/**
+ * The view the detached window was last asked for, read as it starts.
+ *
+ * @returns {Promise<string|null>} null when nothing has asked yet
+ */
+export async function spreadView() {
+  return (await getHost()).spreadView()
+}
+
+/**
+ * Fires when the footer asks the detached window for a different view.
+ *
+ * @param {(view: string) => void} handler
+ * @returns {Promise<void>}
+ */
+export async function onSpreadView(handler) {
+  await (await getHost()).onSpreadView(handler)
+}
+
 /** @returns {Promise<PageFile[]>} every page in the vault */
 export async function readVault() {
   return (await getHost()).readVault()
@@ -163,6 +196,8 @@ function tauriHost() {
     closeQuickAdd: () => invoke('close_quick_add'),
     setPinned: (pinned) => invoke('set_pinned', { pinned }),
     closePopover: () => invoke('close_popover'),
+    openSpread: (view) => invoke('open_spread', { view }),
+    spreadView: () => invoke('spread_view'),
     readTheme: (name) => invoke('read_theme', { name }),
     readVault: () => invoke('read_vault'),
     readPage: (page) => invoke('read_page', { page }),
@@ -173,6 +208,12 @@ function tauriHost() {
     onVaultChanged: (handler) =>
       tauri.event.listen('vault:changed', (/** @type {any} */ event) => {
         handler(String(event.payload?.page ?? ''))
+      }),
+    // Also awaited and allowed to throw: a window that cannot hear this is a
+    // window whose tabs quietly stop switching it.
+    onSpreadView: (handler) =>
+      tauri.event.listen('spread:view', (/** @type {any} */ event) => {
+        handler(String(event.payload ?? ''))
       }),
   }
 }
