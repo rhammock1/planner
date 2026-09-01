@@ -99,8 +99,10 @@ npm run app       # cargo run, from src-tauri/
 ```
 
 It puts an item in the menu bar and nothing else — no dock icon, no window
-until you click it. `⌥Space` opens the quick-add field from anywhere; the
-shortcut is `hotkey` in `config.toml`. Settings and installed themes live in `~/.planner`, and
+until you click it. Clicking away closes the page again; the pin in its header
+keeps it open, and a pinned page can be dragged anywhere by that header.
+`Shift+Enter` on a line opens the note underneath it. `⌥Space` opens the
+quick-add field from anywhere; the shortcut is `hotkey` in `config.toml`. Settings and installed themes live in `~/.planner`, and
 the vault at whatever `config.toml` says, defaulting to `~/Planner`. Set
 `PLANNER_HOME` to point the first of those somewhere else, which is how the
 app gets run against a throwaway config:
