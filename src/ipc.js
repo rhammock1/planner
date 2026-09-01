@@ -28,7 +28,7 @@
  * @property {() => Promise<PageFile[]>} readVault
  * @property {(page: string) => Promise<string|null>} readPage
  * @property {(page: string, text: string) => Promise<void>} writePage
- * @property {(handler: (page: string) => void) => void} onVaultChanged
+ * @property {(handler: (page: string) => void) => void|Promise<void>} onVaultChanged
  */
 
 /** @type {Promise<Host>|null} */
@@ -124,7 +124,7 @@ export async function writePage(page, text) {
  * @returns {Promise<void>}
  */
 export async function onVaultChanged(handler) {
-  (await getHost()).onVaultChanged(handler)
+  await (await getHost()).onVaultChanged(handler)
 }
 
 /**
@@ -146,10 +146,12 @@ function tauriHost() {
     readVault: () => invoke('read_vault'),
     readPage: (page) => invoke('read_page', { page }),
     writePage: (page, text) => invoke('write_page', { page, text }),
-    onVaultChanged: (handler) => {
+    // Awaited, and allowed to throw. A refused listener is the difference
+    // between an app that saves your edits and one that only appears to: the
+    // write lands on disk and nothing on screen ever changes.
+    onVaultChanged: (handler) =>
       tauri.event.listen('vault:changed', (/** @type {any} */ event) => {
         handler(String(event.payload?.page ?? ''))
-      })
-    },
+      }),
   }
 }

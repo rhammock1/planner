@@ -64,14 +64,23 @@ async function start() {
 
   // One subscription, for every change: this app's writes and an edit made in
   // nvim arrive here by the same path.
-  await ipc.onVaultChanged(async (page) => {
-    const text = await ipc.readPage(page)
-    vault = withPage(vault, page, text === null ? null : parse(text))
-    // Whatever we may have written to this page has now arrived, so the file
-    // is the only thing worth believing about it.
-    writes.observed(page)
+  //
+  // Which makes losing it fatal in a way that looks like nothing at all: the
+  // write still lands on disk, and the screen never moves. Said out loud
+  // rather than left in a console nobody has open.
+  try {
+    await ipc.onVaultChanged(async (page) => {
+      const text = await ipc.readPage(page)
+      vault = withPage(vault, page, text === null ? null : parse(text))
+      // Whatever we may have written to this page has now arrived, so the file
+      // is the only thing worth believing about it.
+      writes.observed(page)
+      draw()
+    })
+  } catch (error) {
+    notices = [...notices, `Edits will save but not appear: ${error instanceof Error ? error.message : String(error)}`]
     draw()
-  })
+  }
 }
 
 function draw() {

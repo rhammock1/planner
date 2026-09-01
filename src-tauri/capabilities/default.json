@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/macOS-schema.json",
+  "identifier": "default",
+  "description": "The two windows the app has, and the one core API they use. Without this file a webview may invoke this app's own commands but nothing else, so `vault:changed` never arrives and every edit lands on disk without appearing on screen.",
+  "windows": ["popover", "quickadd"],
+  "permissions": ["core:event:default"]
+}
