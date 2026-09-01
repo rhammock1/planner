@@ -11,6 +11,9 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Added
 
+-   Plugins (spec §7). A plugin is a folder in `~/.planner/plugins` that `config.toml` switches on. It runs in its own hidden webview with no permissions of its own, may call exactly one command, cannot reach the network, and has two seconds to answer anything before it is put away for the session. The API is published in `docs/plugins.md`
+-   `macos-calendar`, the first plugin: the day's events under your list, read-only, and not counted towards how much is left. It is also the API's own test — it is written against the public API with no privilege the API does not grant
+-   The day page asks the plugins again every time the popover opens, rather than showing what they said at launch. Which is also how a calendar permission granted a minute ago first has an effect
 -   The detached window (spec §5.6). The footer's `WEEK`, `MONTH` and `SOMEDAY` tabs, and `⌘↩`, open a second ordinary window that stays where you put it: the week as seven columns, the month as a grid, and `someday.md` as one list
 -   The week - seven columns Monday first, today marked, each a day's list with its own add row, and arrows that move a whole week at a time
 -   The month - a cell per day carrying how much is still open on it and a mark when something anywhere in the vault is due that day. Clicking a cell goes to the week that day sits in

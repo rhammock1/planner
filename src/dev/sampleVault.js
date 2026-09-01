@@ -64,6 +64,9 @@ export function sampleHost() {
 
     // No plugin host in a browser: nothing to install, nothing to start.
     listPlugins: async () => [],
+
+    // A browser tab is never opened from a menu bar icon.
+    onPopoverShown: () => {},
     startPlugin: async () => {},
 
     // Stood in for, rather than left empty, so the section under the list can

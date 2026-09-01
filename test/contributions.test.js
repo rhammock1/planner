@@ -108,3 +108,36 @@ test('a plugin cannot reach into the app through a key it made up', () => {
   assert.deepEqual(events, [{ time: null, text: 'Standup' }])
   assert.equal(Object.keys(events[0] ?? {}).sort().join(','), 'text,time')
 })
+
+test('the same event in two calendars is one line', () => {
+  // Subscribing to two holiday calendars is ordinary, and gives every public
+  // holiday twice. It is also two rows claiming the same key in the list.
+  const { events } = read([
+    { date: DAY, time: null, text: 'Labor Day' },
+    { date: DAY, time: null, text: 'Labor Day' },
+    { date: DAY, time: '09:30', text: 'Standup' },
+    { date: DAY, time: '09:30', text: 'Standup' },
+  ])
+  assert.deepEqual(events, [
+    { time: null, text: 'Labor Day' },
+    { time: '09:30', text: 'Standup' },
+  ])
+})
+
+test('the same title at different times is two lines', () => {
+  const { events } = read([
+    { date: DAY, time: '09:30', text: 'Standup' },
+    { date: DAY, time: '16:30', text: 'Standup' },
+  ])
+  assert.equal(events.length, 2)
+})
+
+test('every line the page draws has a key of its own', () => {
+  const { events } = read([
+    { date: DAY, time: null, text: 'Labor Day' },
+    { date: DAY, time: null, text: 'Labor Day' },
+    { date: DAY, time: '09:30', text: 'Standup' },
+  ])
+  const keys = events.map((one) => `${one.time ?? ''}:${one.text}`)
+  assert.equal(new Set(keys).size, keys.length, 'two lines share a key')
+})

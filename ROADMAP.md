@@ -6,6 +6,12 @@ the README is not planned.
 
 ## Next
 
+- **A settings pane.** `config.toml` is currently the only way to switch a
+  plugin on and approve what it may reach, which was fine for the first one
+  and is not fine for the second: a permission granted in a text editor
+  months ago is one you will not remember granting. Installed plugins with
+  toggles and their capabilities, and the settings the config already holds.
+
 - **Token help while typing** — the four tokens (`@10:30`, `!2026-09-04`,
   `~3d`, `>2026-09-02`) already work anywhere a line is typed, because the
   line is re-parsed on the way to disk. Nothing says so. Two candidates, in
@@ -36,7 +42,14 @@ the README is not planned.
   drop, because the week and the back page are different views of the same
   window. A someday column down the right-hand edge of the week is the obvious
   answer, and a design question rather than a coding one.
-- Plugins and the two reference plugins (spec §9)
+- **`macos-reminders`**, the second reference plugin (spec §7.5). The point of
+  it is not reminders: it is the second consumer of an API that has only ever
+  had one, and whatever it cannot do through the public API is a thing the API
+  has wrong.
+- **A heading that comes from the plugin.** The contributed section is headed
+  `On the calendar` because one plugin contributes to it. A second one would
+  need the heading to say whose lines those are, which means either a field in
+  the manifest or a section per plugin.
 - Notifications and the menu bar badge
 - Search
 - A settings pane, so `config.toml` is not the only way in

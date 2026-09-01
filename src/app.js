@@ -62,10 +62,18 @@ async function start() {
 
   // After the page is up, never before it. A plugin is somebody else's code
   // and the day does not wait on it (addendum §4).
-  void store.startPlugins().then(() => {
+  const ask = () => {
     const now = today()
     return store.loadContributions(now, now)
-  })
+  }
+  void store.startPlugins().then(ask)
+
+  try {
+    await ipc.onPopoverShown(() => { void ask() })
+  } catch (error) {
+    // Not fatal: the day still shows what the plugins said at launch.
+    store.notice(`Plugins will not refresh when the page opens: ${message(error)}`)
+  }
 
   for (const notice of await startup.registerHotkey(store.config().hotkey)) store.notice(notice)
 }

@@ -15,9 +15,11 @@
     "noUncheckedIndexedAccess": true,
     "types": []
   },
-  "//": "The frontend: views, the list patcher, and the IPC seam. Runs in a webview, so DOM but no node.",
+  "//": "The frontend: views, the list patcher, and the IPC seam. Runs in a webview, so DOM but no node. The reference plugins are here too, checked against plugins/planner.d.ts - which is how a change to the host API breaks them rather than being noticed later.",
   "include": [
     "src/**/*.js",
-    "test/browser/**/*.js"
+    "test/browser/**/*.js",
+    "plugins/**/*.js",
+    "plugins/**/*.d.ts"
   ]
 }

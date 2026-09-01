@@ -1,0 +1,8 @@
+name = "macos-calendar"
+version = "0.1.0"
+description = "Shows the day's events under your list"
+entry = "index.js"
+slots = ["vault.contribute"]
+
+[permissions]
+capabilities = ["macos.calendar.read"]

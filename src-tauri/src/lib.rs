@@ -10,6 +10,7 @@ mod bridges;
 mod quick_add;
 mod spread;
 mod tray;
+mod watcher;
 
 /// Public so the tests in `tests/` can reach it.
 pub mod plugins;
@@ -156,7 +157,7 @@ fn set_vault(app: AppHandle, vault: State<'_, SharedVault>, path: String) -> Vau
     );
 
     if exists {
-        tray::watch_vault(app, root);
+        watcher::watch_vault(app, root);
     }
     VaultStatus { exists }
 }

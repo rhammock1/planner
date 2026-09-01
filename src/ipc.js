@@ -37,6 +37,7 @@
  * @property {() => Promise<{name: string, manifest: string}[]>} listPlugins
  * @property {(name: string, entry: string, capabilities: string[]) => Promise<void>} startPlugin
  * @property {(from: string, to: string) => Promise<Contributions>} contribute
+ * @property {(handler: () => void) => void|Promise<void>} onPopoverShown
  */
 
 /**
@@ -234,6 +235,19 @@ export async function contribute(from, to) {
 }
 
 /**
+ * Fires when the menu bar icon opens the popover.
+ *
+ * Opening it is asking what today looks like, which makes it the moment to
+ * ask the plugins again rather than showing what they said at launch.
+ *
+ * @param {() => void} handler
+ * @returns {Promise<void>}
+ */
+export async function onPopoverShown(handler) {
+  await (await getHost()).onPopoverShown(handler)
+}
+
+/**
  * @returns {Host}
  */
 function tauriHost() {
@@ -256,6 +270,7 @@ function tauriHost() {
     startPlugin: (name, entry, capabilities) =>
       invoke('start_plugin', { name, entry, capabilities }),
     contribute: (from, to) => invoke('contribute', { from, to }),
+    onPopoverShown: (handler) => tauri.event.listen('popover:shown', () => handler()),
     readTheme: (name) => invoke('read_theme', { name }),
     readVault: () => invoke('read_vault'),
     readPage: (page) => invoke('read_page', { page }),

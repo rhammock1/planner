@@ -32,6 +32,11 @@ export function readContributions(items, page) {
   const events = []
   let dropped = 0
 
+  // The same holiday subscribed twice is one holiday. Two identical lines say
+  // nothing the first did not, and the list below is keyed by what a line
+  // says - so a duplicate would be two rows claiming the same key.
+  const seen = new Set()
+
   for (const item of items) {
     const event = readOne(item, page)
     if (event === 'elsewhere') continue
@@ -39,6 +44,9 @@ export function readContributions(items, page) {
       dropped += 1
       continue
     }
+    const key = `${event.time ?? ''}:${event.text}`
+    if (seen.has(key)) continue
+    seen.add(key)
     events.push(event)
   }
 

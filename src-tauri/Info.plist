@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Merged into the bundle, and embedded in the binary's __TEXT,__info_plist
+  section for `cargo run`, so the same prompt appears in development as in a
+  built app.
+
+  macOS refuses to ask at all without a reason written here, and refuses in a
+  way that looks like a plugin quietly returning nothing. Both keys are
+  present because the first is what macOS 14 and later reads and the second is
+  what everything before it reads.
+-->
+<plist version="1.0">
+<dict>
+  <key>NSCalendarsFullAccessUsageDescription</key>
+  <string>Planner shows the day’s events under your list.</string>
+  <key>NSCalendarsUsageDescription</key>
+  <string>Planner shows the day’s events under your list.</string>
+</dict>
+</plist>

@@ -186,8 +186,8 @@ mod files {
     /// A plugin folder with a secret next to it, the way `~/.planner` has
     /// `config.toml` a level above every plugin.
     fn planted() -> PathBuf {
-        let home = std::env::temp_dir().join(format!("planner-within-{}", std::process::id()));
-        let plugin = home.join("plugins").join("probe");
+        let home = std::env::temp_dir().join(format!("planner-plugin-files-{}", std::process::id()));
+        let plugin = home.join("plugins").join("example");
         fs::create_dir_all(&plugin).expect("make the plugin folder");
         fs::write(plugin.join("index.js"), "// the plugin's own").expect("write the entry");
         fs::write(home.join("config.toml"), "secret = true").expect("write the config");

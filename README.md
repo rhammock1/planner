@@ -7,8 +7,8 @@ notebook. Flip to other days. See what is coming. Close it.
 It is not a task manager, and it is trying hard not to become one.
 
 *Early days — the vault format, the domain logic, the day page, the detached
-window, the menu bar shell and quick add are built. Plugins, notifications and
-search are not.*
+window, the menu bar shell, quick add and the plugin host are built.
+Notifications and search are not.*
 
 ## Goals
 
@@ -51,11 +51,35 @@ Edit them in any editor, grep them, put them in git. Anything the app does not
 recognise is preserved exactly as you wrote it. The full contract is in
 [docs/format.md](docs/format.md).
 
+## Plugins
+
+Calendar and Reminders are plugins rather than features, which is how the
+app stays a planner. `macos-calendar` ships in `plugins/` and puts the day's
+events under your list — read-only, and not counted:
+
+```bash
+cp -R plugins/macos-calendar ~/.planner/plugins/
+```
+
+```toml
+# ~/.planner/config.toml
+[plugins.macos-calendar]
+enabled               = true
+approved_capabilities = ["macos.calendar.read"]
+```
+
+macOS asks for calendar access the first time; open the popover again once
+you have allowed it.
+
+A plugin runs in its own webview with no permissions, may call exactly one
+command, cannot reach the network, and has two seconds to answer anything.
+The API is published in [docs/plugins.md](docs/plugins.md).
+
 ## Stack
 
 | Layer | What |
 |---|---|
-| Shell | Tauri 2 (Rust) - menu bar item, windows, global hotkey, atomic writes, file watcher, notifications |
+| Shell | Tauri 2 (Rust) - menu bar item, windows, global hotkey, atomic writes, file watcher, the plugin sandbox and its capability bridges |
 | App | Plain ES modules. No framework, no build step, zero runtime dependencies |
 | Types | TypeScript as a checker only - `tsc --noEmit` over JSDoc |
 | Tests | `node --test` - no toolchain, no app launch |
@@ -123,8 +147,8 @@ app gets run against a throwaway config:
 PLANNER_HOME=/tmp/planner-home npm run app
 ```
 
-`cd src-tauri && cargo test` runs the Rust side: path mapping, atomic writes
-and echo suppression.
+`cd src-tauri && cargo test` runs the Rust side: path mapping, atomic writes,
+echo suppression, and what a plugin is and is not allowed to do.
 
 Inspect a vault file:
 

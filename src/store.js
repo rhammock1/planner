@@ -52,6 +52,13 @@ export function createStore() {
   let config = DEFAULTS
   /** @type {string[]} */
   let notices = []
+  /** What the plugins said about the last time they were asked.
+   *
+   *  Kept apart from the rest because they are asked again every time the
+   *  popover is opened: appended, a calendar that is not allowed would leave
+   *  the same line behind on every open until the page was all notice.
+   *  @type {string[]} */
+  let pluginNotices = []
   /** @type {() => void} */
   let changed = () => {}
   /** Whatever the plugins last returned. Not this app's data; checked on the
@@ -125,10 +132,10 @@ export function createStore() {
     try {
       const given = await ipc.contribute(from, to)
       contributions = given.items
-      notices = [...notices, ...given.notices]
+      pluginNotices = given.notices
     } catch (error) {
       contributions = []
-      notices = [...notices, `Could not ask the plugins: ${message(error)}`]
+      pluginNotices = [`Could not ask the plugins: ${message(error)}`]
     }
     changed()
   }
@@ -140,7 +147,7 @@ export function createStore() {
     contributions: () => contributions,
     vault: () => vault,
     config: () => config,
-    notices: () => notices,
+    notices: () => [...notices, ...pluginNotices],
 
     notice: (text) => {
       notices = [...notices, text]
