@@ -106,6 +106,44 @@ export function appendItem(doc, item) {
 }
 
 /**
+ * Takes a line off the page entirely.
+ *
+ * Not the same as dropping it. `[-]` is a decision the page keeps a record of
+ * - you considered it and said no. This is for a line that should never have
+ * been written: a typo, a duplicate, somebody else's example. Nothing is left
+ * behind, because there is nothing worth remembering.
+ *
+ * @param {Document} doc
+ * @param {number} index  position in `doc.nodes`
+ * @returns {Document}
+ */
+export function removeItem(doc, index) {
+  const node = doc.nodes[index]
+  if (node === undefined || node.kind !== 'item') {
+    throw new Error(`line ${index} is not an item`)
+  }
+
+  const nodes = [...doc.nodes]
+  nodes.splice(index, 1)
+  return { ...doc, nodes }
+}
+
+/**
+ * Whether a line would be empty without its text - nothing but the words.
+ *
+ * An item carrying a time, a deadline, a lead or a note is a commitment with
+ * more on it than the sentence, and emptying the sentence is far more likely
+ * to be a slip than an instruction to throw the rest away.
+ *
+ * @param {import('./model.js').Item} item
+ * @returns {boolean}
+ */
+export function carriesNothingElse(item) {
+  return item.time === null && item.due === null && item.lead === null
+    && item.note === null && item.movedTo === null
+}
+
+/**
  * @param {import('./model.js').Node|undefined} node
  * @returns {boolean}
  */

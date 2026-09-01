@@ -12,7 +12,9 @@
 import { parse } from './core/parse.js'
 import { serialize } from './core/serialize.js'
 import { createDayDocument, createItem } from './core/model.js'
-import { setItemState, setItemText, setItemNote, appendItem } from './core/edit.js'
+import {
+  setItemState, setItemText, setItemNote, removeItem, carriesNothingElse, appendItem,
+} from './core/edit.js'
 import { buildIndex, getPage, withPage } from './core/vaultIndex.js'
 import { horizon } from './core/horizon.js'
 import { unfinished, carryForward } from './core/carry.js'
@@ -58,6 +60,8 @@ async function start() {
     onToggle: (index) => { void toggle(index) },
     onEdit: (index, text) => edit(index, text),
     onNote: (index, note) => annotate(index, note),
+    onStrike: (index) => { void strike(index) },
+    onRemove: (index) => remove(index),
     onAdd: (line) => add(line),
     onCarry: (decisions) => { void carry(decisions) },
     onPin: (next) => { void pin(next) },
@@ -155,6 +159,45 @@ function edit(index, text) {
     const node = doc?.nodes[index]
     if (doc === null || node === undefined || node.kind !== 'item') return null
     return setItemText(doc, index, text)
+  })
+}
+
+/**
+ * Crosses a line out, or takes an already-crossed-out one off the page.
+ *
+ * `[-]` is the record of a decision, and the page is kept for its records. A
+ * second press is how you say the line was never worth one.
+ *
+ * @param {number} index
+ * @returns {Promise<boolean>}
+ */
+function strike(index) {
+  return change(showing, (doc) => {
+    const node = doc?.nodes[index]
+    if (doc === null || node === undefined || node.kind !== 'item') return null
+    if (node.state === 'dropped') return removeItem(doc, index)
+    return setItemState(doc, index, 'dropped')
+  })
+}
+
+/**
+ * Takes a line off the page because its text was rubbed out.
+ *
+ * Refused when the line carries a time, a deadline or a note: those are worth
+ * more than the keystroke that emptied the words, and the text is put back.
+ *
+ * @param {number} index
+ * @returns {Promise<boolean>}
+ */
+function remove(index) {
+  const node = getPage(vault, showing)?.nodes[index]
+  if (node === undefined || node.kind !== 'item' || !carriesNothingElse(node)) return Promise.resolve(false)
+
+  return change(showing, (doc) => {
+    const current = doc?.nodes[index]
+    if (doc === null || current === undefined || current.kind !== 'item') return null
+    // Read again inside the write, in case the file moved under us.
+    return carriesNothingElse(current) ? removeItem(doc, index) : null
   })
 }
 

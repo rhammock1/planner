@@ -20,7 +20,10 @@
  * @typedef {object} ListSpec
  * @property {(item: T) => string} keyOf  stable within one render pass
  * @property {(item: T) => HTMLElement} create
- * @property {(element: HTMLElement, item: T) => void} update
+ * @property {(element: HTMLElement, item: T, caret: HTMLElement|null) => void} update
+ *   `caret` is the element inside this row that is being typed into, if any.
+ *   An update must not overwrite that one element's text; everything else
+ *   about the row is its to bring up to date.
  */
 
 /**
@@ -55,7 +58,7 @@ export function patchList(container, items, spec) {
       // or has been on the page all along.
       const created = spec.create(item)
       created.dataset['key'] = key
-      spec.update(created, item)
+      spec.update(created, item, null)
       container.insertBefore(created, cursor)
       continue
     }
@@ -63,17 +66,18 @@ export function patchList(container, items, spec) {
     existing.delete(key)
 
     // A row is never moved while it holds focus, because moving it blurs
-    // whatever was focused. It is only left un-updated when the focus is on
-    // something being typed into - overwriting that would take the words out
-    // from under the user.
+    // whatever was focused.
     //
-    // The distinction matters: a focused button is not a caret. Treating it
-    // as one leaves a ticked checkbox showing as unticked until the row loses
-    // focus, which is a page disagreeing with the file it came from.
+    // The caret is narrower than that. It protects the one element being
+    // typed into - overwriting that would take the words out from under the
+    // user - and nothing else. Not the row: a line crossed out while its text
+    // is focused has to show the cross-out, or the next keystroke deletes
+    // something the page never admitted it had struck. Not a focused button
+    // either: that is how a ticked checkbox came to show as unticked.
     if (found === cursor) cursor = cursor.nextElementSibling
     else if (!holdsFocus(found, focused)) container.insertBefore(found, cursor)
 
-    if (!holdsCaret(found, focused)) spec.update(found, item)
+    spec.update(found, item, caretIn(found, focused))
   }
 
   for (const orphan of existing.values()) orphan.remove()
@@ -86,6 +90,17 @@ export function patchList(container, items, spec) {
  */
 function holdsFocus(element, focused) {
   return focused !== null && element.contains(focused)
+}
+
+/**
+ * The element inside `row` that is being typed into, or null.
+ *
+ * @param {HTMLElement} row
+ * @param {Element|null} focused
+ * @returns {HTMLElement|null}
+ */
+function caretIn(row, focused) {
+  return holdsCaret(row, focused) && focused instanceof HTMLElement ? focused : null
 }
 
 /**

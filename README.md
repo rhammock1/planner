@@ -103,7 +103,9 @@ until you click it. Clicking away closes the page again; the pin in its header
 keeps it open, and a pinned page can be dragged anywhere by that header and
 reopens where you left it. Unpin it and it goes back to opening under the
 icon.
-`Shift+Enter` on a line opens the note underneath it. `⌥Space` opens the
+`Shift+Enter` on a line opens the note underneath it, and `⌘⌫` crosses a line
+out — press it again on a line already crossed out and it comes off the page
+for good. `⌥Space` opens the
 quick-add field from anywhere; the shortcut is `hotkey` in `config.toml`. Settings and installed themes live in `~/.planner`, and
 the vault at whatever `config.toml` says, defaulting to `~/Planner`. Set
 `PLANNER_HOME` to point the first of those somewhere else, which is how the

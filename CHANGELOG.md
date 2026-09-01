@@ -12,6 +12,8 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 ### Added
 
 -   Pin the popover open. Unpinned it closes when you click elsewhere; pinned it stays, its header becomes a handle you can drag it anywhere by, and it reopens where you left it rather than snapping back under the menu bar
+-   `⌘⌫` crosses a task out, recording that you decided against it. Pressed again on a line already crossed out, it takes the line off the page entirely — for the typo, the duplicate, and somebody else's example
+-   Rubbing out a line's words removes it, so long as it carries nothing else. A line with a time, a deadline or a note keeps its words instead: those are worth more than the keystroke that emptied them
 -   `Shift+Enter` on a task opens the line underneath it - the note the file format always carried, with no way in but a text editor. Emptying it takes it away again
 -   Escape puts the popover away
 -   The menu bar icon has a tooltip
@@ -41,6 +43,7 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Fixed
 
+-   A row is repainted while its own text holds the caret. Only that one element is left alone now, not the whole row — a line crossed out while you were in it went on looking open, which is a page inviting you to delete something it never showed you striking out
 -   Every edit now appears. Ticking a box, adding a line, keeping or dropping a carried item all reached the file and none of them reached the screen: the webview had no permission to listen for the change event, and the app only ever repaints when that arrives
 -   Clicking the menu bar icon now opens the popover under it. The icon's position arrives in physical pixels and was read as logical points, so on any Retina display the popover opened a screen's width off to the right, correctly and invisibly
 -   The popover is pulled back onto the screen when the icon sits near its right edge, and hangs below the menu bar rather than under it

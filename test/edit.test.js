@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { parse } from '../src/core/parse.js'
 import { serialize } from '../src/core/serialize.js'
 import { createItem, createDayDocument } from '../src/core/model.js'
-import { setItemState, setItemText, setItemNote, appendItem, setDailyNote } from '../src/core/edit.js'
+import { setItemState, setItemText, setItemNote, removeItem, carriesNothingElse, appendItem, setDailyNote } from '../src/core/edit.js'
 
 const day = '# 2026-08-31\n\n- [ ] Pair with Dana @10:30\n  > about the queue\n- [x] Standup\n'
 
@@ -161,5 +161,70 @@ describe('setItemNote', () => {
   test('a line that is not an item is refused', () => {
     assert.throws(() => setItemNote(page(), 0, 'x'), /not an item/)
     assert.throws(() => setItemNote(page(), 99, 'x'), /not an item/)
+  })
+})
+
+describe('removeItem', () => {
+  /** @returns {import('../src/core/model.js').Document} */
+  const page = () => parse('# 2026-09-01\n\n- [ ] Review PR #4412\n- [-] Order the Pi Zero\n- [ ] Firmware sign-off !2026-09-02\n')
+
+  test('takes the line off the page, leaving nothing behind', () => {
+    assert.equal(
+      serialize(removeItem(page(), 2)),
+      '# 2026-09-01\n\n- [ ] Review PR #4412\n- [ ] Firmware sign-off !2026-09-02\n',
+    )
+  })
+
+  test('the item and its note go together', () => {
+    const doc = parse('# 2026-09-01\n\n- [ ] Review PR #4412\n  > ask about the timeout\n- [ ] Firmware sign-off\n')
+    assert.equal(serialize(removeItem(doc, 1)), '# 2026-09-01\n\n- [ ] Firmware sign-off\n')
+  })
+
+  test('the blank line under the header is structure, and stays', () => {
+    const after = removeItem(page(), 1)
+    assert.equal(after.nodes[0]?.kind, 'opaque')
+    assert.equal(serialize(after), '# 2026-09-01\n\n- [-] Order the Pi Zero\n- [ ] Firmware sign-off !2026-09-02\n')
+  })
+
+  test('removing the last item leaves a page, not a ruin', () => {
+    let doc = parse('# 2026-09-01\n\n- [ ] Only this\n')
+    doc = removeItem(doc, 1)
+    assert.equal(serialize(doc), '# 2026-09-01\n\n')
+  })
+
+  test('a line that is not an item is refused', () => {
+    assert.throws(() => removeItem(page(), 0), /not an item/)
+    assert.throws(() => removeItem(page(), 99), /not an item/)
+  })
+})
+
+describe('carriesNothingElse', () => {
+  /**
+   * @param {string} line
+   * @returns {import('../src/core/model.js').Item}
+   */
+  const item = (line) => {
+    const node = parse(`# 2026-09-01\n\n${line}\n`).nodes[1]
+    if (node === undefined || node.kind !== 'item') throw new Error('not an item')
+    return node
+  }
+
+  test('a plain line carries nothing else', () => {
+    assert.equal(carriesNothingElse(item('- [ ] Just words')), true)
+  })
+
+  // Emptying the words of a line that also carries a deadline is a slip far
+  // more often than it is an instruction to throw the deadline away.
+  test('a time, a deadline, a lead or a note all count', () => {
+    assert.equal(carriesNothingElse(item('- [ ] Pair with Dana @10:30')), false)
+    assert.equal(carriesNothingElse(item('- [ ] Sign-off !2026-09-02')), false)
+    assert.equal(carriesNothingElse(item('- [ ] Sign-off !2026-09-02 ~10d')), false)
+    assert.equal(carriesNothingElse(item('- [>] Moved on >2026-09-02')), false)
+  })
+
+  test('a note counts too', () => {
+    const node = parse('# 2026-09-01\n\n- [ ] Review PR\n  > ask about it\n').nodes[1]
+    if (node === undefined || node.kind !== 'item') throw new Error('not an item')
+    assert.equal(carriesNothingElse(node), false)
   })
 })

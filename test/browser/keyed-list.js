@@ -18,9 +18,12 @@ const spec = {
     element.append(document.createElement('input'))
     return element
   },
-  update: (element, row) => {
+  // The contract: everything about the row is brought up to date except the
+  // one element the caret is in.
+  update: (element, row, caret) => {
+    element.dataset['state'] = row.text.toUpperCase()
     const field = element.querySelector('input')
-    if (field !== null) field.value = row.text
+    if (field !== null && field !== caret) field.value = row.text
   },
 }
 
@@ -92,6 +95,26 @@ check('an empty list clears the container', () => {
 
 // The reason this module exists: every edit round-trips through the
 // filesystem, so a render lands on the list while the user is still typing.
+// The caret protects the element it is in, not the row around it. A row left
+// wholly un-updated is how a line crossed out under the caret went on looking
+// open - and the next press of the same keys deleted it.
+check('updates the rest of a row whose field has the caret', () => {
+  const container = listOf([{ id: 'a', text: 'A' }])
+  const field = container.querySelector('input')
+  ok(field !== null, 'field exists')
+  field.focus()
+  field.value = 'half-typed'
+
+  patchList(container, [{ id: 'a', text: 'struck' }], spec)
+  equal(field.value, 'half-typed', 'what was typed survives')
+  const row = container.firstElementChild
+  equal(
+    row instanceof HTMLElement ? row.dataset['state'] : null,
+    'STRUCK',
+    'the row around the caret was left stale',
+  )
+})
+
 check('leaves a focused row alone', () => {
   const container = listOf([{ id: 'a', text: 'A' }, { id: 'b', text: 'B' }])
   const field = container.querySelector('input')

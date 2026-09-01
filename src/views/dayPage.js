@@ -36,6 +36,8 @@ import { createCarryBand } from './carryBand.js'
  * @property {(index: number) => void} onToggle  index in the page's doc.nodes
  * @property {(index: number, text: string) => Promise<boolean>} onEdit
  * @property {(index: number, note: string) => Promise<boolean>} onNote
+ * @property {(index: number) => void} onStrike
+ * @property {(index: number) => Promise<boolean>} onRemove
  * @property {(line: string) => Promise<boolean>} onAdd  false if it was not saved
  * @property {(decisions: import('../core/carry.js').CarryDecision[]) => void} onCarry
  * @property {(pinned: boolean) => void} onPin

@@ -18,7 +18,7 @@ import { el, setText } from '../ui/dom.js'
 /** @typedef {{kind: string, index: number, node: Node}} Row */
 
 /**
- * @param {{onToggle: (index: number) => void, onEdit: (index: number, text: string) => Promise<boolean>, onNote: (index: number, note: string) => Promise<boolean>}} handlers
+ * @param {{onToggle: (index: number) => void, onEdit: (index: number, text: string) => Promise<boolean>, onNote: (index: number, note: string) => Promise<boolean>, onStrike: (index: number) => void, onRemove: (index: number) => Promise<boolean>}} handlers
  * @returns {{element: HTMLElement, render: (doc: Document|null) => void}}
  */
 export function createItemList(handlers) {
@@ -50,6 +50,24 @@ export function createItemList(handlers) {
       event.preventDefault()
       setText(target, before.get(target) ?? '')
       target.blur()
+      return
+    }
+
+    // Crossing a line out, then rubbing it out. The first press says you are
+    // not doing it and leaves the record the page is for (spec §5.1); the
+    // second, on a line already crossed out, takes it off the page. Nothing is
+    // ever deleted in one keystroke.
+    if ((event.metaKey || event.ctrlKey) && (event.key === 'Backspace' || event.key === 'Delete')) {
+      event.preventDefault()
+      const index = indexOf(target)
+      if (index === null) return
+
+      // A line about to leave the page must let go of the caret first. Rows
+      // are keyed by position, so the one below moves up into this element -
+      // and a caret still in it would hold the departed line's words on
+      // screen, over the top of somebody else's.
+      if (target.closest('.item')?.classList.contains('dropped')) target.blur()
+      handlers.onStrike(index)
       return
     }
 
@@ -89,9 +107,13 @@ export function createItemList(handlers) {
       return
     }
 
+    // A line rubbed out to nothing is not a line. The refusal when it carries
+    // more than words comes back as false, and the text is put back.
     const saved = target.classList.contains('item-note')
       ? handlers.onNote(index, now)
-      : handlers.onEdit(index, now)
+      : now.trim() === ''
+        ? handlers.onRemove(index)
+        : handlers.onEdit(index, now)
 
     saved.then((ok) => {
       // A refused write must not leave the page showing something the file
@@ -115,9 +137,9 @@ export function createItemList(handlers) {
       patchList(element, rowsOf(doc), {
         keyOf: (row) => `${row.kind}:${row.index}`,
         create: (row) => (row.node.kind === 'item' ? createRow() : el('li', 'opaque')),
-        update: (row, data) => {
+        update: (row, data, caret) => {
           if (data.node.kind === 'opaque') setText(row, data.node.raw)
-          else updateRow(row, data.node)
+          else updateRow(row, data.node, caret)
         },
       })
     },
@@ -207,22 +229,28 @@ function indexOf(within) {
 /**
  * @param {HTMLElement} row
  * @param {Item} item
+ * @param {HTMLElement|null} caret  the line being typed into, if any
  * @returns {void}
  */
-function updateRow(row, item) {
+function updateRow(row, item, caret) {
   const [check, text, time, note] = row.children
   if (!(text instanceof HTMLElement) || !(time instanceof HTMLElement) || !(note instanceof HTMLElement)) return
 
+  // Always. A line struck out under the caret has to show it: the same
+  // keystroke pressed again takes the line off the page.
   row.className = `item ${item.state}${item.due === null ? '' : ' due'}`
   check?.setAttribute('aria-checked', String(item.state === 'done'))
-
-  setText(text, item.text)
   setText(time, item.time ?? '')
   time.hidden = item.time === null
-  setText(note, item.note ?? '')
-  // A note being typed into is never re-hidden underneath the caret; the list
-  // patcher does not update a row whose editable line has focus.
-  note.hidden = item.note === null
+
+  if (text !== caret) setText(text, item.text)
+
+  // An empty note that is being typed into must not be hidden out from under
+  // the caret: it was opened with Shift+Enter and has nothing in it yet.
+  if (note !== caret) {
+    setText(note, item.note ?? '')
+    note.hidden = item.note === null
+  }
 }
 
 /**
