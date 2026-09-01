@@ -100,7 +100,9 @@ npm run app       # cargo run, from src-tauri/
 
 It puts an item in the menu bar and nothing else — no dock icon, no window
 until you click it. Clicking away closes the page again; the pin in its header
-keeps it open, and a pinned page can be dragged anywhere by that header.
+keeps it open, and a pinned page can be dragged anywhere by that header and
+reopens where you left it. Unpin it and it goes back to opening under the
+icon.
 `Shift+Enter` on a line opens the note underneath it. `⌥Space` opens the
 quick-add field from anywhere; the shortcut is `hotkey` in `config.toml`. Settings and installed themes live in `~/.planner`, and
 the vault at whatever `config.toml` says, defaulting to `~/Planner`. Set

@@ -11,7 +11,7 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Added
 
--   Pin the popover open. Unpinned it closes when you click elsewhere; pinned it stays, and its header becomes a handle you can drag it anywhere by
+-   Pin the popover open. Unpinned it closes when you click elsewhere; pinned it stays, its header becomes a handle you can drag it anywhere by, and it reopens where you left it rather than snapping back under the menu bar
 -   `Shift+Enter` on a task opens the line underneath it - the note the file format always carried, with no way in but a text editor. Emptying it takes it away again
 -   Escape puts the popover away
 -   The menu bar icon has a tooltip

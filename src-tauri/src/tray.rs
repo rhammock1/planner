@@ -119,11 +119,7 @@ fn create_popover(app: &AppHandle) {
     let handle = app.clone();
     window.on_window_event(move |event| {
         let WindowEvent::Focused(false) = event else { return };
-        let pinned = handle
-            .try_state::<Pinned>()
-            .map(|state| state.0.load(Ordering::Relaxed))
-            .unwrap_or(false);
-        if pinned {
+        if is_pinned(&handle) {
             return;
         }
 
@@ -138,6 +134,13 @@ fn create_popover(app: &AppHandle) {
             }
         }
     });
+}
+
+/// Whether the popover has been pinned open.
+fn is_pinned(app: &AppHandle) -> bool {
+    app.try_state::<Pinned>()
+        .map(|state| state.0.load(Ordering::Relaxed))
+        .unwrap_or(false)
 }
 
 /// Shows the popover under the menu bar item, or puts it away if it is
@@ -161,7 +164,13 @@ fn toggle_popover(app: &AppHandle, icon: tauri::Rect) {
         return;
     }
 
-    position(app, &window, icon);
+    // A pinned page stays where it was put. Only a page that closes the moment
+    // you look away is re-anchored under the icon every time, because that is
+    // the one place a glance always comes from. macOS keeps a hidden window's
+    // frame, so leaving it alone is the whole of remembering it.
+    if !is_pinned(app) {
+        position(app, &window, icon);
+    }
     if let Err(error) = window.show() {
         eprintln!("planner: could not show the popover: {error}");
     }
