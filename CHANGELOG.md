@@ -11,6 +11,10 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Added
 
+-   Pin the popover open. Unpinned it closes when you click elsewhere; pinned it stays, and its header becomes a handle you can drag it anywhere by
+-   `Shift+Enter` on a task opens the line underneath it - the note the file format always carried, with no way in but a text editor. Emptying it takes it away again
+-   Escape puts the popover away
+-   The menu bar icon has a tooltip
 -   Markdown vault format - one file per day plus a `someday.md` back page, with item states `[ ]` `[x]` `[>]` `[-]`, inline `@time` `!due` `~lead` `>moved` tokens, per-item notes and a daily note
 -   Lossless parsing - any line the parser does not recognise is preserved byte-for-byte, so a hand-edited file can hold anything without risk
 -   Round-trip guarantee - reading and writing a canonical file returns it unchanged, and a non-canonical file is normalised once and then holds steady
@@ -37,10 +41,11 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Fixed
 
+-   Every edit now appears. Ticking a box, adding a line, keeping or dropping a carried item all reached the file and none of them reached the screen: the webview had no permission to listen for the change event, and the app only ever repaints when that arrives
 -   Clicking the menu bar icon now opens the popover under it. The icon's position arrives in physical pixels and was read as logical points, so on any Retina display the popover opened a screen's width off to the right, correctly and invisibly
 -   The popover is pulled back onto the screen when the icon sits near its right edge, and hangs below the menu bar rather than under it
--   The menu bar icon has a tooltip, so hovering it says which app it belongs to
 -   The vault is opened once, not once per window. Quick add opening for the first time put a second watcher on the same folder
+-   The horizon strip no longer fades its first entry away. The fade is there so scrolling text dissolves at the edges; applied to a strip that fits, it dissolved the lead time and the start of the item behind it
 -   An echo now covers the whole of a write. One save reaches the watcher as several filesystem events, and only the first was recognised as the app's own - the rest were reported as edits made somewhere else
 -   The vault is watched and the shortcut registered from launch, rather than from the first time the popover was opened
 -   A vault reached through a symlink is now watched - the watcher reports canonical paths, so `/tmp/vault` never matched `/private/tmp/vault` and edits made elsewhere went unnoticed
