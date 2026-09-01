@@ -37,6 +37,10 @@ export function createHorizonStrip() {
       // band scrolling with nothing to scroll to is movement for its own sake.
       const overflows = run.scrollWidth > mask.clientWidth
       setClass(track, 'marquee', overflows)
+      // The edges are faded so moving text dissolves rather than being cut.
+      // A strip that fits is not moving, and fading it only hides the first
+      // entry's lead time behind nothing.
+      setClass(mask, 'faded', overflows)
       if (overflows) track.append(buildRun(entries, true))
       else run.style.paddingRight = '0'
     },
