@@ -13,7 +13,7 @@ import { parse } from './core/parse.js'
 import { serialize } from './core/serialize.js'
 import { createDayDocument, createItem } from './core/model.js'
 import {
-  setItemState, setItemText, setItemNote, removeItem, carriesNothingElse, appendItem,
+  setItemState, setItemText, setItemNote, removeItem, carriesNothingElse, appendItem, setDailyNote,
 } from './core/edit.js'
 import { buildIndex, getPage, withPage } from './core/vaultIndex.js'
 import { horizon } from './core/horizon.js'
@@ -62,6 +62,7 @@ async function start() {
     onNote: (index, note) => annotate(index, note),
     onStrike: (index) => { void strike(index) },
     onRemove: (index) => remove(index),
+    onDailyNote: (note) => dailyNote(note),
     onAdd: (line) => add(line),
     onCarry: (decisions) => { void carry(decisions) },
     onPin: (next) => { void pin(next) },
@@ -160,6 +161,16 @@ function edit(index, text) {
     if (doc === null || node === undefined || node.kind !== 'item') return null
     return setItemText(doc, index, text)
   })
+}
+
+/**
+ * Writes the day's own line, at the bottom of the page.
+ *
+ * @param {string} note
+ * @returns {Promise<boolean>}
+ */
+function dailyNote(note) {
+  return change(showing, (doc) => (doc === null ? null : setDailyNote(doc, note.trim())))
 }
 
 /**

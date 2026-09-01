@@ -13,6 +13,10 @@ html, body {
   padding: 0;
   /* The popover is the window: the webview has no chrome of its own. */
   background: transparent;
+  /* The window is the page's height, so the list inside it has something
+     finite to scroll against. Without this the page simply grows past the
+     bottom of the window, taking the footer with it. */
+  height: 100%;
   font-family: var(--font-body);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
@@ -23,6 +27,13 @@ body {
    * detached window can be moved by its background. */
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* The whole chain from the window down to the page needs a height, or the
+   page's own `height: 100%` has nothing to be a percentage of and the list
+   inside it never learns where to stop. */
+#app {
+  height: 100%;
 }
 
 button {

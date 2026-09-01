@@ -38,6 +38,7 @@ import { createCarryBand } from './carryBand.js'
  * @property {(index: number, note: string) => Promise<boolean>} onNote
  * @property {(index: number) => void} onStrike
  * @property {(index: number) => Promise<boolean>} onRemove
+ * @property {(note: string) => Promise<boolean>} onDailyNote
  * @property {(line: string) => Promise<boolean>} onAdd  false if it was not saved
  * @property {(decisions: import('../core/carry.js').CarryDecision[]) => void} onCarry
  * @property {(pinned: boolean) => void} onPin
@@ -119,7 +120,12 @@ export function mount(root, handlers) {
   const carry = createCarryBand(handlers)
   const horizon = createHorizonStrip()
   const items = createItemList(handlers)
+  // The day's own line, under everything else, the way the bottom of a
+  // planner page is left blank for one (spec §5.1).
   const note = el('div', 'note')
+  note.setAttribute('contenteditable', 'plaintext-only')
+  note.setAttribute('role', 'textbox')
+  note.setAttribute('aria-label', "A note on the day")
 
   const field = document.createElement('input')
   field.className = 'add-field'
@@ -162,6 +168,38 @@ export function mount(root, handlers) {
 
   pin.addEventListener('click', () => {
     handlers.onPin(pin.getAttribute('aria-pressed') !== 'true')
+  })
+
+  // What the note said when editing began, so Escape has something to put back
+  // and blur knows whether anything actually changed.
+  let noteBefore = ''
+  note.addEventListener('focusin', () => { noteBefore = note.textContent ?? '' })
+
+  note.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setText(note, noteBefore)
+      note.blur()
+      return
+    }
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      note.blur()
+    }
+  })
+
+  note.addEventListener('focusout', () => {
+    const now = note.textContent ?? ''
+    if (now.trim() === noteBefore.trim()) return
+    handlers.onDailyNote(now).then((saved) => {
+      if (!saved) setText(note, noteBefore)
+    })
+  })
+
+  note.addEventListener('paste', (event) => {
+    event.preventDefault()
+    const text = event.clipboardData?.getData('text/plain') ?? ''
+    note.ownerDocument.execCommand('insertText', false, text)
   })
 
   page = { weekday, date, todayButton, head, pin, notices, note, count, horizon, items, carry }
@@ -235,7 +273,12 @@ function renderNotices(list, notices) {
  * @returns {void}
  */
 function renderNote(element, doc) {
-  const note = doc?.dailyNote ?? null
-  element.hidden = note === null || note === ''
-  setText(element, note ?? '')
+  // Never overwritten while it is being written in: every edit re-renders the
+  // page, and this one is not in a keyed list to be protected by.
+  if (element.ownerDocument.activeElement === element) return
+
+  // Always on the page, empty or not. A note you cannot see is a note you
+  // cannot start; the placeholder is where the day's line goes.
+  element.hidden = doc === null
+  setText(element, doc?.dailyNote ?? '')
 }

@@ -16,8 +16,15 @@ use crate::popover::{self, Bounds};
 use crate::vault_io;
 
 const POPOVER: &str = "popover";
+
+/// The size the popover opens at the first time. After that it is whatever
+/// the user has dragged it to.
 const WIDTH: f64 = 380.0;
 const HEIGHT: f64 = 560.0;
+
+/// Small enough to tuck away, big enough to still be a page.
+const MIN_WIDTH: f64 = 300.0;
+const MIN_HEIGHT: f64 = 240.0;
 
 /// Kept alive for as long as the vault is open: dropping a watcher stops it.
 /// One at a time - opening a second vault should stop watching the first.
@@ -97,7 +104,8 @@ fn create_popover(app: &AppHandle) {
     let built = WebviewWindowBuilder::new(app, POPOVER, WebviewUrl::App("index.html".into()))
         .title("Planner")
         .inner_size(WIDTH, HEIGHT)
-        .resizable(false)
+        .min_inner_size(MIN_WIDTH, MIN_HEIGHT)
+        .resizable(true)
         .decorations(false)
         .transparent(true)
         .always_on_top(true)
@@ -210,7 +218,15 @@ fn position(app: &AppHandle, window: &tauri::WebviewWindow, icon: tauri::Rect) {
         None => window.scale_factor().unwrap_or(1.0),
     };
 
-    let (x, y) = popover::origin(icon, screen, scale, WIDTH, HEIGHT);
+    // The window's own size, not the size it was built at: it is resizable,
+    // and anchoring a 520-wide popover as though it were 380 puts it off
+    // centre by seventy points.
+    let size = window
+        .inner_size()
+        .map(|size| size.to_logical::<f64>(scale))
+        .unwrap_or(tauri::LogicalSize::new(WIDTH, HEIGHT));
+
+    let (x, y) = popover::origin(icon, screen, scale, size.width, size.height);
     // A popover that cannot be moved opens wherever it last was, which looks
     // like the click did nothing at all.
     if let Err(error) = window.set_position(tauri::LogicalPosition::new(x, y)) {

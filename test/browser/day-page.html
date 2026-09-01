@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>dayPage - browser checks</title>
+<link rel="stylesheet" href="../../src/styles/base.css">
+<link rel="stylesheet" href="../../src/styles/components.css">
+<style>
+  #results { font: 14px "IBM Plex Mono", ui-monospace, monospace; padding: 24px; }
+  /* The window, at the size the popover opens at. The layout under test is
+     entirely about what happens inside a fixed height. */
+  #stage { position: absolute; left: -9999px; top: 0; width: 380px; height: 560px; }
+</style>
+<div id="stage"></div>
+<div id="results"></div>
+<script type="module" src="./day-page.js"></script>

@@ -7,8 +7,9 @@
  */
 
 .page {
-  width: 380px;
-  max-width: 100%;
+  /* Fills the window, whatever size it has been dragged to. */
+  width: 100%;
+  height: 100%;
   background-color: var(--paper);
   /* The texture's scale and origin belong to the theme that drew it: a dot
      grid and a ruled line want different ones. */
@@ -168,6 +169,11 @@
   list-style: none;
   margin: 0;
   padding: 6px 0 4px;
+  /* The list takes what the header, band, add row, note and footer leave, and
+     scrolls inside it. `min-height: 0` is what lets a flex child shrink below
+     its content instead of pushing the footer off the bottom of the window. */
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -313,6 +319,16 @@
   white-space: pre-wrap;
   -webkit-user-select: text;
   user-select: text;
+  /* A note that ran long would otherwise take the whole window and leave the
+     list a sliver. It gets a few lines and scrolls past them. */
+  flex: none;
+  max-height: 5.5em;
+  overflow-y: auto;
+}
+
+.note:empty::before {
+  content: 'How the day went';
+  color: var(--edge);
 }
 
 .note[hidden] { display: none; }
