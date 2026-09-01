@@ -37,6 +37,11 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Fixed
 
+-   Clicking the menu bar icon now opens the popover under it. The icon's position arrives in physical pixels and was read as logical points, so on any Retina display the popover opened a screen's width off to the right, correctly and invisibly
+-   The popover is pulled back onto the screen when the icon sits near its right edge, and hangs below the menu bar rather than under it
+-   The menu bar icon has a tooltip, so hovering it says which app it belongs to
+-   The vault is opened once, not once per window. Quick add opening for the first time put a second watcher on the same folder
+-   An echo now covers the whole of a write. One save reaches the watcher as several filesystem events, and only the first was recognised as the app's own - the rest were reported as edits made somewhere else
 -   The vault is watched and the shortcut registered from launch, rather than from the first time the popover was opened
 -   A vault reached through a symlink is now watched - the watcher reports canonical paths, so `/tmp/vault` never matched `/private/tmp/vault` and edits made elsewhere went unnoticed
 -   Ticking a checkbox now shows immediately - a click focuses the box, and the rule protecting text being typed was holding off the row's repaint
