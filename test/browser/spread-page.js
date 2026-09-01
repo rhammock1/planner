@@ -25,6 +25,9 @@ const added = []
 /** @type {string[]} */
 const anchored = []
 
+/** @type {string[]} */
+const viewed = []
+
 /**
  * @param {number} count
  * @returns {string}
@@ -41,7 +44,19 @@ function backPageOf(count) {
  * @param {string[]} [days]  days to give a page of their own, `YYYY-MM-DD`
  * @returns {void}
  */
-function show(count, view = 'someday', days = []) {
+function show(count, view = 'someday', days = [], lines = '') {
+  showAt('2026-09-01', view, count, days, lines)
+}
+
+/**
+ * @param {string} anchor `YYYY-MM-DD`
+ * @param {string} view
+ * @param {number} [count]
+ * @param {string[]} [days]
+ * @param {string} [lines]  the body of each day's page, when given
+ * @returns {void}
+ */
+function showAt(anchor, view, count = 0, days = [], lines = '') {
   stage.replaceChildren()
   const root = document.createElement('main')
   root.id = 'app'
@@ -57,17 +72,20 @@ function show(count, view = 'someday', days = []) {
       onAdd: async (line) => { added.push(pageOf() === 'someday' ? line : `${pageOf()}: ${line}`); return true },
       onDailyNote: async () => true,
     }),
-    onView: () => {},
+    onView: (next) => { viewed.push(next) },
     onAnchor: (next) => { anchored.push(next) },
   })
 
   spreadPage.render({
     view,
     today: '2026-09-01',
-    anchor: '2026-09-01',
+    anchor,
     vault: buildIndex([
       { page: 'someday', doc: parse(backPageOf(count)) },
-      ...days.map((day) => ({ page: day, doc: parse(dayOf(day, count)) })),
+      ...days.map((day) => ({
+        page: day,
+        doc: parse(lines === '' ? dayOf(day, count) : `# ${day}\n\n${lines}`),
+      })),
     ]),
     notices: [],
   })
@@ -95,6 +113,17 @@ function onScreen() {
   const view = stage.querySelector('.view:not([hidden])')
   if (!(view instanceof HTMLElement)) throw new Error('nothing on screen')
   return view
+}
+
+/**
+ * The month cell for a date. Cells carry it as their title, because a grid of
+ * bare numbers has two 3rds in it.
+ *
+ * @param {string} date `YYYY-MM-DD`
+ * @returns {HTMLElement}
+ */
+function cellFor(date) {
+  return find(`.month-cell[title="${date}"]`)
 }
 
 /**
@@ -258,6 +287,76 @@ check('the dot asks for today, and is lit when today is on screen', () => {
   ok(dot instanceof HTMLElement && dot.classList.contains('now'), 'lit for the week today is in')
   dot?.click()
   equal(anchored[0], '', 'what it asks for')
+})
+
+check('the month is whole weeks, Monday first', () => {
+  show(0, 'month')
+  const headings = [...find('.month-headings').querySelectorAll('.day-name')].map((n) => n.textContent)
+  equal(headings.length, 7, 'headings')
+  equal(headings[0], 'Mon', 'the first')
+  equal(headings[6], 'Sun', 'the last')
+  const cells = [...onScreen().querySelectorAll('.month-cell')].filter((c) => c instanceof HTMLElement && !c.hidden)
+  equal(cells.length % 7, 0, `${cells.length} cells`)
+})
+
+check('the days either side of the month are shown, marked as outside it', () => {
+  show(0, 'month')
+  const outside = [...onScreen().querySelectorAll('.month-cell:not([hidden]).outside')]
+  ok(outside.length > 0, 'September 2026 starts on a Tuesday, so August is in the grid')
+  const inside = [...onScreen().querySelectorAll('.month-cell:not([hidden]):not(.outside)')]
+  equal(inside.length, 30, 'days in September')
+})
+
+check('today is the only cell marked as today', () => {
+  show(0, 'month')
+  const marked = [...onScreen().querySelectorAll('.month-cell.is-today .cell-number')].map((n) => n.textContent)
+  equal(marked.length, 1, 'cells marked')
+  equal(marked[0], '1', 'which one')
+})
+
+check('a cell counts what is open on its day and marks what is due on it', () => {
+  show(0, 'month', ['2026-09-02'], '- [ ] One\n- [x] Two\n- [ ] Three !2026-09-11\n')
+  const cell = cellFor('2026-09-02')
+  equal(cell.querySelector('.cell-open')?.textContent, '2', 'open on the 2nd')
+  const eleventh = cellFor('2026-09-11')
+  const dot = eleventh.querySelector('.cell-due')
+  ok(dot instanceof HTMLElement && !dot.hidden, 'the deadline is marked on the day it falls, not the day it was written')
+})
+
+check('clicking a cell goes to the week that day is in', () => {
+  show(0, 'month')
+  anchored.length = 0
+  viewed.length = 0
+  cellFor('2026-09-17').click()
+  equal(anchored[0], '2026-09-17', 'where')
+  equal(viewed[0], 'week', 'and into which view')
+})
+
+check('the arrows move a whole month at a time', () => {
+  show(0, 'month')
+  anchored.length = 0
+  const nav = [...find('.view-head').querySelectorAll('button')]
+  nav[0]?.click()
+  nav[2]?.click()
+  equal(anchored[0], '2026-08-01', 'the month before')
+  equal(anchored[1], '2026-10-01', 'the month after')
+})
+
+check('a month that needs fewer rows is fewer rows tall', () => {
+  show(0, 'month')
+  const tall = onScreen().querySelectorAll('.month-cell:not([hidden])').length
+  // A month is four rows only when it has 28 days and starts on a Monday.
+  showAt('2027-02-10', 'month')
+  const short = onScreen().querySelectorAll('.month-cell:not([hidden])').length
+  equal(tall, 35, 'September 2026')
+  equal(short, 28, 'February 2027, which is exactly four weeks')
+})
+
+check('the month grid stays inside the window', () => {
+  show(0, 'month')
+  const window = box('.spread', stage)
+  const grid = box('.month-grid')
+  ok(grid.bottom <= window.bottom + 1, `the grid ends at ${grid.bottom} in a window ending at ${window.bottom}`)
 })
 
 report()

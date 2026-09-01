@@ -16,6 +16,7 @@ import { SOMEDAY } from '../core/vaultIndex.js'
 import { VIEWS, viewLabel } from './spreadViews.js'
 import { createBackPage } from './backPage.js'
 import { createWeekView } from './weekView.js'
+import { createMonthView } from './monthView.js'
 
 /** @typedef {import('../core/vaultIndex.js').VaultIndex} VaultIndex */
 
@@ -54,6 +55,7 @@ export function mount(root, handlers) {
   /** @type {Map<string, View>} */
   const views = new Map([
     ['week', createWeekView(handlers.editsFor, handlers.onAnchor)],
+    ['month', createMonthView(handlers.onAnchor, handlers.onView)],
     ['someday', createBackPage(handlers.editsFor(() => SOMEDAY))],
   ])
 

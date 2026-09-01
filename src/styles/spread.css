@@ -135,3 +135,83 @@
 
 .day-column .add { padding: 7px 10px; font-size: 13px; gap: 6px; }
 .day-column .add::before { font-size: 11px; }
+
+/* ── the month ──────────────────────────────────────────── */
+
+.month-headings {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  padding: 2px 18px 6px;
+  border-bottom: 1px solid var(--edge-soft);
+}
+
+.month-headings .day-name { padding-left: 2px; }
+
+/* The grid takes what is left of the window and divides it, so a month is a
+   month-shaped block rather than a list of boxes that runs off the bottom.
+   The row count is set from the month, because February in a common year
+   needs four rows and August sometimes needs six. */
+.month-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  padding: 1px 18px 18px;
+  background: none;
+}
+
+.month-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 0;
+  padding: 7px 8px;
+  text-align: left;
+  border: 1px solid var(--edge-soft);
+  border-radius: 3px;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.month-cell[hidden] { display: none; }
+.month-cell:hover { background: var(--surface); }
+.month-cell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Days either side of the month are context, not content. */
+.month-cell.outside { opacity: 0.4; }
+
+.month-cell.is-today {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.cell-number {
+  font-family: var(--font-head);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.is-today .cell-number { color: var(--accent); }
+
+/* How much is still open that day - the only number a month cell carries. */
+.cell-open {
+  font-family: var(--font-meta);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+}
+
+/* The one mark in the one colour reserved for lateness, the same dot the day
+   page puts on a dated line. */
+.cell-due {
+  width: 5px;
+  height: 5px;
+  margin-left: auto;
+  align-self: center;
+  background: var(--alert);
+  border-radius: 50%;
+}
+
+.cell-due[hidden] { display: none; }
