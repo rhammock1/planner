@@ -95,3 +95,33 @@ fn an_unknown_screen_still_places_it_under_the_icon() {
     assert_eq!(x, 749.0);
     assert_eq!(y, 39.0);
 }
+
+mod clicking {
+    use planner_lib::popover::opens;
+    use std::time::Duration;
+
+    #[test]
+    fn a_click_opens_a_popover_that_is_not_up() {
+        assert!(opens(false, None));
+    }
+
+    #[test]
+    fn a_click_closes_one_that_is() {
+        assert!(!opens(true, None));
+    }
+
+    // The click that closed it arrives after the blur that hid it. Opening
+    // then would mean the icon could never be used to put the popover away.
+    #[test]
+    fn the_click_that_hid_it_does_not_reopen_it() {
+        assert!(!opens(false, Some(Duration::from_millis(0))));
+        assert!(!opens(false, Some(Duration::from_millis(120))));
+        assert!(!opens(false, Some(Duration::from_millis(399))));
+    }
+
+    #[test]
+    fn a_later_click_opens_it_again() {
+        assert!(opens(false, Some(Duration::from_millis(400))));
+        assert!(opens(false, Some(Duration::from_secs(3))));
+    }
+}

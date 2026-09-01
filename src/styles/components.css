@@ -65,6 +65,21 @@
 .page-nav button:hover { color: var(--ink); }
 .page-nav button.now { color: var(--accent); }
 
+/* Set apart from the three navigation buttons: it is not another way to move
+   between days, it is what decides whether the page stays. */
+.page-nav .pin { margin-left: 6px; }
+.page-nav .pin svg { fill: currentColor; }
+
+.page-nav .pin[aria-pressed='true'] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+/* A pinned header is a handle, and says so before it is grabbed. */
+.page-head[data-tauri-drag-region] { cursor: grab; }
+.page-head[data-tauri-drag-region]:active { cursor: grabbing; }
+
 /* ── horizon strip ──────────────────────────────────────── */
 
 .horizon {

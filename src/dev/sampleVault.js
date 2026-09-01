@@ -40,6 +40,8 @@ export function sampleHost() {
     // A browser has no menu bar item and no window to put away.
     setHotkey: async () => {},
     closeQuickAdd: async () => {},
+    setPinned: async () => {},
+    closePopover: async () => {},
     // The bundled themes, served as files - so the browser exercises the real
     // theme path, not a shortcut past it. A theme that is not there falls back
     // to the built-in Ledger tokens.

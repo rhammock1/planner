@@ -37,7 +37,18 @@ import { createCarryBand } from './carryBand.js'
  * @property {(index: number, text: string) => Promise<boolean>} onEdit
  * @property {(line: string) => Promise<boolean>} onAdd  false if it was not saved
  * @property {(decisions: import('../core/carry.js').CarryDecision[]) => void} onCarry
+ * @property {(pinned: boolean) => void} onPin
  */
+
+/**
+ * A thumbtack, seen from the side: the head, its shoulders, and the pin. Drawn
+ * rather than set in a font, because no font this app depends on has one.
+ */
+const PIN_GLYPH =
+  '<svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" focusable="false">' +
+  '<path d="M4.4 1.7h5.2v1.3h-.9l.7 3.5 1.2 1.2v1.1H3.4V7.7l1.2-1.2.7-3.5h-.9z"/>' +
+  '<path d="M7 8.8v3.6" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/>' +
+  '</svg>'
 
 const WEEKDAY = new Intl.DateTimeFormat('en-GB', { weekday: 'long', timeZone: 'UTC' })
 const FULL_DATE = new Intl.DateTimeFormat('en-GB', {
@@ -55,6 +66,8 @@ let currentState = null
  * @property {HTMLElement} weekday
  * @property {HTMLElement} date
  * @property {HTMLElement} todayButton
+ * @property {HTMLElement} head
+ * @property {HTMLButtonElement} pin
  * @property {HTMLElement} notices
  * @property {HTMLElement} note
  * @property {HTMLElement} count
@@ -82,8 +95,19 @@ export function mount(root, handlers) {
   previous.title = 'The day before'
   todayButton.title = 'Today'
   next.title = 'The day after'
+  // A pinned popover stays when you click away, and can be dragged by its
+  // header - so a page you want to keep in view can be put somewhere it is
+  // not in the way. Unpinned, the header is not a handle: dragging the day
+  // out from under the menu bar is not what a glance is for.
+  const pin = document.createElement('button')
+  pin.className = 'pin'
+  pin.type = 'button'
+  pin.setAttribute('aria-pressed', 'false')
+  pin.title = 'Keep this open'
+  pin.innerHTML = PIN_GLYPH
+
   const nav = el('div', 'page-nav')
-  nav.append(previous, todayButton, next)
+  nav.append(previous, todayButton, next, pin)
 
   const head = el('div', 'page-head')
   head.append(heading, nav)
@@ -133,7 +157,29 @@ export function mount(root, handlers) {
     })
   })
 
-  page = { weekday, date, todayButton, notices, note, count, horizon, items, carry }
+  pin.addEventListener('click', () => {
+    handlers.onPin(pin.getAttribute('aria-pressed') !== 'true')
+  })
+
+  page = { weekday, date, todayButton, head, pin, notices, note, count, horizon, items, carry }
+}
+
+/**
+ * Shows whether the popover is pinned.
+ *
+ * `deep` makes the whole header a handle rather than only its bare padding.
+ * The buttons inside it still take their clicks: Tauri's drag script stops at
+ * the first clickable element on the way up.
+ *
+ * @param {boolean} pinned
+ * @returns {void}
+ */
+export function setPinned(pinned) {
+  if (page === null) throw new Error('setPinned before mount')
+  page.pin.setAttribute('aria-pressed', pinned ? 'true' : 'false')
+  page.pin.title = pinned ? 'Let it close when you click away' : 'Keep this open'
+  if (pinned) page.head.setAttribute('data-tauri-drag-region', 'deep')
+  else page.head.removeAttribute('data-tauri-drag-region')
 }
 
 /**

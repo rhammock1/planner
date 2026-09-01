@@ -16,12 +16,12 @@ import { setItemState, setItemText, appendItem } from './core/edit.js'
 import { buildIndex, getPage, withPage } from './core/vaultIndex.js'
 import { horizon } from './core/horizon.js'
 import { unfinished, carryForward } from './core/carry.js'
-import { readConfig as parseConfig, DEFAULTS, expandHome } from './core/config.js'
-import { readTheme as parseTheme, themeCss, LEDGER } from './core/theme.js'
+import { DEFAULTS } from './core/config.js'
 import { today } from './clock.js'
 import { createWriteQueue } from './writeQueue.js'
 import * as ipc from './ipc.js'
 import * as dayPage from './views/dayPage.js'
+import * as startup from './startup.js'
 
 /** @typedef {import('./core/vaultIndex.js').VaultIndex} VaultIndex */
 /** @typedef {import('./core/model.js').Document} Document */
@@ -37,15 +37,18 @@ let config = DEFAULTS
 /** @type {string[]} */
 let notices = []
 let showing = today()
+let pinned = false
 
 async function start() {
   const root = document.querySelector('#app')
   if (!(root instanceof HTMLElement)) throw new Error('no #app element to mount into')
 
-  config = await loadConfig()
-  await applyTheme(config.theme)
-  await openVault()
-  await registerHotkey()
+  const loaded = await startup.loadConfig()
+  config = loaded.config
+  notices = [...notices, ...loaded.notices]
+  notices = [...notices, ...await startup.applyTheme(config.theme)]
+  notices = [...notices, ...await startup.openVault(config.vault, loaded.home)]
+  notices = [...notices, ...await startup.registerHotkey(config.hotkey)]
 
   dayPage.mount(root, {
     onNavigate: (page) => {
@@ -56,6 +59,14 @@ async function start() {
     onEdit: (index, text) => edit(index, text),
     onAdd: (line) => add(line),
     onCarry: (decisions) => { void carry(decisions) },
+    onPin: (next) => { void pin(next) },
+  })
+  dayPage.setPinned(pinned)
+
+  // Escape puts the day away (spec §5.1) - unless something on the page has
+  // already used it to cancel an edit, which is the nearer meaning.
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !event.defaultPrevented) void ipc.closePopover()
   })
 
   const files = await ipc.readVault()
@@ -79,6 +90,26 @@ async function start() {
     })
   } catch (error) {
     notices = [...notices, `Edits will save but not appear: ${error instanceof Error ? error.message : String(error)}`]
+    draw()
+  }
+}
+
+/**
+ * Pins the popover open, or lets go of it.
+ *
+ * The shell owns the behaviour - it is the shell that hides a window when it
+ * loses focus - so the state is sent there and mirrored here.
+ *
+ * @param {boolean} next
+ * @returns {Promise<void>}
+ */
+async function pin(next) {
+  try {
+    await ipc.setPinned(next)
+    pinned = next
+    dayPage.setPinned(pinned)
+  } catch (error) {
+    notices = [...notices, `Could not ${next ? 'pin' : 'unpin'} the page: ${error instanceof Error ? error.message : String(error)}`]
     draw()
   }
 }
@@ -188,80 +219,6 @@ async function change(page, mutate) {
     draw()
     return false
   }
-}
-
-/** @type {string} */
-let home = ''
-
-/** @returns {Promise<import('./core/config.js').Config>} */
-async function loadConfig() {
-  const file = await ipc.readConfig()
-  home = file.home
-  const result = parseConfig(file.text)
-  notices = [...notices, ...result.notices]
-  return result.config
-}
-
-/**
- * Registers the shortcut that opens quick add from anywhere.
- *
- * A shortcut the system will not give us is worth saying out loud: the
- * alternative is a hotkey that silently does nothing.
- *
- * @returns {Promise<void>}
- */
-async function registerHotkey() {
-  try {
-    await ipc.setHotkey(config.hotkey)
-  } catch (error) {
-    notices = [...notices, `Could not register ${config.hotkey}: ${error instanceof Error ? error.message : String(error)}`]
-  }
-}
-
-/**
- * Points the shell at the vault and starts the watcher on it.
- *
- * A vault that is not there is reported rather than created: the app does not
- * put a folder somewhere the user did not ask for (spec §8).
- *
- * @returns {Promise<void>}
- */
-async function openVault() {
-  const path = expandHome(config.vault, home)
-  const { exists } = await ipc.setVault(path)
-  if (!exists) {
-    notices = [...notices, `No vault at ${path}. Create the folder, or set another path in config.toml.`]
-  }
-}
-
-/**
- * Tokens first, then the theme's own stylesheet, both after the app's CSS so
- * a theme can override anything it sets.
- *
- * @param {string} name
- * @returns {Promise<void>}
- */
-async function applyTheme(name) {
-  const folder = await ipc.readTheme(name)
-  const result = folder.toml === '' ? { theme: LEDGER, notices: [] } : parseTheme(folder.toml)
-  notices = [...notices, ...result.notices]
-
-  styleElement('theme-tokens').textContent = themeCss(result.theme)
-  styleElement('theme-css').textContent = folder.css
-  document.documentElement.style.colorScheme = result.theme.appearance
-}
-
-/**
- * @param {string} id
- * @returns {HTMLStyleElement}
- */
-function styleElement(id) {
-  const existing = document.querySelector(`#${id}`)
-  if (existing instanceof HTMLStyleElement) return existing
-  const created = document.createElement('style')
-  created.id = id
-  document.head.append(created)
-  return created
 }
 
 start().catch((error) => {

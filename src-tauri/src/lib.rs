@@ -12,6 +12,9 @@ mod tray;
 /// Public so the tests in `tests/` can reach it.
 pub mod popover;
 
+/// Public so the tests in `tests/` can reach it.
+pub mod shortcut;
+
 /// Public so the tests in `tests/` can reach it; nothing outside this crate
 /// has any business calling it.
 pub mod vault_io;
@@ -79,7 +82,7 @@ fn set_hotkey(app: AppHandle, accelerator: String) -> Result<(), String> {
     // register looks exactly like one that works until you press it.
     match quick_add::set_shortcut(&app, &accelerator) {
         Ok(()) => {
-            eprintln!("planner: {accelerator} opens quick add");
+            eprintln!("planner: {} opens quick add", shortcut::symbols(&accelerator));
             Ok(())
         }
         Err(error) => {
@@ -210,7 +213,9 @@ pub fn run() {
             set_vault,
             read_vault,
             read_page,
-            write_page
+            write_page,
+            tray::set_pinned,
+            tray::close_popover
         ])
         .setup(|app| {
             // No dock icon and no menu bar of its own: the app is the item in

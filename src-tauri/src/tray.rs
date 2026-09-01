@@ -2,12 +2,14 @@
 //! popover honest about what is on disk.
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::time::Instant;
 
 use notify::{RecursiveMode, Watcher};
 use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder,
+    AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 
 use crate::popover::{self, Bounds};
@@ -21,8 +23,41 @@ const HEIGHT: f64 = 560.0;
 /// One at a time - opening a second vault should stop watching the first.
 struct Watchers(Mutex<Option<notify::RecommendedWatcher>>);
 
+/// Whether the popover has been pinned open.
+///
+/// An unpinned popover is a glance: look at the day, click away, it is gone.
+/// A pinned one is a page left open on the desk, and stays until it is closed.
+#[derive(Default)]
+struct Pinned(AtomicBool);
+
+/// When the popover last put itself away because it lost focus. See
+/// `popover::opens`.
+#[derive(Default)]
+struct HiddenAt(Mutex<Option<Instant>>);
+
+/// Pins or unpins the popover. Called by the pin in the page header.
+#[tauri::command]
+pub fn set_pinned(app: AppHandle, pinned: bool) {
+    if let Some(state) = app.try_state::<Pinned>() {
+        state.0.store(pinned, Ordering::Relaxed);
+    }
+}
+
+/// Puts the popover away - what Escape does, and what the pin does when it is
+/// clicked off.
+#[tauri::command]
+pub fn close_popover(app: AppHandle) {
+    if let Some(window) = app.get_webview_window(POPOVER) {
+        if let Err(error) = window.hide() {
+            eprintln!("planner: could not hide the popover: {error}");
+        }
+    }
+}
+
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
     app.manage(Watchers(Mutex::new(None)));
+    app.manage(Pinned::default());
+    app.manage(HiddenAt::default());
     create_popover(app);
 
     let icon = app.default_window_icon().cloned();
@@ -71,9 +106,38 @@ fn create_popover(app: &AppHandle) {
         .build();
 
     // Nothing else can report this: there is no window to report it in.
-    if let Err(error) = built {
-        eprintln!("planner: could not create the popover: {error}");
-    }
+    let window = match built {
+        Ok(window) => window,
+        Err(error) => {
+            eprintln!("planner: could not create the popover: {error}");
+            return;
+        }
+    };
+
+    // Clicking away puts an unpinned popover down, the way closing a notebook
+    // you have finished glancing at does.
+    let handle = app.clone();
+    window.on_window_event(move |event| {
+        let WindowEvent::Focused(false) = event else { return };
+        let pinned = handle
+            .try_state::<Pinned>()
+            .map(|state| state.0.load(Ordering::Relaxed))
+            .unwrap_or(false);
+        if pinned {
+            return;
+        }
+
+        if let Some(at) = handle.try_state::<HiddenAt>() {
+            if let Ok(mut when) = at.0.lock() {
+                when.replace(Instant::now());
+            }
+        }
+        if let Some(window) = handle.get_webview_window(POPOVER) {
+            if let Err(error) = window.hide() {
+                eprintln!("planner: could not put the popover away: {error}");
+            }
+        }
+    });
 }
 
 /// Shows the popover under the menu bar item, or puts it away if it is
@@ -85,8 +149,15 @@ fn toggle_popover(app: &AppHandle, icon: tauri::Rect) {
         return;
     };
 
-    if window.is_visible().unwrap_or(false) {
-        let _ = window.hide();
+    let since_hidden = app
+        .try_state::<HiddenAt>()
+        .and_then(|at| at.0.lock().ok().and_then(|when| *when))
+        .map(|when| when.elapsed());
+
+    if !popover::opens(window.is_visible().unwrap_or(false), since_hidden) {
+        if let Err(error) = window.hide() {
+            eprintln!("planner: could not put the popover away: {error}");
+        }
         return;
     }
 

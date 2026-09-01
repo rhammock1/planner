@@ -24,6 +24,8 @@
  * @property {(path: string) => Promise<{exists: boolean}>} setVault
  * @property {(accelerator: string) => Promise<void>} setHotkey
  * @property {() => Promise<void>} closeQuickAdd
+ * @property {(pinned: boolean) => Promise<void>} setPinned
+ * @property {() => Promise<void>} closePopover
  * @property {(name: string) => Promise<{toml: string, css: string}>} readTheme
  * @property {() => Promise<PageFile[]>} readVault
  * @property {(page: string) => Promise<string|null>} readPage
@@ -95,6 +97,23 @@ export async function closeQuickAdd() {
   return (await getHost()).closeQuickAdd()
 }
 
+/**
+ * Pins the popover open, or lets it go back to closing when clicked away.
+ *
+ * @param {boolean} pinned
+ * @returns {Promise<void>}
+ */
+export async function setPinned(pinned) {
+  return (await getHost()).setPinned(pinned)
+}
+
+/**
+ * @returns {Promise<void>}
+ */
+export async function closePopover() {
+  return (await getHost()).closePopover()
+}
+
 /** @returns {Promise<PageFile[]>} every page in the vault */
 export async function readVault() {
   return (await getHost()).readVault()
@@ -142,6 +161,8 @@ function tauriHost() {
     setVault: (path) => invoke('set_vault', { path }),
     setHotkey: (accelerator) => invoke('set_hotkey', { accelerator }),
     closeQuickAdd: () => invoke('close_quick_add'),
+    setPinned: (pinned) => invoke('set_pinned', { pinned }),
+    closePopover: () => invoke('close_popover'),
     readTheme: (name) => invoke('read_theme', { name }),
     readVault: () => invoke('read_vault'),
     readPage: (page) => invoke('read_page', { page }),

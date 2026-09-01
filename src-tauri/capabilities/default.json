@@ -1,7 +1,13 @@
 {
   "$schema": "../gen/schemas/macOS-schema.json",
   "identifier": "default",
-  "description": "The two windows the app has, and the one core API they use. Without this file a webview may invoke this app's own commands but nothing else, so `vault:changed` never arrives and every edit lands on disk without appearing on screen.",
-  "windows": ["popover", "quickadd"],
-  "permissions": ["core:event:default"]
+  "description": "The two windows the app has, and the core APIs they use. Without this file a webview may invoke this app's own commands but nothing else, so `vault:changed` never arrives and every edit lands on disk without appearing on screen. Dragging is for the pinned popover's header; maximising is deliberately not granted, because a fixed-size popover has nothing to maximise into.",
+  "windows": [
+    "popover",
+    "quickadd"
+  ],
+  "permissions": [
+    "core:event:default",
+    "core:window:allow-start-dragging"
+  ]
 }

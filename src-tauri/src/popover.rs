@@ -55,3 +55,29 @@ pub fn origin(
     // bounds cross, and clamp panics when they do.
     (x.clamp(left, right.max(left)), y.min(bottom.max(top)))
 }
+
+/// How long after the popover hides itself a tray click still counts as the
+/// click that closed it.
+///
+/// Clicking the menu bar item takes focus away from the popover, which hides
+/// it, and the click then arrives at a window that is already gone - so the
+/// icon would open what the user just asked to close. Long enough to cover
+/// the gap between losing focus and the button coming back up; short enough
+/// that a deliberate second click still opens it.
+const GRACE: std::time::Duration = std::time::Duration::from_millis(400);
+
+/// Whether a click on the menu bar item should open the popover.
+///
+/// `since_hidden` is how long ago the popover last hid itself because it lost
+/// focus, or None if it has not.
+pub fn opens(visible: bool, since_hidden: Option<std::time::Duration>) -> bool {
+    if visible {
+        // Already up: the click closes it, the way every other menu bar app
+        // behaves.
+        return false;
+    }
+    match since_hidden {
+        Some(elapsed) => elapsed >= GRACE,
+        None => true,
+    }
+}

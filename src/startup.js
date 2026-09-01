@@ -1,0 +1,99 @@
+// @ts-check
+
+/**
+ * Bringing the app up: the config file, the theme, the vault, the shortcut.
+ *
+ * Each of these reaches outside the app for something that may not be there -
+ * a folder that was moved, a theme that was deleted, a shortcut another app
+ * already holds - and none of them is fatal. So each returns what it could not
+ * do as a notice for the page to show, rather than throwing or, worse, going
+ * quiet (spec §8).
+ */
+
+import { readConfig as parseConfig, expandHome } from './core/config.js'
+import { readTheme as parseTheme, themeCss, LEDGER } from './core/theme.js'
+import * as ipc from './ipc.js'
+
+/** @typedef {import('./core/config.js').Config} Config */
+
+/**
+ * @returns {Promise<{config: Config, home: string, notices: string[]}>}
+ */
+export async function loadConfig() {
+  const file = await ipc.readConfig()
+  const result = parseConfig(file.text)
+  return { config: result.config, home: file.home, notices: result.notices }
+}
+
+/**
+ * Tokens first, then the theme's own stylesheet, both after the app's CSS so
+ * a theme can override anything it sets.
+ *
+ * @param {string} name
+ * @returns {Promise<string[]>} notices
+ */
+export async function applyTheme(name) {
+  const folder = await ipc.readTheme(name)
+  const result = folder.toml === '' ? { theme: LEDGER, notices: [] } : parseTheme(folder.toml)
+
+  styleElement('theme-tokens').textContent = themeCss(result.theme)
+  styleElement('theme-css').textContent = folder.css
+  document.documentElement.style.colorScheme = result.theme.appearance
+  return result.notices
+}
+
+/**
+ * Points the shell at the vault and starts the watcher on it.
+ *
+ * A vault that is not there is reported rather than created: the app does not
+ * put a folder somewhere the user did not ask for (spec §8).
+ *
+ * @param {string} vault  the configured path, `~` and all
+ * @param {string} home
+ * @returns {Promise<string[]>} notices
+ */
+export async function openVault(vault, home) {
+  const path = expandHome(vault, home)
+  const { exists } = await ipc.setVault(path)
+  if (exists) return []
+  return [`No vault at ${path}. Create the folder, or set another path in config.toml.`]
+}
+
+/**
+ * Registers the shortcut that opens quick add from anywhere.
+ *
+ * A shortcut the system will not give us is worth saying out loud: the
+ * alternative is a hotkey that silently does nothing.
+ *
+ * @param {string} accelerator
+ * @returns {Promise<string[]>} notices
+ */
+export async function registerHotkey(accelerator) {
+  try {
+    await ipc.setHotkey(accelerator)
+    return []
+  } catch (error) {
+    return [`Could not register ${accelerator}: ${message(error)}`]
+  }
+}
+
+/**
+ * @param {unknown} error
+ * @returns {string}
+ */
+function message(error) {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * @param {string} id
+ * @returns {HTMLStyleElement}
+ */
+function styleElement(id) {
+  const existing = document.querySelector(`#${id}`)
+  if (existing instanceof HTMLStyleElement) return existing
+  const created = document.createElement('style')
+  created.id = id
+  document.head.append(created)
+  return created
+}
