@@ -144,13 +144,27 @@ fn a_write_is_recognised_as_its_own_echo() {
     assert!(echoes.is_echo("2026-08-31", "# 2026-08-31\n"));
 }
 
+// One save reaches the watcher as several filesystem events. Every one of
+// them is the same echo, and recognising only the first would report the
+// app's own write as an edit made somewhere else.
 #[test]
-fn only_once_though() {
+fn every_event_from_one_write_is_the_same_echo() {
     let mut echoes = Echoes::default();
     echoes.record("2026-08-31", "same\n");
     assert!(echoes.is_echo("2026-08-31", "same\n"));
-    // Someone else writing identical bytes later is a real change.
-    assert!(!echoes.is_echo("2026-08-31", "same\n"));
+    assert!(echoes.is_echo("2026-08-31", "same\n"));
+    assert!(echoes.is_echo("2026-08-31", "same\n"));
+}
+
+// An edit made elsewhere changes the bytes, and different bytes are never an
+// echo however recently the app wrote to that page.
+#[test]
+fn a_later_edit_is_heard_over_the_echo() {
+    let mut echoes = Echoes::default();
+    echoes.record("2026-08-31", "ours\n");
+    assert!(!echoes.is_echo("2026-08-31", "nvim's\n"));
+    echoes.record("2026-08-31", "ours again\n");
+    assert!(!echoes.is_echo("2026-08-31", "ours\n"));
 }
 
 #[test]

@@ -17,11 +17,12 @@ const POPOVER: &str = "popover";
 const WIDTH: f64 = 380.0;
 const HEIGHT: f64 = 560.0;
 
-/// Kept alive for the life of the app: dropping a watcher stops it.
-struct Watchers(Mutex<Vec<notify::RecommendedWatcher>>);
+/// Kept alive for as long as the vault is open: dropping a watcher stops it.
+/// One at a time - opening a second vault should stop watching the first.
+struct Watchers(Mutex<Option<notify::RecommendedWatcher>>);
 
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
-    app.manage(Watchers(Mutex::new(Vec::new())));
+    app.manage(Watchers(Mutex::new(None)));
     create_popover(app);
 
     let icon = app.default_window_icon().cloned();
@@ -159,7 +160,7 @@ pub fn watch_vault(app: AppHandle, root: PathBuf) {
             let state = handle.state::<crate::SharedVault>();
             let is_echo = state
                 .lock()
-                .map(|mut vault| vault.echoes.is_echo(&page, &text))
+                .map(|vault| vault.echoes.is_echo(&page, &text))
                 .unwrap_or(false);
 
             if !is_echo {
@@ -188,7 +189,7 @@ pub fn watch_vault(app: AppHandle, root: PathBuf) {
     match app.try_state::<Watchers>() {
         Some(watchers) => {
             if let Ok(mut held) = watchers.0.lock() {
-                held.push(watcher);
+                held.replace(watcher);
             }
         }
         // Dropping the watcher here would stop it immediately and silently.

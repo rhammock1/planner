@@ -119,14 +119,26 @@ fn read_theme(app: AppHandle, name: String) -> ThemeFiles {
     ThemeFiles { toml: String::new(), css: String::new() }
 }
 
+/// Opens a vault, once.
+///
+/// Every window asks for this as it starts, so quick add opening for the first
+/// time asks a second time for the vault that is already open. Watching it
+/// twice would put two watchers on the same folder, and because an echo is
+/// recognised only once, the second would report the app's own writes as
+/// somebody else's edits.
 #[tauri::command]
 fn set_vault(app: AppHandle, vault: State<'_, SharedVault>, path: String) -> VaultStatus {
     let root = vault_io::canonical_root(&PathBuf::from(path));
     let exists = root.is_dir();
 
-    {
+    let opened = {
         let mut state = vault.lock().expect("vault lock");
+        let same = state.root.as_deref() == Some(root.as_path());
         state.root = Some(root.clone());
+        !same
+    };
+    if !opened {
+        return VaultStatus { exists };
     }
 
     eprintln!(

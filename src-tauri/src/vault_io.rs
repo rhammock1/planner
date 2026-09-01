@@ -32,17 +32,19 @@ impl Echoes {
         self.0.insert(page.to_string(), digest(text));
     }
 
-    /// True when this content is what we just wrote. The record is consumed:
-    /// a second, genuinely external write of identical bytes is a real change
-    /// and must not be swallowed by a stale entry.
-    pub fn is_echo(&mut self, page: &str, text: &str) -> bool {
-        match self.0.get(page) {
-            Some(&recorded) if recorded == digest(text) => {
-                self.0.remove(page);
-                true
-            }
-            _ => false,
-        }
+    /// True when this content is what we last wrote to that page.
+    ///
+    /// The record is kept rather than consumed, because one save does not
+    /// arrive as one event: FSEvents reports a create and two modifies for a
+    /// single write, and consuming the record would let all but the first
+    /// through as somebody else's edit.
+    ///
+    /// The cost is that an external write of byte-identical content is
+    /// suppressed too. That costs nothing to see, because the page on screen
+    /// already says exactly that. A record only stops being an echo when the
+    /// content differs from it - which is what a real edit does.
+    pub fn is_echo(&self, page: &str, text: &str) -> bool {
+        self.0.get(page) == Some(&digest(text))
     }
 }
 
