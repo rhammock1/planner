@@ -55,9 +55,20 @@ export async function applyTheme(name) {
  */
 export async function openVault(vault, home) {
   const path = expandHome(vault, home)
-  const { exists } = await ipc.setVault(path)
-  if (exists) return []
-  return [`No vault at ${path}. Create the folder, or set another path in config.toml.`]
+  const { exists, watching } = await ipc.setVault(path)
+  if (!exists) {
+    return [`No vault at ${path}. Create the folder, or set another path in config.toml.`]
+  }
+
+  // Both of these are an app that looks exactly like a working one until you
+  // edit a page in a text editor and wait for it to appear (spec §8).
+  if (watching === 'polling') {
+    return ['Watching the vault the slow way: an edit made elsewhere takes a couple of seconds to show.']
+  }
+  if (watching === 'none') {
+    return ['Nothing is watching the vault: an edit made elsewhere will not show until this page is reopened.']
+  }
+  return []
 }
 
 /**

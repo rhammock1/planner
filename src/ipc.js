@@ -21,7 +21,7 @@
  *
  * @typedef {object} Host
  * @property {() => Promise<{text: string, home: string}>} readConfig
- * @property {(path: string) => Promise<{exists: boolean}>} setVault
+ * @property {(path: string) => Promise<VaultStatus>} setVault
  * @property {(accelerator: string) => Promise<void>} setHotkey
  * @property {() => Promise<void>} closeQuickAdd
  * @property {(pinned: boolean) => Promise<void>} setPinned
@@ -41,6 +41,15 @@
  * @property {(name: string, entry: string, capabilities: string[]) => Promise<void>} startPlugin
  * @property {(from: string, to: string) => Promise<Contributions>} contribute
  * @property {(handler: () => void) => void|Promise<void>} onPopoverShown
+ */
+
+/**
+ * Whether the vault is there, and whether edits made elsewhere will show up.
+ *
+ * `events` is the filesystem telling us, `polling` is asking every couple of
+ * seconds, `none` is neither working (spec §8).
+ *
+ * @typedef {{exists: boolean, watching: 'events'|'polling'|'none'}} VaultStatus
  */
 
 /**
@@ -90,7 +99,7 @@ export async function readConfig() {
  * one the settings pane uses.
  *
  * @param {string} path  absolute, with any `~` already resolved
- * @returns {Promise<{exists: boolean}>}
+ * @returns {Promise<VaultStatus>}
  */
 export async function setVault(path) {
   return (await getHost()).setVault(path)

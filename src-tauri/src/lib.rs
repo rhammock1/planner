@@ -67,6 +67,9 @@ struct VaultStatus {
     /// False when the folder is not there; the frontend says so rather than
     /// creating a vault somewhere the user did not ask for (spec §8).
     exists: bool,
+    /// Whether edits made elsewhere will show up, and how quickly. The page
+    /// says so when it is not the fast way.
+    watching: watcher::Watching,
 }
 
 #[tauri::command]
@@ -148,7 +151,9 @@ fn set_vault(app: AppHandle, vault: State<'_, SharedVault>, path: String) -> Vau
         !same
     };
     if !opened {
-        return VaultStatus { exists };
+        // Already open, and already being watched however it is being
+        // watched. This window should say the same thing the first one did.
+        return VaultStatus { exists, watching: watcher::watching(&app) };
     }
 
     eprintln!(
@@ -157,10 +162,12 @@ fn set_vault(app: AppHandle, vault: State<'_, SharedVault>, path: String) -> Vau
         if exists { "found" } else { "not found" }
     );
 
-    if exists {
-        watcher::watch_vault(app, root);
-    }
-    VaultStatus { exists }
+    let watching = if exists {
+        watcher::watch_vault(app, root)
+    } else {
+        watcher::Watching::None
+    };
+    VaultStatus { exists, watching }
 }
 
 #[tauri::command]

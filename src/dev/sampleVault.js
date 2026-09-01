@@ -35,7 +35,7 @@ export function sampleHost() {
     },
 
     // Nothing to open: the pages below are the vault.
-    setVault: async () => ({ exists: true }),
+    setVault: async () => ({ exists: true, watching: 'events' }),
 
     // A browser has no menu bar item and no window to put away. The badge is
     // put in the tab title instead, which is the nearest thing a browser has
