@@ -61,6 +61,20 @@ export function sampleHost() {
       queueMicrotask(() => { for (const handler of handlers) handler(page) })
     },
     onVaultChanged: (handler) => { handlers.push(handler) },
+
+    // No plugin host in a browser: nothing to install, nothing to start.
+    listPlugins: async () => [],
+    startPlugin: async () => {},
+
+    // Stood in for, rather than left empty, so the section under the list can
+    // be looked at without a calendar or a Tauri shell.
+    contribute: async (from) => ({
+      items: [
+        { date: from, time: '09:30', text: 'Standup' },
+        { date: from, time: '14:00', text: '1:1 with Priya' },
+      ],
+      notices: [],
+    }),
   }
 }
 

@@ -12,6 +12,7 @@
 
 import { horizon } from './core/horizon.js'
 import { unfinished, carryForward } from './core/carry.js'
+import { readContributions } from './core/contributions.js'
 import { today } from './clock.js'
 import { createStore } from './store.js'
 import { createPageEdits } from './pageEdits.js'
@@ -59,6 +60,13 @@ async function start() {
   await store.start(draw)
   draw()
 
+  // After the page is up, never before it. A plugin is somebody else's code
+  // and the day does not wait on it (addendum §4).
+  void store.startPlugins().then(() => {
+    const now = today()
+    return store.loadContributions(now, now)
+  })
+
   for (const notice of await startup.registerHotkey(store.config().hotkey)) store.notice(notice)
 }
 
@@ -98,6 +106,12 @@ async function openSpread(view) {
 
 function draw() {
   const now = today()
+  // Today's page only. Flipping back to Friday shows what you wrote that
+  // day, not what your calendar said (addendum §1).
+  const given = showing === now
+    ? readContributions(store.contributions(), showing)
+    : { events: [], notices: [] }
+
   dayPage.render({
     today: now,
     page: showing,
@@ -106,7 +120,10 @@ function draw() {
     // Carry-forward is about arriving at today. Looking back at last Tuesday
     // is reading, not triage, so the band stays out of the way there.
     carry: showing === now ? unfinished(store.vault(), now, store.config().carryForwardScanDays) : [],
-    notices: store.notices(),
+    events: given.events,
+    // Worked out on the way to the page rather than kept, so redrawing the
+    // same contributions does not say the same thing twice.
+    notices: [...store.notices(), ...given.notices],
   })
 }
 

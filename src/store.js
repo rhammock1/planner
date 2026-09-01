@@ -26,6 +26,9 @@ import * as startup from './startup.js'
 /**
  * @typedef {object} Store
  * @property {(onChanged: () => void) => Promise<{home: string}>} start
+ * @property {() => Promise<void>} startPlugins
+ * @property {(from: string, to: string) => Promise<void>} loadContributions
+ * @property {() => unknown[]} contributions
  * @property {() => VaultIndex} vault
  * @property {() => import('./core/config.js').Config} config
  * @property {() => string[]} notices
@@ -51,6 +54,10 @@ export function createStore() {
   let notices = []
   /** @type {() => void} */
   let changed = () => {}
+  /** Whatever the plugins last returned. Not this app's data; checked on the
+   *  way to a page, not here. */
+  /** @type {unknown[]} */
+  let contributions = []
 
   /**
    * @param {() => void} onChanged
@@ -91,8 +98,46 @@ export function createStore() {
     return { home: loaded.home }
   }
 
+  /**
+   * Starts the plugins the config enables. The popover does this; the other
+   * windows do not, because nothing in them shows what a plugin contributes.
+   *
+   * @returns {Promise<void>}
+   */
+  async function startPlugins() {
+    const said = await startup.startPlugins(config.plugins)
+    if (said.length === 0) return
+    notices = [...notices, ...said]
+    changed()
+  }
+
+  /**
+   * Asks the plugins what they have for a range of days.
+   *
+   * Nothing waits for this. The page has already been drawn without them,
+   * and is drawn again if and when they answer.
+   *
+   * @param {string} from
+   * @param {string} to
+   * @returns {Promise<void>}
+   */
+  async function loadContributions(from, to) {
+    try {
+      const given = await ipc.contribute(from, to)
+      contributions = given.items
+      notices = [...notices, ...given.notices]
+    } catch (error) {
+      contributions = []
+      notices = [...notices, `Could not ask the plugins: ${message(error)}`]
+    }
+    changed()
+  }
+
   return {
     start,
+    startPlugins,
+    loadContributions,
+    contributions: () => contributions,
     vault: () => vault,
     config: () => config,
     notices: () => notices,

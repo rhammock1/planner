@@ -19,6 +19,7 @@ import { createAddRow } from './addRow.js'
 import { createHorizonStrip } from './horizonStrip.js'
 import { createItemList, openCount } from './itemList.js'
 import { createCarryBand } from './carryBand.js'
+import { createContributions } from './contributions.js'
 
 /** @typedef {import('../core/model.js').Document} Document */
 
@@ -29,6 +30,7 @@ import { createCarryBand } from './carryBand.js'
  * @property {Document|null} doc  null when the day has no file yet
  * @property {import('../core/horizon.js').HorizonEntry[]} horizon
  * @property {import('../core/carry.js').CarryGroup[]} carry  empty unless today
+ * @property {import('../core/contributions.js').Event[]} events  from plugins; today only
  * @property {string[]} notices
  */
 
@@ -81,6 +83,7 @@ let currentState = null
  * @property {ReturnType<typeof createHorizonStrip>} horizon
  * @property {ReturnType<typeof createItemList>} items
  * @property {ReturnType<typeof createCarryBand>} carry
+ * @property {ReturnType<typeof createContributions>} given
  */
 
 /**
@@ -131,6 +134,9 @@ export function mount(root, handlers) {
   note.setAttribute('aria-label', "A note on the day")
 
   const add = createAddRow(handlers.onAdd, 'Write something down')
+  // Under the list and the line you add to it, above the day's own note: the
+  // last thing on the page before what you thought of it.
+  const given = createContributions()
 
   const count = el('span', 'count')
   // The popover only ever shows a day; the other three open the window that
@@ -148,7 +154,10 @@ export function mount(root, handlers) {
   foot.append(tabs, count)
 
   const surface = el('div', 'page')
-  surface.append(head, notices, carry.element, horizon.element, items.element, add.element, note, foot)
+  surface.append(
+    head, notices, carry.element, horizon.element, items.element,
+    add.element, given.element, note, foot,
+  )
   root.replaceChildren(surface)
 
   previous.addEventListener('click', () => handlers.onNavigate(step(-1)))
@@ -191,7 +200,7 @@ export function mount(root, handlers) {
     note.ownerDocument.execCommand('insertText', false, text)
   })
 
-  page = { weekday, date, todayButton, head, pin, notices, note, count, horizon, items, carry }
+  page = { weekday, date, todayButton, head, pin, notices, note, count, horizon, items, carry, given }
 }
 
 /**
@@ -229,6 +238,7 @@ export function render(state) {
   page.carry.render(state.carry, state.today)
   page.horizon.render(state.horizon)
   page.items.render(state.doc)
+  page.given.render(state.events)
   renderNote(page.note, state.doc)
 
   const open = openCount(state.doc)

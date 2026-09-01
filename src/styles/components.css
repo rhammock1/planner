@@ -481,3 +481,54 @@
 }
 
 .quick-preview[hidden] { display: none; }
+
+/* What a plugin had to add to the day (addendum §1). Quieter than the list
+   above it: this is what is happening to you, not what you decided to do. */
+.given {
+  flex: none;
+  padding: 8px 16px 10px;
+  border-top: 1px solid var(--edge-soft);
+}
+
+.given[hidden] { display: none; }
+
+.given-head {
+  margin: 0 0 4px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--edge);
+}
+
+.given-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* Several meetings is an ordinary Tuesday; a dozen is not the day page's
+     problem to show all of. */
+  max-height: 5.5em;
+  overflow-y: auto;
+}
+
+.given-item {
+  display: flex;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--dim);
+}
+
+.given-time {
+  flex: none;
+  /* Fixed, so the titles line up whether or not a row has a time. */
+  width: 3.2em;
+  font-variant-numeric: tabular-nums;
+  color: var(--edge);
+}
+
+.given-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

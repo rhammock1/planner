@@ -29,9 +29,10 @@ function pageOf(count) {
 
 /**
  * @param {number} count
+ * @param {number} [events]  how many a plugin contributed
  * @returns {void}
  */
-function show(count) {
+function show(count, events) {
   stage.replaceChildren()
   const root = document.createElement('main')
   root.id = 'app'
@@ -56,6 +57,10 @@ function show(count) {
     doc: parse(pageOf(count)),
     horizon: [],
     carry: [],
+    events: Array.from({ length: events ?? 0 }, (_, at) => ({
+      time: `${String(9 + at).padStart(2, '0')}:00`,
+      text: `Meeting number ${at + 1}`,
+    })),
     notices: [],
   })
 }
@@ -140,6 +145,53 @@ check('an empty day still offers its note', () => {
   show(0)
   const note = part('.note')
   ok(!note.hidden, 'the note is hidden on a day with nothing on it')
+})
+
+
+// What a plugin contributed goes under the list and above the day's own note,
+// and is subject to the same rule as everything else on this page: the list is
+// what gives, and the frame around it stays put (addendum §1).
+
+check('a day with nothing contributed shows no section at all', () => {
+  show(3)
+  const given = stage.querySelector('.given')
+  ok(given instanceof HTMLElement, 'the section is missing from the page')
+  ok(given.hidden, 'an empty section was left on the page')
+  equal(given.getBoundingClientRect().height, 0, 'an empty section still took up room')
+})
+
+check('contributed events appear under the list and above the note', () => {
+  show(3, 2)
+  const order = [...stage.querySelectorAll('.page > *')].map((part) => part.className)
+  equal(order.join(' '), 'page-head notices carry horizon items add given note page-foot', 'the section is in the wrong place')
+  equal(stage.querySelectorAll('.given-item').length, 2, 'the events did not appear')
+})
+
+check('a busy day of meetings does not push the footer off', () => {
+  show(3, 14)
+  const foot = stage.querySelector('.page-foot')
+  ok(foot instanceof HTMLElement, 'no footer')
+  ok(
+    foot.getBoundingClientRect().bottom <= stage.getBoundingClientRect().bottom + 1,
+    `fourteen meetings put the footer at ${Math.round(foot.getBoundingClientRect().bottom)}`,
+  )
+})
+
+// The section gets a few lines and scrolls past them, the way the daily note
+// does. A calendar is not what this page is for.
+check('a busy day of meetings scrolls inside its own section', () => {
+  show(3, 14)
+  const list = stage.querySelector('.given-list')
+  ok(list instanceof HTMLElement, 'no list')
+  ok(list.scrollHeight > list.clientHeight, 'the section grew instead of scrolling')
+})
+
+check('the list is still what gives when both are long', () => {
+  show(20, 14)
+  const items = stage.querySelector('.items')
+  ok(items instanceof HTMLElement, 'no list')
+  ok(items.scrollHeight > items.clientHeight, 'the item list stopped scrolling')
+  equal(Math.round(part('.page').getBoundingClientRect().height), 560, 'the page grew past the window')
 })
 
 report()

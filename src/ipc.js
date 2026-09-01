@@ -34,6 +34,19 @@
  * @property {(page: string) => Promise<string|null>} readPage
  * @property {(page: string, text: string) => Promise<void>} writePage
  * @property {(handler: (page: string) => void) => void|Promise<void>} onVaultChanged
+ * @property {() => Promise<{name: string, manifest: string}[]>} listPlugins
+ * @property {(name: string, entry: string, capabilities: string[]) => Promise<void>} startPlugin
+ * @property {(from: string, to: string) => Promise<Contributions>} contribute
+ */
+
+/**
+ * What the plugins had to add, and anything that went wrong asking.
+ *
+ * `items` is not this app's data and has not been checked: whatever a plugin
+ * returned, in whatever shape it returned it. It is given a shape on the way
+ * to the page, not here.
+ *
+ * @typedef {{items: unknown[], notices: string[]}} Contributions
  */
 
 /** @type {Promise<Host>|null} */
@@ -180,6 +193,47 @@ export async function onVaultChanged(handler) {
 }
 
 /**
+ * Every plugin folder in `~/.planner/plugins`, installed or not, with its
+ * manifest as text. Parsing it is core's job (`core/plugins.js`); there is
+ * one TOML reader in this project and Rust is not it.
+ *
+ * @returns {Promise<{name: string, manifest: string}[]>}
+ */
+export async function listPlugins() {
+  return (await getHost()).listPlugins()
+}
+
+/**
+ * Starts a plugin in its own webview with the capabilities it was granted.
+ *
+ * Only the app's own windows can reach this command; a plugin is held to
+ * `plugin_message` by the gate in Rust, so none can grant itself anything.
+ *
+ * @param {string} name
+ * @param {string} entry
+ * @param {string[]} capabilities
+ * @returns {Promise<void>}
+ */
+export async function startPlugin(name, entry, capabilities) {
+  return (await getHost()).startPlugin(name, entry, capabilities)
+}
+
+/**
+ * Asks every running plugin what it has for these days.
+ *
+ * Slow by nature - it waits on somebody else's code - so nothing renders
+ * behind it. The page is drawn without contributions and again when they
+ * arrive, or never again if they do not.
+ *
+ * @param {string} from `YYYY-MM-DD`
+ * @param {string} to
+ * @returns {Promise<Contributions>}
+ */
+export async function contribute(from, to) {
+  return (await getHost()).contribute(from, to)
+}
+
+/**
  * @returns {Host}
  */
 function tauriHost() {
@@ -198,6 +252,10 @@ function tauriHost() {
     closePopover: () => invoke('close_popover'),
     openSpread: (view) => invoke('open_spread', { view }),
     spreadView: () => invoke('spread_view'),
+    listPlugins: () => invoke('list_plugins'),
+    startPlugin: (name, entry, capabilities) =>
+      invoke('start_plugin', { name, entry, capabilities }),
+    contribute: (from, to) => invoke('contribute', { from, to }),
     readTheme: (name) => invoke('read_theme', { name }),
     readVault: () => invoke('read_vault'),
     readPage: (page) => invoke('read_page', { page }),

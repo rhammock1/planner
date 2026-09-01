@@ -12,6 +12,7 @@
 
 import { readConfig as parseConfig, expandHome } from './core/config.js'
 import { readTheme as parseTheme, themeCss, LEDGER } from './core/theme.js'
+import { plan } from './core/plugins.js'
 import * as ipc from './ipc.js'
 
 /** @typedef {import('./core/config.js').Config} Config */
@@ -57,6 +58,35 @@ export async function openVault(vault, home) {
   const { exists } = await ipc.setVault(path)
   if (exists) return []
   return [`No vault at ${path}. Create the folder, or set another path in config.toml.`]
+}
+
+/**
+ * Starts the plugins the config enables (spec §7).
+ *
+ * A plugin that will not start stops nothing else: the app is a planner
+ * first, and a plugin host only where that costs the planner nothing.
+ *
+ * @param {Map<string, import('./core/config.js').PluginConfig>} configured
+ * @returns {Promise<string[]>} notices
+ */
+export async function startPlugins(configured) {
+  let folders
+  try {
+    folders = await ipc.listPlugins()
+  } catch (error) {
+    return [`Could not look for plugins: ${message(error)}`]
+  }
+
+  const { start, notices } = plan(folders, configured)
+  const failures = []
+  for (const plugin of start) {
+    try {
+      await ipc.startPlugin(plugin.name, plugin.entry, plugin.capabilities)
+    } catch (error) {
+      failures.push(`Could not start ${plugin.name}: ${message(error)}`)
+    }
+  }
+  return [...notices, ...failures]
 }
 
 /**

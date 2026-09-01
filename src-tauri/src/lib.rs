@@ -6,9 +6,13 @@
 //! `src/core/`, in JavaScript, where it can be tested in half a second
 //! without a Rust toolchain (spec §4.2).
 
+mod bridges;
 mod quick_add;
 mod spread;
 mod tray;
+
+/// Public so the tests in `tests/` can reach it.
+pub mod plugins;
 
 /// Public so the tests in `tests/` can reach it.
 pub mod popover;
@@ -203,23 +207,53 @@ fn write_page(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Every invoke passes the gate before it reaches a command. A plugin
+    // window may call one of them; the app's own windows may call any (see
+    // `plugins::allowed`).
+    type Commands = Box<dyn Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync>;
+    let commands: Commands = Box::new(tauri::generate_handler![
+        read_config,
+        set_hotkey,
+        close_quick_add,
+        read_theme,
+        set_vault,
+        read_vault,
+        read_page,
+        write_page,
+        tray::set_pinned,
+        tray::close_popover,
+        spread::open_spread,
+        spread::spread_view,
+        plugins::plugin_message,
+        plugins::list_plugins,
+        plugins::start_plugin,
+        plugins::contribute
+    ]);
+
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(SharedVault::default())
-        .invoke_handler(tauri::generate_handler![
-            read_config,
-            set_hotkey,
-            close_quick_add,
-            read_theme,
-            set_vault,
-            read_vault,
-            read_page,
-            write_page,
-            tray::set_pinned,
-            tray::close_popover,
-            spread::open_spread,
-            spread::spread_view
-        ])
+        .manage(plugins::Registry::default())
+        .manage(plugins::waiting::Pending::default())
+        .manage(plugins::waiting::Started::default())
+        // Every plugin's page and code is served from here, out of its own
+        // folder and nowhere else (see `plugins::host::respond`).
+        .register_uri_scheme_protocol("plugin", |context, request| {
+            plugins::host::respond(context.app_handle(), &request)
+        })
+        .invoke_handler(move |invoke: tauri::ipc::Invoke<tauri::Wry>| {
+            let label = invoke.message.webview_ref().label();
+            let command = invoke.message.command();
+            if plugins::allowed(label, command) {
+                return commands(invoke);
+            }
+            // Said out loud. A plugin reaching for a command it cannot have is
+            // either broken or trying it on, and both are worth seeing.
+            eprintln!("planner: refused {command} from {label}");
+            let refusal = format!("{command} is not available to a plugin");
+            invoke.resolver.reject(refusal);
+            true
+        })
         .setup(|app| {
             // No dock icon and no menu bar of its own: the app is the item in
             // the menu bar, and nothing else (spec §1).
@@ -240,7 +274,7 @@ pub fn run() {
 /// The override exists so the app can be run against a throwaway config
 /// without writing anything into a real home directory - which is how it gets
 /// tested, and how two vaults can be looked at side by side.
-fn planner_dir() -> Option<PathBuf> {
+pub(crate) fn planner_dir() -> Option<PathBuf> {
     if let Some(overridden) = std::env::var_os("PLANNER_HOME") {
         return Some(PathBuf::from(overridden));
     }
