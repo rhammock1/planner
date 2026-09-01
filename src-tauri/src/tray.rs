@@ -11,7 +11,8 @@ use tauri::{
 
 use crate::popover::{self, Bounds};
 
-const POPOVER: &str = "popover";
+/// The day page. Public so alarms can ask it for a fresh schedule.
+pub const POPOVER: &str = "popover";
 
 /// The menu bar item's id, so it can be found again to be labelled.
 const TRAY: &str = "planner";

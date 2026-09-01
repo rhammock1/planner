@@ -44,6 +44,10 @@ export function sampleHost() {
     closeQuickAdd: async () => {},
     setPinned: async () => {},
     setBadge: async (text) => { document.title = text === null ? 'Planner' : `${text} · Planner` },
+    // No shell to hold timers, and a browser tab is not where a
+    // notification belongs. The schedule is computed and thrown away.
+    setNotifications: async () => {},
+    onScheduleRefresh: () => {},
     closePopover: async () => {},
     // A browser has tabs of its own: the window opens as a page, in a page.
     openSpread: async (view) => { location.href = `./spread.html?view=${view}` },

@@ -26,6 +26,8 @@
  * @property {() => Promise<void>} closeQuickAdd
  * @property {(pinned: boolean) => Promise<void>} setPinned
  * @property {(text: string|null) => Promise<void>} setBadge
+ * @property {(list: Alarm[]) => Promise<void>} setNotifications
+ * @property {(handler: () => void) => void|Promise<void>} onScheduleRefresh
  * @property {() => Promise<void>} closePopover
  * @property {(view: string) => Promise<void>} openSpread
  * @property {() => Promise<string|null>} spreadView
@@ -39,6 +41,12 @@
  * @property {(name: string, entry: string, capabilities: string[]) => Promise<void>} startPlugin
  * @property {(from: string, to: string) => Promise<Contributions>} contribute
  * @property {(handler: () => void) => void|Promise<void>} onPopoverShown
+ */
+
+/**
+ * One line, and the moment it is owed at (spec §5.9).
+ *
+ * @typedef {{at: number, time: string, text: string}} Alarm
  */
 
 /**
@@ -135,6 +143,34 @@ export async function setPinned(pinned) {
  */
 export async function setBadge(text) {
   return (await getHost()).setBadge(text)
+}
+
+/**
+ * Replaces the whole set of alarms held by the shell (spec §5.9).
+ *
+ * Complete every time, never incremental: what the day says is what is
+ * scheduled. Rust holds the timers because a hidden webview's are throttled.
+ *
+ * @param {Alarm[]} list
+ * @returns {Promise<void>}
+ */
+export async function setNotifications(list) {
+  return (await getHost()).setNotifications(list)
+}
+
+/**
+ * Fires when the shell wants the schedule worked out again - every quarter of
+ * an hour, and after anything rings.
+ *
+ * This is how midnight is noticed. Nothing else would: today's alarms all fall
+ * into the past and tomorrow's have never been sent, and a timer in a hidden
+ * webview cannot be trusted to notice the difference.
+ *
+ * @param {() => void} handler
+ * @returns {Promise<void>}
+ */
+export async function onScheduleRefresh(handler) {
+  await (await getHost()).onScheduleRefresh(handler)
 }
 
 /**
@@ -277,6 +313,8 @@ function tauriHost() {
     closeQuickAdd: () => invoke('close_quick_add'),
     setPinned: (pinned) => invoke('set_pinned', { pinned }),
     setBadge: (text) => invoke('set_badge', { text }),
+    setNotifications: (list) => invoke('set_notifications', { list }),
+    onScheduleRefresh: (handler) => tauri.event.listen('schedule:refresh', () => handler()),
     closePopover: () => invoke('close_popover'),
     openSpread: (view) => invoke('open_spread', { view }),
     spreadView: () => invoke('spread_view'),

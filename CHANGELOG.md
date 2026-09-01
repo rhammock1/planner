@@ -11,6 +11,7 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Added
 
+-   A line with a time on it now says so when the time comes (spec §5.9). The schedule is worked out in JavaScript and handed to the shell complete, because a hidden webview's timers are throttled and a reminder that fires whenever you next open the page is not a reminder. An alarm whose moment went by while the machine was asleep is dropped rather than fired late
 -   The menu bar icon says how much of today is still open, and gains a dot when a deadline has come inside its lead time (spec §5.8). A day with nothing left leaves the icon bare, because `0` is a number you have to read and then dismiss. `menu_bar_count` and `menu_bar_horizon_dot` were settings the app read and then ignored; they now do what they say
 -   Plugins (spec §7). A plugin is a folder in `~/.planner/plugins` that `config.toml` switches on. It runs in its own hidden webview with no permissions of its own, may call exactly one command, cannot reach the network, and has two seconds to answer anything before it is put away for the session. The API is published in `docs/plugins.md`
 -   `macos-calendar`, the first plugin: the day's events under your list, read-only, and not counted towards how much is left. It is also the API's own test — it is written against the public API with no privilege the API does not grant

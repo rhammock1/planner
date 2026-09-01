@@ -12,9 +12,10 @@
 
 import { horizon } from './core/horizon.js'
 import { glance, badge } from './core/glance.js'
+import { schedule, upcoming } from './core/schedule.js'
 import { unfinished, carryForward } from './core/carry.js'
 import { readContributions } from './core/contributions.js'
-import { today } from './clock.js'
+import { today, instantAt } from './clock.js'
 import { createStore } from './store.js'
 import { createPageEdits } from './pageEdits.js'
 import * as ipc from './ipc.js'
@@ -31,6 +32,11 @@ let labelled
 /** Said once. An icon that cannot be labelled is worth one line, not one
  *  line per redraw. */
 let labelFailed = false
+/** The schedule the shell is already holding, so an unchanged one is not sent
+ *  again. @type {string|undefined} */
+let scheduled
+/** Said once, for the same reason as `labelFailed`. */
+let scheduleFailed = false
 const edits = createPageEdits(store, () => showing)
 
 async function start() {
@@ -75,6 +81,15 @@ async function start() {
     return store.loadContributions(now, now)
   }
   void store.startPlugins().then(ask)
+
+  // Every quarter of an hour, and after anything rings. Which is also how
+  // midnight is noticed: today's alarms have all gone by and tomorrow's have
+  // never been sent (spec §5.9).
+  try {
+    await ipc.onScheduleRefresh(() => { draw() })
+  } catch (error) {
+    store.notice(`Reminders will stop after today: ${message(error)}`)
+  }
 
   try {
     await ipc.onPopoverShown(() => { void ask() })
@@ -129,6 +144,7 @@ function draw() {
     : { events: [], notices: [] }
 
   updateBadge(now)
+  updateSchedule(now)
 
   dayPage.render({
     today: now,
@@ -167,6 +183,34 @@ function updateBadge(now) {
     if (labelFailed) return
     labelFailed = true
     store.notice(`The menu bar icon will not show what is left: ${message(error)}`)
+  })
+}
+
+/**
+ * Hands the shell every alarm today still owes (spec §5.9).
+ *
+ * Sent complete, and only when it differs from what the shell already holds -
+ * the schedule is worked out on every redraw, and most redraws do not change
+ * it.
+ *
+ * @param {string} now `YYYY-MM-DD`
+ * @returns {void}
+ */
+function updateSchedule(now) {
+  const alarms = upcoming(
+    schedule(store.vault(), now),
+    (time) => instantAt(now, time),
+    Date.now(),
+  )
+
+  const sending = JSON.stringify(alarms)
+  if (sending === scheduled) return
+  scheduled = sending
+
+  void ipc.setNotifications(alarms).catch((error) => {
+    if (scheduleFailed) return
+    scheduleFailed = true
+    store.notice(`Timed lines will not be announced: ${message(error)}`)
   })
 }
 

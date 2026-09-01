@@ -7,6 +7,7 @@
 //! without a Rust toolchain (spec §4.2).
 
 mod bridges;
+mod notify;
 mod quick_add;
 mod spread;
 mod tray;
@@ -223,6 +224,7 @@ pub fn run() {
         write_page,
         tray::set_pinned,
         tray::set_badge,
+        notify::set_notifications,
         tray::close_popover,
         spread::open_spread,
         spread::spread_view,
@@ -234,7 +236,9 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .manage(SharedVault::default())
+        .manage(notify::Alarms::default())
         .manage(plugins::Registry::default())
         .manage(plugins::waiting::Pending::default())
         .manage(plugins::waiting::Started::default())
@@ -264,6 +268,9 @@ pub fn run() {
 
             app.manage(spread::View::default());
             tray::install(app.handle())?;
+            // The one thread that holds real timers, because a hidden
+            // webview's are throttled (spec §5.9).
+            notify::hold(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())
