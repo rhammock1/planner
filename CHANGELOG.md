@@ -11,6 +11,11 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Added
 
+-   The detached window (spec §5.6). The footer's `WEEK`, `MONTH` and `SOMEDAY` tabs, and `⌘↩`, open a second ordinary window that stays where you put it: the week as seven columns, the month as a grid, and `someday.md` as one list
+-   The week - seven columns Monday first, today marked, each a day's list with its own add row, and arrows that move a whole week at a time
+-   The month - a cell per day carrying how much is still open on it and a mark when something anywhere in the vault is due that day. Clicking a cell goes to the week that day sits in
+-   The back page - `someday.md` given a surface of its own, so things without a day yet no longer need a text editor
+-   Dragging a line from one day to another. A day still ahead simply loses the line; a day already gone keeps the record - `[>]` with the date it went to - the same way carry-forward does
 -   Pin the popover open. Unpinned it closes when you click elsewhere; pinned it stays, its header becomes a handle you can drag it anywhere by, and it reopens where you left it rather than snapping back under the menu bar
 -   The popover can be resized, and the list scrolls inside whatever size it is given
 -   The day's own note at the bottom of the page can be written in, not only read. It used to be hidden when empty, which left no way to start one

@@ -6,11 +6,6 @@ the README is not planned.
 
 ## Next
 
-- **The detached window** (spec §5.6) — week, month and back page. The
-  footer's `WEEK`, `MONTH` and `SOMEDAY` tabs are drawn but do nothing; they
-  are meant to open this. Until it exists the tabs are a promise the app does
-  not keep, which is the strongest argument for doing it first.
-
 - **Token help while typing** — the four tokens (`@10:30`, `!2026-09-04`,
   `~3d`, `>2026-09-02`) already work anywhere a line is typed, because the
   line is re-parsed on the way to disk. Nothing says so. Two candidates, in
@@ -30,6 +25,17 @@ the README is not planned.
 
 ## After that
 
+- **Editing a line in a week column.** Lines there are read-only: a
+  `contenteditable` region takes the press to place a caret, so a column you
+  can write in is a column you cannot drag a line out of. Dragging won; the
+  day page is where lines are written. A double-click that turns one line
+  editable for as long as it has focus would give both, and is the obvious
+  shape if it turns out to be missed.
+- **Dragging to and from the back page** (spec §5.6). `core/move.js` already
+  handles it in both directions and is tested for it; there is just nowhere to
+  drop, because the week and the back page are different views of the same
+  window. A someday column down the right-hand edge of the week is the obvious
+  answer, and a design question rather than a coding one.
 - Plugins and the two reference plugins (spec §9)
 - Notifications and the menu bar badge
 - Search
@@ -40,6 +46,8 @@ the README is not planned.
 
 ## Decided against, for now
 
+- Persisting the detached window's size, position and view across a restart,
+  for the same reason as the pin below.
 - Persisting the pin and the popover's size across a restart. Both survive as
   long as the app runs. A pin that silently outlives a restart is a popover
   that has stopped closing itself for a reason you no longer remember.

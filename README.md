@@ -6,8 +6,8 @@ notebook. Flip to other days. See what is coming. Close it.
 
 It is not a task manager, and it is trying hard not to become one.
 
-*Early days — the vault format, the domain logic, the day page, the menu bar
-shell and quick add are built. The detached window, plugins, notifications and
+*Early days — the vault format, the domain logic, the day page, the detached
+window, the menu bar shell and quick add are built. Plugins, notifications and
 search are not.*
 
 ## Goals
@@ -86,8 +86,11 @@ With the server running:
   anything on screen changes. Add `?theme=console` or `?theme=composition-book`
   to see the other bundled themes; they load exactly as they will from
   `~/.planner/themes/`.
+- <http://127.0.0.1:8731/src/spread.html?view=week> — the detached window.
+  `?view=month` and `?view=someday` are the other two.
 - <http://127.0.0.1:8731/test/browser/keyed-list.html> — the checks that need a
-  real browser, because they are about focus and the caret.
+  real browser, because they are about focus, the caret, layout and drag.
+  `horizon-strip`, `item-list`, `day-page` and `spread-page` are the others.
 
 ### Running the app
 
@@ -105,7 +108,12 @@ reopens where you left it. Unpin it and it goes back to opening under the
 icon.
 `Shift+Enter` on a line opens the note underneath it, and `⌘⌫` crosses a line
 out — press it again on a line already crossed out and it comes off the page
-for good. `⌥Space` opens the
+for good. The footer's `WEEK`, `MONTH` and `SOMEDAY` tabs — or `⌘↩` — open a
+second, ordinary window: seven columns of the week you can drag lines between,
+a month grid of counts and deadline markers, and `someday.md` as one list.
+Lines in a week column are read-only, because a column you can write in is a
+column you cannot drag out of; the day page is where lines are written.
+`⌥Space` opens the
 quick-add field from anywhere; the shortcut is `hotkey` in `config.toml`. Settings and installed themes live in `~/.planner`, and
 the vault at whatever `config.toml` says, defaulting to `~/Planner`. Set
 `PLANNER_HOME` to point the first of those somewhere else, which is how the
