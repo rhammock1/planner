@@ -12,7 +12,7 @@
 import { parse } from './core/parse.js'
 import { serialize } from './core/serialize.js'
 import { createDayDocument, createItem } from './core/model.js'
-import { setItemState, setItemText, appendItem } from './core/edit.js'
+import { setItemState, setItemText, setItemNote, appendItem } from './core/edit.js'
 import { buildIndex, getPage, withPage } from './core/vaultIndex.js'
 import { horizon } from './core/horizon.js'
 import { unfinished, carryForward } from './core/carry.js'
@@ -57,6 +57,7 @@ async function start() {
     },
     onToggle: (index) => { void toggle(index) },
     onEdit: (index, text) => edit(index, text),
+    onNote: (index, note) => annotate(index, note),
     onAdd: (line) => add(line),
     onCarry: (decisions) => { void carry(decisions) },
     onPin: (next) => { void pin(next) },
@@ -154,6 +155,21 @@ function edit(index, text) {
     const node = doc?.nodes[index]
     if (doc === null || node === undefined || node.kind !== 'item') return null
     return setItemText(doc, index, text)
+  })
+}
+
+/**
+ * Writes the line underneath an item. An empty one takes the note away.
+ *
+ * @param {number} index
+ * @param {string} note
+ * @returns {Promise<boolean>}
+ */
+function annotate(index, note) {
+  return change(showing, (doc) => {
+    const node = doc?.nodes[index]
+    if (doc === null || node === undefined || node.kind !== 'item') return null
+    return setItemNote(doc, index, note)
   })
 }
 

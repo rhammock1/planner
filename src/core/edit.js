@@ -56,6 +56,30 @@ export function setItemText(doc, index, text) {
 }
 
 /**
+ * Replaces an item's note - the indented line, or lines, under it.
+ *
+ * `null` removes it. So does a note that is only whitespace: a `>` line with
+ * nothing after it is a line the user cannot see and cannot click on, and
+ * leaving one behind means the next save keeps carrying it.
+ *
+ * @param {Document} doc
+ * @param {number} index  position in `doc.nodes`
+ * @param {string|null} note
+ * @returns {Document}
+ */
+export function setItemNote(doc, index, note) {
+  const node = doc.nodes[index]
+  if (node === undefined || node.kind !== 'item') {
+    throw new Error(`line ${index} is not an item`)
+  }
+
+  const trimmed = note === null ? null : note.trim()
+  const nodes = [...doc.nodes]
+  nodes[index] = { ...node, note: trimmed === '' ? null : trimmed }
+  return { ...doc, nodes }
+}
+
+/**
  * Adds an item to the end of the page's content.
  *
  * End of the content, not end of the file: a page that ends in a blank line

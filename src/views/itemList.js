@@ -18,7 +18,7 @@ import { el, setText } from '../ui/dom.js'
 /** @typedef {{kind: string, index: number, node: Node}} Row */
 
 /**
- * @param {{onToggle: (index: number) => void, onEdit: (index: number, text: string) => Promise<boolean>}} handlers
+ * @param {{onToggle: (index: number) => void, onEdit: (index: number, text: string) => Promise<boolean>, onNote: (index: number, note: string) => Promise<boolean>}} handlers
  * @returns {{element: HTMLElement, render: (doc: Document|null) => void}}
  */
 export function createItemList(handlers) {
@@ -38,15 +38,13 @@ export function createItemList(handlers) {
   })
 
   element.addEventListener('focusin', (event) => {
-    const target = event.target
-    if (target instanceof HTMLElement && target.classList.contains('item-text')) {
-      before.set(target, target.textContent ?? '')
-    }
+    const target = editable(event.target)
+    if (target !== null) before.set(target, target.textContent ?? '')
   })
 
   element.addEventListener('keydown', (event) => {
-    const target = event.target
-    if (!(target instanceof HTMLElement) || !target.classList.contains('item-text')) return
+    const target = editable(event.target)
+    if (target === null) return
 
     if (event.key === 'Escape') {
       event.preventDefault()
@@ -54,6 +52,21 @@ export function createItemList(handlers) {
       target.blur()
       return
     }
+
+    // Shift+Enter opens the line underneath - the one you would write in
+    // smaller handwriting, tucked under the task. It is the only nesting the
+    // format has, and the only nesting it will get.
+    if (event.key === 'Enter' && event.shiftKey && target.classList.contains('item-text')) {
+      event.preventDefault()
+      const note = target.parentElement?.querySelector('.item-note')
+      if (note instanceof HTMLElement) {
+        note.hidden = false
+        note.focus()
+        caretToEnd(note)
+      }
+      return
+    }
+
     if (event.key === 'Enter') {
       // A line is a line. Enter finishes it rather than starting a second one.
       event.preventDefault()
@@ -62,25 +75,35 @@ export function createItemList(handlers) {
   })
 
   element.addEventListener('focusout', (event) => {
-    const target = event.target
-    if (!(target instanceof HTMLElement) || !target.classList.contains('item-text')) return
+    const target = editable(event.target)
+    if (target === null) return
 
     const was = before.get(target)
     const now = target.textContent ?? ''
     const index = indexOf(target)
-    if (was === undefined || index === null || now.trim() === was.trim()) return
+    if (was === undefined || index === null) return
+    if (now.trim() === was.trim()) {
+      // An empty note that was never written to is put away again, so opening
+      // one and changing your mind leaves no gap under the item.
+      if (target.classList.contains('item-note') && now.trim() === '') target.hidden = true
+      return
+    }
 
-    handlers.onEdit(index, now).then((saved) => {
+    const saved = target.classList.contains('item-note')
+      ? handlers.onNote(index, now)
+      : handlers.onEdit(index, now)
+
+    saved.then((ok) => {
       // A refused write must not leave the page showing something the file
       // does not say (spec §8).
-      if (!saved) setText(target, was)
+      if (!ok) setText(target, was)
     })
   })
 
   // Paste arrives as whatever was on the clipboard. A planner line is text.
   element.addEventListener('paste', (event) => {
-    const target = event.target
-    if (!(target instanceof HTMLElement) || !target.classList.contains('item-text')) return
+    const target = editable(event.target)
+    if (target === null) return
     event.preventDefault()
     const text = event.clipboardData?.getData('text/plain') ?? ''
     target.ownerDocument.execCommand('insertText', false, text.replace(/\s+/g, ' '))
@@ -129,8 +152,43 @@ function createRow() {
   text.setAttribute('contenteditable', 'plaintext-only')
   text.setAttribute('role', 'textbox')
 
-  row.append(check, text, el('span', 'item-time'), el('span', 'item-note'))
+  const note = el('span', 'item-note')
+  note.setAttribute('contenteditable', 'plaintext-only')
+  note.setAttribute('role', 'textbox')
+  note.setAttribute('aria-label', 'A note under this line')
+
+  row.append(check, text, el('span', 'item-time'), note)
   return row
+}
+
+/**
+ * The editable line an event happened in, or null if it happened somewhere
+ * else. An item's text and its note behave identically; only what they are
+ * saved as differs.
+ *
+ * @param {EventTarget|null} target
+ * @returns {HTMLElement|null}
+ */
+function editable(target) {
+  if (!(target instanceof HTMLElement)) return null
+  const isLine = target.classList.contains('item-text') || target.classList.contains('item-note')
+  return isLine ? target : null
+}
+
+/**
+ * Puts the caret at the end, so typing continues the line rather than
+ * appearing in front of it.
+ *
+ * @param {HTMLElement} element
+ * @returns {void}
+ */
+function caretToEnd(element) {
+  const range = element.ownerDocument.createRange()
+  range.selectNodeContents(element)
+  range.collapse(false)
+  const selection = element.ownerDocument.defaultView?.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(range)
 }
 
 /**
@@ -162,6 +220,8 @@ function updateRow(row, item) {
   setText(time, item.time ?? '')
   time.hidden = item.time === null
   setText(note, item.note ?? '')
+  // A note being typed into is never re-hidden underneath the caret; the list
+  // patcher does not update a row whose editable line has focus.
   note.hidden = item.note === null
 }
 

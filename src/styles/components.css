@@ -220,7 +220,18 @@
   padding-top: 2px;
   line-height: 1.4;
   white-space: pre-wrap;
+  /* An empty note is opened with Shift+Enter and has nothing in it yet. Given
+     no height it would be a caret floating in the margin with nothing to aim
+     at. */
+  min-height: 1.4em;
 }
+
+.item-note:empty::before {
+  content: 'and a note';
+  color: var(--edge);
+}
+
+.item-note[hidden] { display: none; }
 
 .item.done .item-text,
 .item.dropped .item-text,

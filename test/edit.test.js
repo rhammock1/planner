@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { parse } from '../src/core/parse.js'
 import { serialize } from '../src/core/serialize.js'
 import { createItem, createDayDocument } from '../src/core/model.js'
-import { setItemState, setItemText, appendItem, setDailyNote } from '../src/core/edit.js'
+import { setItemState, setItemText, setItemNote, appendItem, setDailyNote } from '../src/core/edit.js'
 
 const day = '# 2026-08-31\n\n- [ ] Pair with Dana @10:30\n  > about the queue\n- [x] Standup\n'
 
@@ -116,5 +116,50 @@ describe('setDailyNote', () => {
   test('emptying the note keeps the rule', () => {
     const next = setDailyNote(parse('# 2026-08-31\n\n---\n\nOld.\n'), '')
     assert.equal(serialize(next), '# 2026-08-31\n\n---\n')
+  })
+})
+
+describe('setItemNote', () => {
+  /** @returns {import('../src/core/model.js').Document} */
+  const page = () => parse('# 2026-09-01\n\n- [ ] Review PR #4412\n- [ ] Firmware sign-off\n  > chase the vendor\n')
+
+  test('adds a note to an item that has none', () => {
+    const after = setItemNote(page(), 1, 'ask about the 30s timeout')
+    assert.equal(serialize(after), '# 2026-09-01\n\n- [ ] Review PR #4412\n  > ask about the 30s timeout\n- [ ] Firmware sign-off\n  > chase the vendor\n')
+  })
+
+  test('replaces the note an item already has', () => {
+    const after = setItemNote(page(), 2, 'the vendor called back')
+    assert.equal(serialize(after), '# 2026-09-01\n\n- [ ] Review PR #4412\n- [ ] Firmware sign-off\n  > the vendor called back\n')
+  })
+
+  test('null removes it', () => {
+    const after = setItemNote(page(), 2, null)
+    assert.equal(serialize(after), '# 2026-09-01\n\n- [ ] Review PR #4412\n- [ ] Firmware sign-off\n')
+  })
+
+  // A `>` line with nothing after it is invisible on the page and unclickable,
+  // so it would be carried forever with no way to get rid of it.
+  test('an empty note removes it too', () => {
+    assert.equal(serialize(setItemNote(page(), 2, '')), '# 2026-09-01\n\n- [ ] Review PR #4412\n- [ ] Firmware sign-off\n')
+    assert.equal(serialize(setItemNote(page(), 2, '   ')), '# 2026-09-01\n\n- [ ] Review PR #4412\n- [ ] Firmware sign-off\n')
+  })
+
+  test('the note is trimmed', () => {
+    const node = setItemNote(page(), 1, '  spaced  ').nodes[1]
+    assert.equal(node?.kind === 'item' ? node.note : null, 'spaced')
+  })
+
+  test('nothing else on the page moves', () => {
+    const before = page()
+    const after = setItemNote(before, 1, 'a note')
+    assert.equal(after.nodes.length, before.nodes.length)
+    assert.notEqual(after.nodes[1], before.nodes[1])
+    assert.equal(after.nodes[2], before.nodes[2])
+  })
+
+  test('a line that is not an item is refused', () => {
+    assert.throws(() => setItemNote(page(), 0, 'x'), /not an item/)
+    assert.throws(() => setItemNote(page(), 99, 'x'), /not an item/)
   })
 })
