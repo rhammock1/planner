@@ -11,6 +11,8 @@
 
 import { today } from './clock.js'
 import { moveItem } from './core/move.js'
+import { search } from './core/search.js'
+import { SOMEDAY } from './core/vaultIndex.js'
 import { createStore } from './store.js'
 import { createPageEdits } from './pageEdits.js'
 import * as ipc from './ipc.js'
@@ -47,6 +49,29 @@ async function start() {
       anchor = next === '' ? today() : next
       draw()
     },
+    onSearch: (query) => search(store.vault(), query),
+    onJump: (hit) => {
+      // This window shows weeks and months, not days, so a result lands on
+      // the week its day sits in - or on the back page, which is a view of
+      // its own (spec §5.7).
+      if (hit.page === SOMEDAY) {
+        view = 'someday'
+      } else {
+        view = 'week'
+        anchor = hit.page
+      }
+      spreadPage.search().close()
+      draw()
+    },
+  })
+
+  // The same shortcut the popover has, over the same vault (spec §5.7).
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'f' || !(event.metaKey || event.ctrlKey)) return
+    event.preventDefault()
+    const panel = spreadPage.search()
+    if (panel.isOpen()) panel.close()
+    else panel.open()
   })
 
   await store.start(draw)

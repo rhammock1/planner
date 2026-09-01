@@ -52,10 +52,16 @@ export function serialize(doc) {
 }
 
 /**
+ * One item as the line it is written as, tokens and all.
+ *
+ * Exported because search matches what is in the file rather than what is on
+ * the page: `!2026-09-04` is what you typed, so it is what you can look for
+ * (spec §5.7).
+ *
  * @param {Item} item
  * @returns {string}
  */
-function serializeItem(item) {
+export function serializeItem(item) {
   const parts = [`- [${markFor(item.state)}]`]
   if (item.text !== '') parts.push(item.text)
   if (item.time !== null) parts.push(`@${item.time}`)

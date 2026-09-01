@@ -17,6 +17,7 @@ import { VIEWS, viewLabel } from './spreadViews.js'
 import { createBackPage } from './backPage.js'
 import { createWeekView } from './weekView.js'
 import { createMonthView } from './monthView.js'
+import { createSearchPanel } from './searchPanel.js'
 
 /** @typedef {import('../core/vaultIndex.js').VaultIndex} VaultIndex */
 
@@ -36,11 +37,13 @@ import { createMonthView } from './monthView.js'
  * @property {(anchor: string) => void} onAnchor  '' means today
  * @property {(from: string, index: number, to: string) => void} onMove  a line
  *   dragged from one page onto another
+ * @property {(query: string) => {groups: import('../core/search.js').Group[], found: number}} onSearch
+ * @property {(hit: import('../core/search.js').Hit) => void} onJump
  */
 
 /** @typedef {{element: HTMLElement, render: (state: SpreadState) => void}} View */
 
-/** @type {{tabs: Map<string, HTMLElement>, views: Map<string, View>, notices: HTMLElement}|null} */
+/** @type {{tabs: Map<string, HTMLElement>, views: Map<string, View>, notices: HTMLElement, search: ReturnType<typeof createSearchPanel>}|null} */
 let chrome = null
 
 /** @type {SpreadState|null} */
@@ -80,11 +83,24 @@ export function mount(root, handlers) {
   const body = el('div', 'spread-body')
   for (const view of views.values()) body.append(view.element)
 
+  const search = createSearchPanel({ onQuery: handlers.onSearch, onJump: handlers.onJump })
+
   const surface = el('div', 'spread')
-  surface.append(head, notices, body)
+  surface.append(head, notices, body, search.element)
   root.replaceChildren(surface)
 
-  chrome = { tabs, views, notices }
+  chrome = { tabs, views, notices, search }
+}
+
+/**
+ * The search that lies over the window (spec §5.7). The same panel the day
+ * page uses; only what a result jumps to differs.
+ *
+ * @returns {ReturnType<typeof createSearchPanel>}
+ */
+export function search() {
+  if (chrome === null) throw new Error('search before mount')
+  return chrome.search
 }
 
 /**

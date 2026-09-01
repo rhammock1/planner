@@ -11,6 +11,7 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Added
 
+-   `⌘F` finds a line anywhere in the vault, from either window (spec §5.7). Results are grouped by day, newest first, and clicking one goes to it — the day itself in the popover, the week it sits in from the detached window. It matches the line as it is written rather than as the page reads it, so `!2026-09-04` finds the deadline you typed; there is no search index, because a decade of pages is under 2MB and a second structure is a thing that can be wrong about what is on disk
 -   `⌘E` opens the day being shown in your own editor (spec §8). The vault is a folder of Markdown precisely so that anything this app gets wrong about a line can be put right by hand; `editor` was a setting nothing read. It falls back to `$VISUAL`, then `$EDITOR`, then whatever the system opens a `.md` with — and because the app is not a terminal, a terminal editor needs `editor` pointed at a script that opens one
 -   A missing vault now offers a folder picker rather than a dead end (spec §8). What you pick is written into `config.toml` - the commented default on a first run, your own file with its comments intact after that. The app still never creates a vault somewhere you did not ask for
 -   The vault is polled every two seconds when the filesystem's own notifications will not start, and the page says which of the two it is getting (spec §8). It used to print a line to a console nobody has open and carry on looking like an app that was watching

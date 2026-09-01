@@ -20,6 +20,8 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* So the search panel can lie over the whole page (spec §5.7). */
+  position: relative;
 }
 
 /* ── header ─────────────────────────────────────────────── */
@@ -553,4 +555,77 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ── search ─────────────────────────────────────────────── */
+
+/* Over the page rather than beside it: searching is something you do to the
+   day you are on and then stop doing (spec §5.7). */
+.search {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+}
+
+.search[hidden] { display: none; }
+
+.search-field {
+  flex: none;
+  padding: 11px 16px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface);
+  border: none;
+  border-bottom: 1px solid var(--edge);
+  outline: none;
+}
+
+.search-results {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.search-day {
+  padding: 9px 16px 3px;
+  font-family: var(--font-meta);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.search-hit {
+  display: block;
+  width: 100%;
+  padding: 4px 16px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+  color: var(--ink);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.search-hit:hover,
+.search-hit:focus-visible { background: var(--surface); }
+
+/* The same dimming the page gives them, so a result looks like the line it
+   will take you to. */
+.search-hit.other,
+.search-hit.note { color: var(--dim); }
+
+.search-summary {
+  flex: none;
+  padding: 7px 16px;
+  font-family: var(--font-meta);
+  font-size: 11px;
+  color: var(--dim);
+  border-top: 1px solid var(--edge-soft);
 }

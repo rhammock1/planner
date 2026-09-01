@@ -12,6 +12,8 @@
 import { check, ok, equal, report } from './harness.js'
 import { parse } from '../../src/core/parse.js'
 import * as dayPage from '../../src/views/dayPage.js'
+import { buildIndex } from '../../src/core/vaultIndex.js'
+import { search as searchVault } from '../../src/core/search.js'
 
 const found = document.querySelector('#stage')
 if (!(found instanceof HTMLElement)) throw new Error('no stage')
@@ -35,6 +37,7 @@ function pageOf(count) {
  * @returns {void}
  */
 function show(count, events, notices, actions) {
+  const vault = buildIndex([{ page: '2026-09-01', doc: parse(pageOf(count)) }])
   stage.replaceChildren()
   const root = document.createElement('main')
   root.id = 'app'
@@ -52,6 +55,8 @@ function show(count, events, notices, actions) {
     onCarry: () => {},
     onPin: () => {},
     onOpenSpread: () => {},
+    onSearch: (query) => searchVault(vault, query),
+    onJump: () => {},
   })
   dayPage.render({
     today: '2026-09-01',
@@ -166,7 +171,7 @@ check('a day with nothing contributed shows no section at all', () => {
 check('contributed events appear under the list and above the note', () => {
   show(3, 2)
   const order = [...stage.querySelectorAll('.page > *')].map((part) => part.className)
-  equal(order.join(' '), 'page-head notice-band carry horizon items add given note page-foot', 'the section is in the wrong place')
+  equal(order.join(' '), 'page-head notice-band carry horizon items add given note page-foot search', 'the section is in the wrong place')
   equal(stage.querySelectorAll('.given-item').length, 2, 'the events did not appear')
 })
 
@@ -223,6 +228,62 @@ check('a notice does not push the footer off the bottom', () => {
     foot.getBoundingClientRect().bottom <= stage.getBoundingClientRect().bottom + 1,
     'the notice band pushed the footer out of the window',
   )
+})
+
+// The whole point of the panel: it lies over the page, and the page is still
+// there underneath when it goes away (spec §5.7).
+check('the search covers the page and gives it back', () => {
+  show(6)
+  const panel = dayPage.search()
+  equal(part('.search').getBoundingClientRect().height, 0, 'the search was up before it was opened')
+
+  panel.open()
+  const over = part('.search').getBoundingClientRect()
+  const page = part('.page').getBoundingClientRect()
+  equal(Math.round(over.height), Math.round(page.height), 'the search did not cover the page')
+  equal(document.activeElement, part('.search-field'), 'the field was not ready to type in')
+
+  panel.close()
+  equal(part('.search').getBoundingClientRect().height, 0, 'the search stayed up')
+})
+
+check('typing a query lists the lines that match, grouped by day', () => {
+  show(6)
+  dayPage.search().open()
+  const field = part('.search-field')
+  ok(field instanceof HTMLInputElement, 'no field')
+  field.value = 'Line number 3'
+  field.dispatchEvent(new Event('input'))
+
+  equal(stage.querySelectorAll('.search-group').length, 1, 'the results were not grouped by day')
+  equal(stage.querySelectorAll('.search-hit').length, 1, 'the wrong number of lines matched')
+  equal(part('.search-hit').textContent, 'Line number 3', 'the wrong line matched')
+  equal(part('.search-summary').textContent, '1', 'the count was wrong')
+})
+
+check('a query that matches nothing says so', () => {
+  show(6)
+  dayPage.search().open()
+  const field = part('.search-field')
+  ok(field instanceof HTMLInputElement, 'no field')
+  field.value = 'soldering iron'
+  field.dispatchEvent(new Event('input'))
+
+  equal(stage.querySelectorAll('.search-hit').length, 0, 'something matched')
+  equal(part('.search-summary').textContent, 'nothing', 'the page did not say so')
+})
+
+// Otherwise the first press of Escape closes the whole popover, and what you
+// were typing goes with it.
+check('Escape closes the search rather than the page', () => {
+  show(6)
+  dayPage.search().open()
+  const field = part('.search-field')
+  const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+  field.dispatchEvent(event)
+
+  ok(event.defaultPrevented, 'the day would have taken the Escape as well')
+  equal(dayPage.search().isOpen(), false, 'the search stayed up')
 })
 
 report()

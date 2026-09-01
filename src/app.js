@@ -13,6 +13,7 @@
 import { horizon } from './core/horizon.js'
 import { unfinished, carryForward } from './core/carry.js'
 import { readContributions } from './core/contributions.js'
+import { search } from './core/search.js'
 import { today } from './clock.js'
 import { createStore } from './store.js'
 import { createPageEdits } from './pageEdits.js'
@@ -42,12 +43,29 @@ async function start() {
     onCarry: (decisions) => { void carry(decisions) },
     onPin: (next) => { void pin(next) },
     onOpenSpread: (view) => { void openSpread(view) },
+    onSearch: (query) => search(store.vault(), query),
+    onJump: (hit) => {
+      // The day it is on, and then out of the way: what you were looking for
+      // is a line on a page, not a row in a list of results (spec §5.7).
+      showing = hit.page
+      dayPage.search().close()
+      draw()
+    },
   })
   dayPage.setPinned(pinned)
 
   document.addEventListener('keydown', (event) => {
+    // Anywhere in the vault, from either surface (spec §5.7).
+    if (event.key === 'f' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault()
+      const panel = dayPage.search()
+      if (panel.isOpen()) panel.close()
+      else panel.open()
+      return
+    }
     // Escape puts the day away (spec §5.1) - unless something on the page has
-    // already used it to cancel an edit, which is the nearer meaning.
+    // already used it to cancel an edit, which is the nearer meaning. The
+    // search field uses it first, to close itself.
     if (event.key === 'Escape' && !event.defaultPrevented) {
       void ipc.closePopover()
       return

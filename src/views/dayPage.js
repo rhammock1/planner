@@ -21,6 +21,7 @@ import { createItemList } from './itemList.js'
 import { createCarryBand } from './carryBand.js'
 import { createContributions } from './contributions.js'
 import { createNotices } from './notices.js'
+import { createSearchPanel } from './searchPanel.js'
 
 /** @typedef {import('../core/model.js').Document} Document */
 /** @typedef {import('./notices.js').Action} Action */
@@ -50,6 +51,8 @@ import { createNotices } from './notices.js'
  * @property {(decisions: import('../core/carry.js').CarryDecision[]) => void} onCarry
  * @property {(pinned: boolean) => void} onPin
  * @property {(view: string) => void} onOpenSpread  week, month or someday
+ * @property {(query: string) => {groups: import('../core/search.js').Group[], found: number}} onSearch
+ * @property {(hit: import('../core/search.js').Hit) => void} onJump
  */
 
 /**
@@ -81,6 +84,7 @@ let currentState = null
  * @property {HTMLElement} head
  * @property {HTMLButtonElement} pin
  * @property {ReturnType<typeof createNotices>} notices
+ * @property {ReturnType<typeof createSearchPanel>} search
  * @property {HTMLElement} note
  * @property {HTMLElement} count
  * @property {ReturnType<typeof createHorizonStrip>} horizon
@@ -126,6 +130,7 @@ export function mount(root, handlers) {
   head.append(heading, nav)
 
   const notices = createNotices()
+  const search = createSearchPanel({ onQuery: handlers.onSearch, onJump: handlers.onJump })
   const carry = createCarryBand(handlers)
   const horizon = createHorizonStrip()
   const items = createItemList(handlers)
@@ -159,7 +164,7 @@ export function mount(root, handlers) {
   const surface = el('div', 'page')
   surface.append(
     head, notices.element, carry.element, horizon.element, items.element,
-    add.element, given.element, note, foot,
+    add.element, given.element, note, foot, search.element,
   )
   root.replaceChildren(surface)
 
@@ -203,7 +208,7 @@ export function mount(root, handlers) {
     note.ownerDocument.execCommand('insertText', false, text)
   })
 
-  page = { weekday, date, todayButton, head, pin, notices, note, count, horizon, items, carry, given }
+  page = { weekday, date, todayButton, head, pin, notices, note, count, horizon, items, carry, given, search }
 }
 
 /**
@@ -222,6 +227,17 @@ export function setPinned(pinned) {
   page.pin.title = pinned ? 'Let it close when you click away' : 'Keep this open'
   if (pinned) page.head.setAttribute('data-tauri-drag-region', 'deep')
   else page.head.removeAttribute('data-tauri-drag-region')
+}
+
+/**
+ * The search that lies over the page (spec §5.7): opened, closed, and asked
+ * whether it is up.
+ *
+ * @returns {ReturnType<typeof createSearchPanel>}
+ */
+export function search() {
+  if (page === null) throw new Error('search before mount')
+  return page.search
 }
 
 /**
