@@ -37,10 +37,13 @@ export function sampleHost() {
     // Nothing to open: the pages below are the vault.
     setVault: async () => ({ exists: true }),
 
-    // A browser has no menu bar item and no window to put away.
+    // A browser has no menu bar item and no window to put away. The badge is
+    // put in the tab title instead, which is the nearest thing a browser has
+    // to an icon that says something before you look at it.
     setHotkey: async () => {},
     closeQuickAdd: async () => {},
     setPinned: async () => {},
+    setBadge: async (text) => { document.title = text === null ? 'Planner' : `${text} · Planner` },
     closePopover: async () => {},
     // A browser has tabs of its own: the window opens as a page, in a page.
     openSpread: async (view) => { location.href = `./spread.html?view=${view}` },

@@ -25,6 +25,7 @@
  * @property {(accelerator: string) => Promise<void>} setHotkey
  * @property {() => Promise<void>} closeQuickAdd
  * @property {(pinned: boolean) => Promise<void>} setPinned
+ * @property {(text: string|null) => Promise<void>} setBadge
  * @property {() => Promise<void>} closePopover
  * @property {(view: string) => Promise<void>} openSpread
  * @property {() => Promise<string|null>} spreadView
@@ -122,6 +123,18 @@ export async function closeQuickAdd() {
  */
 export async function setPinned(pinned) {
   return (await getHost()).setPinned(pinned)
+}
+
+/**
+ * Labels the menu bar icon with what today still holds (spec §5.8).
+ *
+ * Null takes the label off, which is what a day with nothing left looks like.
+ *
+ * @param {string|null} text
+ * @returns {Promise<void>}
+ */
+export async function setBadge(text) {
+  return (await getHost()).setBadge(text)
 }
 
 /**
@@ -263,6 +276,7 @@ function tauriHost() {
     setHotkey: (accelerator) => invoke('set_hotkey', { accelerator }),
     closeQuickAdd: () => invoke('close_quick_add'),
     setPinned: (pinned) => invoke('set_pinned', { pinned }),
+    setBadge: (text) => invoke('set_badge', { text }),
     closePopover: () => invoke('close_popover'),
     openSpread: (view) => invoke('open_spread', { view }),
     spreadView: () => invoke('spread_view'),

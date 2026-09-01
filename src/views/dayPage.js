@@ -12,12 +12,13 @@
  */
 
 import { addDays } from '../core/dates.js'
+import { openCount } from '../core/glance.js'
 import { el, setText, setClass } from '../ui/dom.js'
 import { patchList } from '../ui/keyedList.js'
 import { VIEWS, viewLabel } from './spreadViews.js'
 import { createAddRow } from './addRow.js'
 import { createHorizonStrip } from './horizonStrip.js'
-import { createItemList, openCount } from './itemList.js'
+import { createItemList } from './itemList.js'
 import { createCarryBand } from './carryBand.js'
 import { createContributions } from './contributions.js'
 

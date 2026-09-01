@@ -10,7 +10,8 @@
 
 import { el, setText } from '../ui/dom.js'
 import { SOMEDAY } from '../core/vaultIndex.js'
-import { createItemList, openCount } from './itemList.js'
+import { openCount } from '../core/glance.js'
+import { createItemList } from './itemList.js'
 import { createAddRow } from './addRow.js'
 
 /** @typedef {import('./spreadPage.js').SpreadState} SpreadState */

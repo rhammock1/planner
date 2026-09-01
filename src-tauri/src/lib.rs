@@ -222,6 +222,7 @@ pub fn run() {
         read_page,
         write_page,
         tray::set_pinned,
+        tray::set_badge,
         tray::close_popover,
         spread::open_spread,
         spread::spread_view,

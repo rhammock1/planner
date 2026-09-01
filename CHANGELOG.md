@@ -11,6 +11,7 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Added
 
+-   The menu bar icon says how much of today is still open, and gains a dot when a deadline has come inside its lead time (spec §5.8). A day with nothing left leaves the icon bare, because `0` is a number you have to read and then dismiss. `menu_bar_count` and `menu_bar_horizon_dot` were settings the app read and then ignored; they now do what they say
 -   Plugins (spec §7). A plugin is a folder in `~/.planner/plugins` that `config.toml` switches on. It runs in its own hidden webview with no permissions of its own, may call exactly one command, cannot reach the network, and has two seconds to answer anything before it is put away for the session. The API is published in `docs/plugins.md`
 -   `macos-calendar`, the first plugin: the day's events under your list, read-only, and not counted towards how much is left. It is also the API's own test — it is written against the public API with no privilege the API does not grant
 -   The day page asks the plugins again every time the popover opens, rather than showing what they said at launch. Which is also how a calendar permission granted a minute ago first has an effect

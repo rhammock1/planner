@@ -157,18 +157,6 @@ export function createItemList(handlers, options) {
 }
 
 /**
- * How many lines on this page are still open. The footer's count, and the
- * same number the menu bar icon shows (spec §5.8).
- *
- * @param {Document|null} doc
- * @returns {number}
- */
-export function openCount(doc) {
-  if (doc === null) return 0
-  return doc.nodes.filter((node) => node.kind === 'item' && node.state === 'open').length
-}
-
-/**
  * @param {boolean} draggable
  * @param {boolean} editable
  * @returns {HTMLElement}

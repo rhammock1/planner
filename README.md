@@ -126,7 +126,9 @@ npm run app       # cargo run, from src-tauri/
 ```
 
 It puts an item in the menu bar and nothing else — no dock icon, no window
-until you click it. The page can be resized, and the list scrolls inside it. Clicking away closes the page again; the pin in its header
+until you click it. The icon carries how much of today is still open, and a
+dot when a deadline has come inside its lead time; `menu_bar_count` and
+`menu_bar_horizon_dot` turn either off. The page can be resized, and the list scrolls inside it. Clicking away closes the page again; the pin in its header
 keeps it open, and a pinned page can be dragged anywhere by that header and
 reopens where you left it. Unpin it and it goes back to opening under the
 icon.

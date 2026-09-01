@@ -13,6 +13,9 @@ use crate::popover::{self, Bounds};
 
 const POPOVER: &str = "popover";
 
+/// The menu bar item's id, so it can be found again to be labelled.
+const TRAY: &str = "planner";
+
 /// The size the popover opens at the first time. After that it is whatever
 /// the user has dragged it to.
 const WIDTH: f64 = 380.0;
@@ -42,6 +45,30 @@ pub fn set_pinned(app: AppHandle, pinned: bool) {
     }
 }
 
+/// Labels the menu bar icon with what today still holds (spec §5.8).
+///
+/// The text is worked out in JavaScript - it is the same count the footer
+/// shows, and there is one place in this project that decides what "open"
+/// means. Rust is told what to draw, not how to count.
+#[tauri::command]
+pub fn set_badge(app: AppHandle, text: Option<String>) {
+    let Some(tray) = app.tray_by_id(TRAY) else {
+        // Nothing on screen would change and nothing would say why.
+        eprintln!("planner: no menu bar icon to label");
+        return;
+    };
+
+    // macOS is the only platform where an icon can carry text beside it. The
+    // app is macOS-only (spec §2), so elsewhere this is simply not drawn
+    // rather than faked into a tooltip nobody hovers.
+    #[cfg(target_os = "macos")]
+    if let Err(error) = tray.set_title(text.as_deref()) {
+        eprintln!("planner: could not label the menu bar icon: {error}");
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = text;
+}
+
 /// Puts the popover away - what Escape does, and what the pin does when it is
 /// clicked off.
 #[tauri::command]
@@ -60,7 +87,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     create_popover(app);
 
     let icon = app.default_window_icon().cloned();
-    let mut tray = TrayIconBuilder::with_id("planner");
+    let mut tray = TrayIconBuilder::with_id(TRAY);
     if let Some(icon) = icon {
         tray = tray.icon(icon);
     }

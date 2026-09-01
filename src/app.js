@@ -11,6 +11,7 @@
  */
 
 import { horizon } from './core/horizon.js'
+import { glance, badge } from './core/glance.js'
 import { unfinished, carryForward } from './core/carry.js'
 import { readContributions } from './core/contributions.js'
 import { today } from './clock.js'
@@ -23,6 +24,13 @@ import * as startup from './startup.js'
 const store = createStore()
 let showing = today()
 let pinned = false
+/** The label the menu bar icon is already carrying, so an unchanged one is
+ *  not sent on every redraw. `undefined` means nothing has been sent yet.
+ *  @type {string|null|undefined} */
+let labelled
+/** Said once. An icon that cannot be labelled is worth one line, not one
+ *  line per redraw. */
+let labelFailed = false
 const edits = createPageEdits(store, () => showing)
 
 async function start() {
@@ -120,6 +128,8 @@ function draw() {
     ? readContributions(store.contributions(), showing)
     : { events: [], notices: [] }
 
+  updateBadge(now)
+
   dayPage.render({
     today: now,
     page: showing,
@@ -132,6 +142,31 @@ function draw() {
     // Worked out on the way to the page rather than kept, so redrawing the
     // same contributions does not say the same thing twice.
     notices: [...store.notices(), ...given.notices],
+  })
+}
+
+/**
+ * Puts today on the menu bar icon (spec §5.8).
+ *
+ * Today's, never the day being shown: flipping back to last Tuesday is
+ * reading, and the icon is there to say what is still owed now.
+ *
+ * @param {string} now `YYYY-MM-DD`
+ * @returns {void}
+ */
+function updateBadge(now) {
+  const config = store.config()
+  const text = badge(glance(store.vault(), now, config.horizonLeadDays), {
+    count: config.menuBarCount,
+    dot: config.menuBarHorizonDot,
+  })
+  if (text === labelled) return
+  labelled = text
+
+  void ipc.setBadge(text).catch((error) => {
+    if (labelFailed) return
+    labelFailed = true
+    store.notice(`The menu bar icon will not show what is left: ${message(error)}`)
   })
 }
 
