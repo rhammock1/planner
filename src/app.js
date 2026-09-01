@@ -4,53 +4,32 @@
  * The popover: load the vault, render the day, and re-render whatever the
  * watcher says changed.
  *
- * This module holds the only mutable state in the frontend - the current
- * page and the parsed vault - and it holds it in exactly one place, because
- * every change arrives the same way: from disk (spec §4.1).
+ * What is on screen is a function of the store and the day being shown. The
+ * store holds the vault and owns the write path (store.js); this module is
+ * the day's handlers and nothing else.
  */
 
-import { parse } from './core/parse.js'
-import { serialize } from './core/serialize.js'
 import { createDayDocument, createItem } from './core/model.js'
 import {
   setItemState, setItemText, setItemNote, removeItem, carriesNothingElse, appendItem, setDailyNote,
 } from './core/edit.js'
-import { buildIndex, getPage, withPage } from './core/vaultIndex.js'
 import { horizon } from './core/horizon.js'
 import { unfinished, carryForward } from './core/carry.js'
-import { DEFAULTS } from './core/config.js'
 import { today } from './clock.js'
-import { createWriteQueue } from './writeQueue.js'
+import { createStore } from './store.js'
 import * as ipc from './ipc.js'
 import * as dayPage from './views/dayPage.js'
 import * as startup from './startup.js'
 
-/** @typedef {import('./core/vaultIndex.js').VaultIndex} VaultIndex */
 /** @typedef {import('./core/model.js').Document} Document */
 
-// One change at a time, and nothing reads a page it has just written but not
-// yet seen come back (see writeQueue.js).
-const writes = createWriteQueue(async (page, doc) => { await ipc.writePage(page, serialize(doc)) })
-
-/** @type {VaultIndex} */
-let vault = buildIndex([])
-/** @type {import('./core/config.js').Config} */
-let config = DEFAULTS
-/** @type {string[]} */
-let notices = []
+const store = createStore()
 let showing = today()
 let pinned = false
 
 async function start() {
   const root = document.querySelector('#app')
   if (!(root instanceof HTMLElement)) throw new Error('no #app element to mount into')
-
-  const loaded = await startup.loadConfig()
-  config = loaded.config
-  notices = [...notices, ...loaded.notices]
-  notices = [...notices, ...await startup.applyTheme(config.theme)]
-  notices = [...notices, ...await startup.openVault(config.vault, loaded.home)]
-  notices = [...notices, ...await startup.registerHotkey(config.hotkey)]
 
   dayPage.mount(root, {
     onNavigate: (page) => {
@@ -75,29 +54,10 @@ async function start() {
     if (event.key === 'Escape' && !event.defaultPrevented) void ipc.closePopover()
   })
 
-  const files = await ipc.readVault()
-  vault = buildIndex(files.map((file) => ({ page: file.page, doc: parse(file.text) })))
+  await store.start(draw)
   draw()
 
-  // One subscription, for every change: this app's writes and an edit made in
-  // nvim arrive here by the same path.
-  //
-  // Which makes losing it fatal in a way that looks like nothing at all: the
-  // write still lands on disk, and the screen never moves. Said out loud
-  // rather than left in a console nobody has open.
-  try {
-    await ipc.onVaultChanged(async (page) => {
-      const text = await ipc.readPage(page)
-      vault = withPage(vault, page, text === null ? null : parse(text))
-      // Whatever we may have written to this page has now arrived, so the file
-      // is the only thing worth believing about it.
-      writes.observed(page)
-      draw()
-    })
-  } catch (error) {
-    notices = [...notices, `Edits will save but not appear: ${error instanceof Error ? error.message : String(error)}`]
-    draw()
-  }
+  for (const notice of await startup.registerHotkey(store.config().hotkey)) store.notice(notice)
 }
 
 /**
@@ -115,8 +75,7 @@ async function pin(next) {
     pinned = next
     dayPage.setPinned(pinned)
   } catch (error) {
-    notices = [...notices, `Could not ${next ? 'pin' : 'unpin'} the page: ${error instanceof Error ? error.message : String(error)}`]
-    draw()
+    store.notice(`Could not ${next ? 'pin' : 'unpin'} the page: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -125,12 +84,12 @@ function draw() {
   dayPage.render({
     today: now,
     page: showing,
-    doc: getPage(vault, showing),
-    horizon: horizon(vault, now, config.horizonLeadDays),
+    doc: store.page(showing),
+    horizon: horizon(store.vault(), now, store.config().horizonLeadDays),
     // Carry-forward is about arriving at today. Looking back at last Tuesday
     // is reading, not triage, so the band stays out of the way there.
-    carry: showing === now ? unfinished(vault, now, config.carryForwardScanDays) : [],
-    notices,
+    carry: showing === now ? unfinished(store.vault(), now, store.config().carryForwardScanDays) : [],
+    notices: store.notices(),
   })
 }
 
@@ -143,7 +102,7 @@ function draw() {
  * @returns {Promise<boolean>}
  */
 function toggle(index) {
-  return change(showing, (doc) => {
+  return store.change(showing, (doc) => {
     const node = doc?.nodes[index]
     if (doc === null || node === undefined || node.kind !== 'item') return null
     return setItemState(doc, index, node.state === 'done' ? 'open' : 'done')
@@ -156,7 +115,7 @@ function toggle(index) {
  * @returns {Promise<boolean>} false when nothing was written
  */
 function edit(index, text) {
-  return change(showing, (doc) => {
+  return store.change(showing, (doc) => {
     const node = doc?.nodes[index]
     if (doc === null || node === undefined || node.kind !== 'item') return null
     return setItemText(doc, index, text)
@@ -170,7 +129,7 @@ function edit(index, text) {
  * @returns {Promise<boolean>}
  */
 function dailyNote(note) {
-  return change(showing, (doc) => (doc === null ? null : setDailyNote(doc, note.trim())))
+  return store.change(showing, (doc) => (doc === null ? null : setDailyNote(doc, note.trim())))
 }
 
 /**
@@ -183,7 +142,7 @@ function dailyNote(note) {
  * @returns {Promise<boolean>}
  */
 function strike(index) {
-  return change(showing, (doc) => {
+  return store.change(showing, (doc) => {
     const node = doc?.nodes[index]
     if (doc === null || node === undefined || node.kind !== 'item') return null
     if (node.state === 'dropped') return removeItem(doc, index)
@@ -201,10 +160,10 @@ function strike(index) {
  * @returns {Promise<boolean>}
  */
 function remove(index) {
-  const node = getPage(vault, showing)?.nodes[index]
+  const node = store.page(showing)?.nodes[index]
   if (node === undefined || node.kind !== 'item' || !carriesNothingElse(node)) return Promise.resolve(false)
 
-  return change(showing, (doc) => {
+  return store.change(showing, (doc) => {
     const current = doc?.nodes[index]
     if (doc === null || current === undefined || current.kind !== 'item') return null
     // Read again inside the write, in case the file moved under us.
@@ -220,7 +179,7 @@ function remove(index) {
  * @returns {Promise<boolean>}
  */
 function annotate(index, note) {
-  return change(showing, (doc) => {
+  return store.change(showing, (doc) => {
     const node = doc?.nodes[index]
     if (doc === null || node === undefined || node.kind !== 'item') return null
     return setItemNote(doc, index, note)
@@ -242,7 +201,7 @@ function annotate(index, note) {
 function add(line) {
   const text = line.trim()
   if (text === '') return Promise.resolve(false)
-  return change(showing, (doc) => appendItem(doc ?? createDayDocument(showing), createItem(text)))
+  return store.change(showing, (doc) => appendItem(doc ?? createDayDocument(showing), createItem(text)))
 }
 
 /**
@@ -258,36 +217,11 @@ function add(line) {
 async function carry(decisions) {
   if (decisions.length === 0) return
 
-  // Decided against the freshest state, not against the index: an item added
-  // a moment ago may still be in the post.
   const now = today()
-  const touched = new Set([now, ...decisions.map((decision) => decision.page)])
-  let fresh = vault
-  for (const page of touched) {
-    fresh = withPage(fresh, page, writes.current(page, () => getPage(vault, page)))
-  }
+  const fresh = store.freshest([now, ...decisions.map((decision) => decision.page)])
 
   for (const write of carryForward(fresh, now, decisions)) {
-    if (!await change(write.page, () => write.doc)) return
-  }
-}
-
-/**
- * The one place a document leaves the app. Nothing else writes.
- *
- * @param {string} page
- * @param {(doc: Document|null) => Document|null} mutate  null writes nothing
- * @returns {Promise<boolean>}
- */
-async function change(page, mutate) {
-  try {
-    return await writes.change(page, () => getPage(vault, page), mutate)
-  } catch (error) {
-    // The atomic write means the file on disk is untouched. Say so, and leave
-    // what the user typed where it is (spec §8).
-    notices = [...notices, `Could not save ${page}: ${error instanceof Error ? error.message : String(error)}`]
-    draw()
-    return false
+    if (!await store.change(write.page, () => write.doc)) return
   }
 }
 
