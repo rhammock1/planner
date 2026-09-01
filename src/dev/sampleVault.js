@@ -67,6 +67,9 @@ export function sampleHost() {
     }),
     readVault: async () => [...pages].map(([page, text]) => ({ page, text })),
     readPage: async (page) => pages.get(page) ?? null,
+    // No files, so nothing to name and nothing to open.
+    pagePath: async () => null,
+    openInEditor: async () => {},
     writePage: async (page, text) => {
       pages.set(page, text)
       // Announce it the way the watcher would, on a later turn of the loop.

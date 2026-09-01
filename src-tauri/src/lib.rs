@@ -125,6 +125,15 @@ fn read_vault(vault: State<'_, SharedVault>) -> Vec<PageFile> {
     root.map(|root| vault_io::read_all(&root)).unwrap_or_default()
 }
 
+/// Where a page's file is, for handing to an editor. Not for reading with -
+/// that is `read_page`; this exists so the escape hatch in §8 can name the
+/// file it is opening.
+#[tauri::command]
+fn page_path(vault: State<'_, SharedVault>, page: String) -> Option<String> {
+    let root = vault.lock().expect("vault lock").root.clone()?;
+    Some(vault_io::path_for_page(&root, &page).to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 fn read_page(vault: State<'_, SharedVault>, page: String) -> Option<String> {
     let root = vault.lock().expect("vault lock").root.clone()?;
@@ -174,11 +183,13 @@ pub fn run() {
         settings::write_config,
         settings::read_theme,
         settings::choose_vault,
+        settings::open_in_editor,
         set_hotkey,
         close_quick_add,
         set_vault,
         read_vault,
         read_page,
+        page_path,
         write_page,
         tray::set_pinned,
         tray::set_badge,

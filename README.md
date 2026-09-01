@@ -130,7 +130,11 @@ until you click it. The icon carries how much of today is still open, and a
 dot when a deadline has come inside its lead time; `menu_bar_count` and
 `menu_bar_horizon_dot` turn either off. A line with an `@10:30` on it gets a
 notification when ten thirty comes round. If the vault folder is not there,
-the page says so and offers to pick one — it will not make one for you. The page can be resized, and the list scrolls inside it. Clicking away closes the page again; the pin in its header
+the page says so and offers to pick one — it will not make one for you.
+`⌘E` opens the day you are looking at in your own editor: `editor` in
+`config.toml`, else `$VISUAL`, `$EDITOR`, or whatever the system opens a `.md`
+with. The app is not a terminal, so a terminal editor wants `editor` pointed at
+a script that opens one. The page can be resized, and the list scrolls inside it. Clicking away closes the page again; the pin in its header
 keeps it open, and a pinned page can be dragged anywhere by that header and
 reopens where you left it. Unpin it and it goes back to opening under the
 icon.

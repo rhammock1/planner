@@ -11,13 +11,12 @@
  */
 
 import { horizon } from './core/horizon.js'
-import { glance, badge } from './core/glance.js'
-import { schedule, upcoming } from './core/schedule.js'
 import { unfinished, carryForward } from './core/carry.js'
 import { readContributions } from './core/contributions.js'
-import { today, instantAt } from './clock.js'
+import { today } from './clock.js'
 import { createStore } from './store.js'
 import { createPageEdits } from './pageEdits.js'
+import { createAmbient } from './ambient.js'
 import * as ipc from './ipc.js'
 import * as dayPage from './views/dayPage.js'
 import * as startup from './startup.js'
@@ -25,19 +24,10 @@ import * as startup from './startup.js'
 const store = createStore()
 let showing = today()
 let pinned = false
-/** The label the menu bar icon is already carrying, so an unchanged one is
- *  not sent on every redraw. `undefined` means nothing has been sent yet.
- *  @type {string|null|undefined} */
-let labelled
-/** Said once. An icon that cannot be labelled is worth one line, not one
- *  line per redraw. */
-let labelFailed = false
-/** The schedule the shell is already holding, so an unchanged one is not sent
- *  again. @type {string|undefined} */
-let scheduled
-/** Said once, for the same reason as `labelFailed`. */
-let scheduleFailed = false
 const edits = createPageEdits(store, () => showing)
+// What the app says while nobody is looking at it: the menu bar icon, and
+// the alarms it hands the shell (spec §5.8, §5.9).
+const ambient = createAmbient(store)
 
 async function start() {
   const root = document.querySelector('#app')
@@ -68,6 +58,12 @@ async function start() {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
       event.preventDefault()
       void openSpread('week')
+    }
+    // The way out of the app entirely: the page as a file, in your own editor
+    // (spec §8). The vault is Markdown so that this is always possible.
+    if (event.key === 'e' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault()
+      void openInEditor()
     }
   })
 
@@ -143,8 +139,7 @@ function draw() {
     ? readContributions(store.contributions(), showing)
     : { events: [], notices: [] }
 
-  updateBadge(now)
-  updateSchedule(now)
+  ambient.update(now)
 
   dayPage.render({
     today: now,
@@ -165,6 +160,33 @@ function draw() {
 }
 
 /**
+ * Opens the day being shown in the user's own editor (spec §8).
+ *
+ * The page being shown, not today: if there is something in Friday's file
+ * this app has misread, Friday is the file to open.
+ *
+ * @returns {Promise<void>}
+ */
+async function openInEditor() {
+  try {
+    const path = await ipc.pagePath(showing)
+    if (path === null) {
+      store.notice('There is no vault open to find that page in.')
+      return
+    }
+    if (store.page(showing) === null) {
+      // Nothing has been written on this day, so there is no file. The app
+      // does not make one until there is something to put in it (spec §3.1).
+      store.notice(`Nothing has been written on ${showing} yet, so there is no file to open.`)
+      return
+    }
+    await ipc.openInEditor(path, store.config().editor)
+  } catch (error) {
+    store.notice(`Could not open the file: ${message(error)}`)
+  }
+}
+
+/**
  * Asks for a folder to keep the vault in, and writes it down (spec §8).
  *
  * Dismissing the dialog is an answer - not now - so it leaves everything as
@@ -180,59 +202,6 @@ async function pickVault() {
   } catch (error) {
     store.notice(`Could not use that folder: ${message(error)}`)
   }
-}
-
-/**
- * Puts today on the menu bar icon (spec §5.8).
- *
- * Today's, never the day being shown: flipping back to last Tuesday is
- * reading, and the icon is there to say what is still owed now.
- *
- * @param {string} now `YYYY-MM-DD`
- * @returns {void}
- */
-function updateBadge(now) {
-  const config = store.config()
-  const text = badge(glance(store.vault(), now, config.horizonLeadDays), {
-    count: config.menuBarCount,
-    dot: config.menuBarHorizonDot,
-  })
-  if (text === labelled) return
-  labelled = text
-
-  void ipc.setBadge(text).catch((error) => {
-    if (labelFailed) return
-    labelFailed = true
-    store.notice(`The menu bar icon will not show what is left: ${message(error)}`)
-  })
-}
-
-/**
- * Hands the shell every alarm today still owes (spec §5.9).
- *
- * Sent complete, and only when it differs from what the shell already holds -
- * the schedule is worked out on every redraw, and most redraws do not change
- * it.
- *
- * @param {string} now `YYYY-MM-DD`
- * @returns {void}
- */
-function updateSchedule(now) {
-  const alarms = upcoming(
-    schedule(store.vault(), now),
-    (time) => instantAt(now, time),
-    Date.now(),
-  )
-
-  const sending = JSON.stringify(alarms)
-  if (sending === scheduled) return
-  scheduled = sending
-
-  void ipc.setNotifications(alarms).catch((error) => {
-    if (scheduleFailed) return
-    scheduleFailed = true
-    store.notice(`Timed lines will not be announced: ${message(error)}`)
-  })
 }
 
 /**

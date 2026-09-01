@@ -31,7 +31,8 @@ import { updateToml } from './tomlEdit.js'
  * @property {number} carryForwardScanDays
  * @property {boolean} menuBarCount
  * @property {boolean} menuBarHorizonDot
- * @property {string} editor  falls back to $EDITOR, then $VISUAL, outside core
+ * @property {string} editor  a command line; falls back to $VISUAL, then $EDITOR,
+ *   then the system default, all of which is decided outside core
  * @property {Map<string, PluginConfig>} plugins
  */
 
@@ -71,7 +72,7 @@ export const DEFAULT_CONFIG_TEXT = [
   'carry_forward_scan_days = 30',
   'menu_bar_count          = true     # remaining count on the icon',
   'menu_bar_horizon_dot    = true     # dot when something is inside its lead time',
-  'editor                  = ""       # falls back to $EDITOR, then $VISUAL',
+  'editor                  = ""       # a command; falls back to $VISUAL, $EDITOR, then `open`',
   '',
 ].join('\n')
 

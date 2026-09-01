@@ -116,3 +116,98 @@ pub fn planner_dir() -> Option<PathBuf> {
     }
     dirs::home_dir().map(|home| home.join(".planner"))
 }
+
+/// Opens a vault page in whatever editor the user actually uses (spec §8).
+///
+/// The escape hatch. Everything this app does to a file it does through one
+/// parser, and a parser is a thing that can be wrong about a line; the way out
+/// of that has always been to open the file, which is why it is a folder of
+/// Markdown in the first place (spec §1).
+///
+/// Run through a login shell, so `editor` can be a command with arguments and
+/// so it is found on the PATH a terminal would give it. A terminal editor
+/// needs a terminal, which this is not: point `editor` at a script that opens
+/// one (see README).
+#[tauri::command]
+pub fn open_in_editor(path: String, editor: String) -> Result<(), String> {
+    let line = command_line(&path, &editor);
+
+    std::process::Command::new("sh")
+        .arg("-lc")
+        .arg(&line)
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| {
+            eprintln!("planner: could not run {line}: {error}");
+            format!("could not run {line}: {error}")
+        })
+}
+
+/// The line handed to `sh`.
+///
+/// The path is single-quoted, and any apostrophe in it closes the quoting and
+/// reopens it - a vault in a folder called `Rob's Notes` is otherwise a syntax
+/// error, and worse, a command that runs with the wrong argument.
+fn command_line(path: &str, editor: &str) -> String {
+    format!("{} '{}'", chosen_editor(editor), path.replace('\'', "'\\''"))
+}
+
+/// `editor` from the config, then `$VISUAL`, then `$EDITOR`, then whatever
+/// macOS opens a `.md` with (spec §3.6).
+///
+/// The last one is the only link in the chain that is certain to work without
+/// being set up, which is why it is there: an escape hatch that needs
+/// configuring before it opens is not an escape hatch.
+fn chosen_editor(configured: &str) -> String {
+    for candidate in [configured.to_string(), env("VISUAL"), env("EDITOR")] {
+        if !candidate.trim().is_empty() {
+            return candidate;
+        }
+    }
+    "open".to_string()
+}
+
+fn env(name: &str) -> String {
+    std::env::var(name).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::chosen_editor;
+
+    #[test]
+    fn the_configured_editor_wins() {
+        assert_eq!(chosen_editor("mate -w"), "mate -w");
+    }
+
+    /// Without one, something always opens. An escape hatch that has to be
+    /// configured before it opens is not an escape hatch.
+    #[test]
+    fn without_one_the_system_default_opens_the_file() {
+        // $VISUAL and $EDITOR are not set under `cargo test`; if a machine has
+        // them, this is the one case that cannot be asserted here.
+        if !super::env("VISUAL").is_empty() || !super::env("EDITOR").is_empty() {
+            return;
+        }
+        assert_eq!(chosen_editor(""), "open");
+    }
+
+    #[test]
+    fn an_apostrophe_in_the_path_does_not_break_out_of_the_quoting() {
+        let line = super::command_line("/Users/rob/Rob's Notes/2026-09-01.md", "mate");
+        assert_eq!(line, "mate '/Users/rob/Rob'\\''s Notes/2026-09-01.md'");
+    }
+
+    #[test]
+    fn an_ordinary_path_is_quoted_once() {
+        assert_eq!(super::command_line("/tmp/a b.md", "mate"), "mate '/tmp/a b.md'");
+    }
+
+    #[test]
+    fn whitespace_is_not_a_setting() {
+        if !super::env("VISUAL").is_empty() || !super::env("EDITOR").is_empty() {
+            return;
+        }
+        assert_eq!(chosen_editor("   "), "open");
+    }
+}
