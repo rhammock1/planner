@@ -57,6 +57,7 @@ function show(count, events, notices, actions) {
     onOpenSpread: () => {},
     onSearch: (query) => searchVault(vault, query),
     onJump: () => {},
+    settings: { onChange: () => {}, onPlugin: () => {}, onChooseVault: () => {} },
   })
   dayPage.render({
     today: '2026-09-01',
@@ -71,6 +72,39 @@ function show(count, events, notices, actions) {
     notices: notices ?? [],
     actions: actions ?? [],
   })
+}
+
+/** @type {import('../../src/core/config.js').Config} */
+const SETTINGS_CONFIG = {
+  vault: '~/Planner',
+  theme: 'ledger',
+  hotkey: 'Alt+Space',
+  horizonLeadDays: 7,
+  carryForwardScanDays: 30,
+  menuBarCount: true,
+  menuBarHorizonDot: true,
+  editor: '',
+  plugins: new Map(),
+}
+
+/** @returns {import('../../src/views/dayPage.js').DayHandlers} */
+function handlersFor() {
+  return {
+    onNavigate: () => {},
+    onToggle: () => {},
+    onEdit: async () => true,
+    onNote: async () => true,
+    onStrike: () => {},
+    onRemove: async () => true,
+    onDailyNote: async () => true,
+    onAdd: async () => true,
+    onCarry: () => {},
+    onPin: () => {},
+    onOpenSpread: () => {},
+    onSearch: () => ({ groups: [], found: 0 }),
+    onJump: () => {},
+    settings: { onChange: () => {}, onPlugin: () => {}, onChooseVault: () => {} },
+  }
 }
 
 /**
@@ -171,7 +205,7 @@ check('a day with nothing contributed shows no section at all', () => {
 check('contributed events appear under the list and above the note', () => {
   show(3, 2)
   const order = [...stage.querySelectorAll('.page > *')].map((part) => part.className)
-  equal(order.join(' '), 'page-head notice-band carry horizon items add given note page-foot search', 'the section is in the wrong place')
+  equal(order.join(' '), 'page-head notice-band carry horizon items add given note page-foot search settings', 'the section is in the wrong place')
   equal(stage.querySelectorAll('.given-item').length, 2, 'the events did not appear')
 })
 
@@ -284,6 +318,85 @@ check('Escape closes the search rather than the page', () => {
 
   ok(event.defaultPrevented, 'the day would have taken the Escape as well')
   equal(dayPage.search().isOpen(), false, 'the search stayed up')
+})
+
+// A permission granted months ago in a text editor is one you will not
+// remember granting; the whole point of the pane is that it is visible.
+check('the settings pane lists a plugin and what it asks for', () => {
+  show(3)
+  dayPage.settings().render(SETTINGS_CONFIG, [{
+    name: 'macos-calendar',
+    enabled: true,
+    asked: ['macos.calendar.read'],
+    approved: ['macos.calendar.read'],
+    problem: null,
+  }])
+  dayPage.settings().open()
+
+  const names = [...stage.querySelectorAll('.capability-name')].map((one) => one.textContent)
+  equal(names.join(' '), 'macos.calendar.read', 'the capability was not listed')
+  const boxes = [...stage.querySelectorAll('.plugin input')]
+  equal(boxes.length, 2, 'a plugin needs a switch of its own and one per capability')
+  ok(boxes.every((box) => box instanceof HTMLInputElement && box.checked), 'a granted capability showed as ungranted')
+  dayPage.settings().close()
+})
+
+check('a setting written in the file shows in the pane', () => {
+  show(3)
+  dayPage.settings().render({ ...SETTINGS_CONFIG, theme: 'console', menuBarCount: false }, [])
+  dayPage.settings().open()
+
+  const fields = [...stage.querySelectorAll('.setting-field')]
+  const theme = fields[1]
+  ok(theme instanceof HTMLInputElement, 'no theme field')
+  equal(theme.value, 'console', 'the theme field did not show what the config says')
+
+  const count = stage.querySelector('.setting-box')
+  ok(count instanceof HTMLInputElement, 'no switch')
+  equal(count.checked, false, 'a switch that is off showed as on')
+  dayPage.settings().close()
+})
+
+// Every change is written the moment it is made, the way an edit to a line
+// is. There is no Save button to forget to press.
+check('changing a setting reports it once, with the value', () => {
+  show(3)
+  /** @type {unknown[]} */
+  const saved = []
+  dayPage.mount(part('#app'), { ...handlersFor(), settings: {
+    onChange: (patch) => { saved.push(patch) },
+    onPlugin: () => {},
+    onChooseVault: () => {},
+  } })
+  dayPage.settings().render(SETTINGS_CONFIG, [])
+  dayPage.settings().open()
+
+  const theme = [...stage.querySelectorAll('.setting-field')][1]
+  ok(theme instanceof HTMLInputElement, 'no theme field')
+  theme.value = 'console'
+  theme.dispatchEvent(new Event('change'))
+  equal(JSON.stringify(saved), JSON.stringify([{ theme: 'console' }]), 'the change did not reach the config')
+})
+
+// The config reader would refuse it anyway, with a notice nobody asked for.
+check('a negative number of days is put back rather than written', () => {
+  show(3)
+  /** @type {unknown[]} */
+  const saved = []
+  dayPage.mount(part('#app'), { ...handlersFor(), settings: {
+    onChange: (patch) => { saved.push(patch) },
+    onPlugin: () => {},
+    onChooseVault: () => {},
+  } })
+  dayPage.settings().render(SETTINGS_CONFIG, [])
+  dayPage.settings().open()
+
+  const lead = [...stage.querySelectorAll('.setting-field')][3]
+  ok(lead instanceof HTMLInputElement, 'no lead-time field')
+  lead.value = '-3'
+  lead.dispatchEvent(new Event('change'))
+  equal(saved.length, 0, 'a negative lead time was written')
+  equal(lead.value, '7', 'the field was left showing something the config would refuse')
 })
 
 report()

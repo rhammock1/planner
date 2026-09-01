@@ -131,6 +131,25 @@ export function updateConfig(text, patch) {
 }
 
 /**
+ * Switches a plugin on or off, and says what it may reach (spec §7).
+ *
+ * Its own function because a plugin's settings live in a table of their own,
+ * named after a folder the user put there - which is not something the FIELDS
+ * table above can describe.
+ *
+ * @param {string} text
+ * @param {string} name  the plugin's folder name
+ * @param {PluginConfig} settings
+ * @returns {string}
+ */
+export function updatePlugin(text, name, settings) {
+  return updateToml(text, [
+    { path: ['plugins', name, 'enabled'], value: settings.enabled },
+    { path: ['plugins', name, 'approved_capabilities'], value: settings.approvedCapabilities },
+  ])
+}
+
+/**
  * Resolves a leading `~` against a home directory. Paths in the config are
  * written the way a person writes them; core has no home directory of its
  * own, so it is passed in.

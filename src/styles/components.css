@@ -629,3 +629,133 @@
   color: var(--dim);
   border-top: 1px solid var(--edge-soft);
 }
+
+/* ── settings ───────────────────────────────────────────── */
+
+/* Over the page, like the search: a thing you open, change and put away
+   again (spec §3.6). */
+.settings {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+}
+
+.settings[hidden] { display: none; }
+
+.settings-head {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 11px 16px;
+  font-family: var(--font-meta);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  border-bottom: 1px solid var(--edge);
+}
+
+.settings-close {
+  font-family: var(--font-meta);
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 0 12px;
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--ink);
+}
+
+/* A label above its field, except for a switch - where the words belong
+   beside the box they turn on. */
+.setting-text,
+.setting-days,
+.setting-path {
+  flex-wrap: wrap;
+}
+
+.setting-label { flex: 1 0 100%; color: var(--dim); font-size: 11px; }
+.setting-box + .setting-label { flex: 1; color: var(--ink); font-size: 12px; }
+
+/* A tick in the theme's own ink rather than the system's blue, which is the
+   one colour on this page that belongs to no theme. */
+.setting-box { accent-color: var(--ink); }
+
+.setting-field {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 7px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+}
+
+.setting-pick {
+  padding: 4px 9px;
+  font-family: var(--font-meta);
+  font-size: 11px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.settings-heading {
+  padding: 14px 16px 4px;
+  font-family: var(--font-meta);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  border-top: 1px solid var(--edge-soft);
+  margin-top: 8px;
+}
+
+.settings-empty,
+.plugin-note,
+.plugin-problem {
+  padding: 2px 16px 6px 38px;
+  font-family: var(--font-meta);
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.settings-empty { padding-left: 16px; }
+.plugin-problem { color: var(--alert); }
+
+/* Indented under the plugin they belong to, so what is being granted and to
+   whom reads as one thing (spec §7.4). */
+.capability {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 16px 3px 32px;
+  font-family: var(--font-meta);
+  font-size: 11px;
+  color: var(--dim);
+}

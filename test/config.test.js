@@ -3,7 +3,7 @@ import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import { parseToml, getPath } from '../src/core/toml.js'
 import {
-  DEFAULTS, DEFAULT_CONFIG_TEXT, readConfig, updateConfig, expandHome,
+  DEFAULTS, DEFAULT_CONFIG_TEXT, readConfig, updateConfig, updatePlugin, expandHome,
 } from '../src/core/config.js'
 
 describe('defaults', () => {
@@ -176,6 +176,63 @@ describe('choosing a folder on the first run', () => {
     assert.equal(after.theme, before.theme)
     assert.equal(after.hotkey, before.hotkey)
     assert.equal(after.horizonLeadDays, before.horizonLeadDays)
+  })
+})
+
+// The settings pane writes these, and `config.toml` is still the file
+// (spec §3.6, §7).
+describe('switching a plugin on and off', () => {
+  test('a plugin the file has never mentioned gets a section of its own', () => {
+    const written = updatePlugin(DEFAULT_CONFIG_TEXT, 'macos-calendar', {
+      enabled: true,
+      approvedCapabilities: ['macos.calendar.read'],
+    })
+    const settings = readConfig(written).config.plugins.get('macos-calendar')
+    assert.deepEqual(settings, { enabled: true, approvedCapabilities: ['macos.calendar.read'] })
+  })
+
+  test('switching one off leaves what it was approved for alone', () => {
+    const on = updatePlugin(DEFAULT_CONFIG_TEXT, 'macos-calendar', {
+      enabled: true,
+      approvedCapabilities: ['macos.calendar.read'],
+    })
+    const off = updatePlugin(on, 'macos-calendar', {
+      enabled: false,
+      approvedCapabilities: ['macos.calendar.read'],
+    })
+    assert.deepEqual(readConfig(off).config.plugins.get('macos-calendar'), {
+      enabled: false,
+      approvedCapabilities: ['macos.calendar.read'],
+    })
+  })
+
+  test('taking a capability away leaves the plugin switched on', () => {
+    const on = updatePlugin(DEFAULT_CONFIG_TEXT, 'macos-calendar', {
+      enabled: true,
+      approvedCapabilities: ['macos.calendar.read'],
+    })
+    const none = updatePlugin(on, 'macos-calendar', { enabled: true, approvedCapabilities: [] })
+    assert.deepEqual(readConfig(none).config.plugins.get('macos-calendar'), {
+      enabled: true,
+      approvedCapabilities: [],
+    })
+  })
+
+  test('the rest of the file is untouched', () => {
+    const written = updatePlugin(DEFAULT_CONFIG_TEXT, 'macos-calendar', {
+      enabled: true,
+      approvedCapabilities: [],
+    })
+    assert.ok(written.includes('# planner - settings.'), 'the header comment was lost')
+    assert.equal(readConfig(written).config.theme, 'ledger')
+  })
+
+  test('two plugins keep their own sections', () => {
+    let text = updatePlugin(DEFAULT_CONFIG_TEXT, 'macos-calendar', { enabled: true, approvedCapabilities: ['a'] })
+    text = updatePlugin(text, 'macos-reminders', { enabled: false, approvedCapabilities: ['b'] })
+    const plugins = readConfig(text).config.plugins
+    assert.deepEqual(plugins.get('macos-calendar'), { enabled: true, approvedCapabilities: ['a'] })
+    assert.deepEqual(plugins.get('macos-reminders'), { enabled: false, approvedCapabilities: ['b'] })
   })
 })
 

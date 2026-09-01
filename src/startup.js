@@ -44,6 +44,22 @@ export async function applyTheme(name) {
 }
 
 /**
+ * Every plugin folder in `~/.planner/plugins`, installed or not.
+ *
+ * Read whether or not any of them will be started: the settings pane lists
+ * the ones that are switched off, and that list is what switches them on.
+ *
+ * @returns {Promise<{folders: import('./core/plugins.js').Folder[], notices: string[]}>}
+ */
+export async function listPlugins() {
+  try {
+    return { folders: await ipc.listPlugins(), notices: [] }
+  } catch (error) {
+    return { folders: [], notices: [`Could not look for plugins: ${message(error)}`] }
+  }
+}
+
+/**
  * Points the shell at the vault and starts the watcher on it.
  *
  * A vault that is not there is reported rather than created: the app does not
@@ -80,17 +96,11 @@ export async function openVault(vault, home) {
  * A plugin that will not start stops nothing else: the app is a planner
  * first, and a plugin host only where that costs the planner nothing.
  *
+ * @param {import('./core/plugins.js').Folder[]} folders  every plugin on disk
  * @param {Map<string, import('./core/config.js').PluginConfig>} configured
  * @returns {Promise<string[]>} notices
  */
-export async function startPlugins(configured) {
-  let folders
-  try {
-    folders = await ipc.listPlugins()
-  } catch (error) {
-    return [`Could not look for plugins: ${message(error)}`]
-  }
-
+export async function startPlugins(folders, configured) {
   const { start, notices } = plan(folders, configured)
   const failures = []
   for (const plugin of start) {

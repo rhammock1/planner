@@ -135,7 +135,9 @@ the page says so and offers to pick one — it will not make one for you.
 `config.toml`, else `$VISUAL`, `$EDITOR`, or whatever the system opens a `.md`
 with. The app is not a terminal, so a terminal editor wants `editor` pointed at
 a script that opens one. `⌘F` finds a line anywhere in the vault from either
-window, grouped by day. The page can be resized, and the list scrolls inside it. Clicking away closes the page again; the pin in its header
+window, grouped by day. `⌘,` opens the settings: everything `config.toml`
+holds, and a switch per installed plugin with a tick per capability it asks
+for. The page can be resized, and the list scrolls inside it. Clicking away closes the page again; the pin in its header
 keeps it open, and a pinned page can be dragged anywhere by that header and
 reopens where you left it. Unpin it and it goes back to opening under the
 icon.

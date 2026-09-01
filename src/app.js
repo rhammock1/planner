@@ -14,6 +14,7 @@ import { horizon } from './core/horizon.js'
 import { unfinished, carryForward } from './core/carry.js'
 import { readContributions } from './core/contributions.js'
 import { search } from './core/search.js'
+import { installed } from './core/plugins.js'
 import { today } from './clock.js'
 import { createStore } from './store.js'
 import { createPageEdits } from './pageEdits.js'
@@ -44,6 +45,11 @@ async function start() {
     onPin: (next) => { void pin(next) },
     onOpenSpread: (view) => { void openSpread(view) },
     onSearch: (query) => search(store.vault(), query),
+    settings: {
+      onChange: (patch) => { void write(() => store.saveConfig(patch)) },
+      onPlugin: (name, plugin) => { void write(() => store.savePlugin(name, plugin)) },
+      onChooseVault: () => { void pickVault() },
+    },
     onJump: (hit) => {
       // The day it is on, and then out of the way: what you were looking for
       // is a line on a page, not a row in a list of results (spec §5.7).
@@ -55,6 +61,14 @@ async function start() {
   dayPage.setPinned(pinned)
 
   document.addEventListener('keydown', (event) => {
+    // The settings, where macOS keeps them (spec §3.6).
+    if (event.key === ',' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault()
+      const pane = dayPage.settings()
+      if (pane.isOpen()) pane.close()
+      else pane.open()
+      return
+    }
     // Anywhere in the vault, from either surface (spec §5.7).
     if (event.key === 'f' && (event.metaKey || event.ctrlKey)) {
       event.preventDefault()
@@ -159,6 +173,10 @@ function draw() {
 
   ambient.update(now)
 
+  // Drawn whenever the day is, so a setting changed here and a setting
+  // changed in a text editor both show up the same way.
+  dayPage.settings().render(store.config(), installed(store.folders(), store.config().plugins))
+
   dayPage.render({
     today: now,
     page: showing,
@@ -175,6 +193,20 @@ function draw() {
     // same contributions does not say the same thing twice.
     notices: [...store.notices(), ...given.notices],
   })
+}
+
+/**
+ * Runs a write to `config.toml` and says so if it will not go.
+ *
+ * @param {() => Promise<void>} change
+ * @returns {Promise<void>}
+ */
+async function write(change) {
+  try {
+    await change()
+  } catch (error) {
+    store.notice(`Could not save that setting: ${message(error)}`)
+  }
 }
 
 /**
@@ -216,7 +248,7 @@ async function pickVault() {
   try {
     const path = await ipc.chooseVault()
     if (path === null) return
-    await store.useVault(path)
+    await store.saveConfig({ vault: path })
   } catch (error) {
     store.notice(`Could not use that folder: ${message(error)}`)
   }

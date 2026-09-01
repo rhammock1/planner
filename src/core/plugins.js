@@ -28,6 +28,47 @@ import { parseToml } from './toml.js'
 /** @typedef {{name: string, manifest: string}} Folder */
 
 /**
+ * A plugin as the settings pane needs to show it: what it is, whether it is
+ * switched on, what it asks for and what it has been allowed.
+ *
+ * @typedef {object} Installed
+ * @property {string} name
+ * @property {boolean} enabled
+ * @property {string[]} asked  capabilities the manifest asks for
+ * @property {string[]} approved  of those, the ones config.toml has allowed
+ * @property {string|null} problem  why it cannot run, when it cannot
+ */
+
+/**
+ * Every plugin folder on disk, settled against the config (spec §7).
+ *
+ * `approved` is the intersection rather than what the config says, for the
+ * same reason `plan` grants the intersection: the manifest is the ceiling, so
+ * a pane that showed a capability ticked which the plugin never asked for
+ * would be showing a permission that does not exist.
+ *
+ * @param {Folder[]} folders
+ * @param {Map<string, PluginConfig>} configured
+ * @returns {Installed[]}
+ */
+export function installed(folders, configured) {
+  return folders.map((folder) => {
+    const settings = configured.get(folder.name)
+    const read = readManifest(folder)
+    const asked = read.capabilities
+    const allowed = settings?.approvedCapabilities ?? []
+
+    return {
+      name: folder.name,
+      enabled: settings?.enabled === true,
+      asked,
+      approved: asked.filter((capability) => allowed.includes(capability)),
+      problem: read.error,
+    }
+  })
+}
+
+/**
  * @param {Folder[]} folders  every plugin folder found on disk
  * @param {Map<string, PluginConfig>} configured
  * @returns {{start: Start[], notices: string[]}}

@@ -14,14 +14,15 @@
 import { addDays } from '../core/dates.js'
 import { openCount } from '../core/glance.js'
 import { el, setText, setClass } from '../ui/dom.js'
-import { VIEWS, viewLabel } from './spreadViews.js'
 import { createAddRow } from './addRow.js'
 import { createHorizonStrip } from './horizonStrip.js'
 import { createItemList } from './itemList.js'
 import { createCarryBand } from './carryBand.js'
 import { createContributions } from './contributions.js'
+import { createDayFooter } from './dayFooter.js'
 import { createNotices } from './notices.js'
 import { createSearchPanel } from './searchPanel.js'
+import { createSettingsPanel } from './settingsPanel.js'
 
 /** @typedef {import('../core/model.js').Document} Document */
 /** @typedef {import('./notices.js').Action} Action */
@@ -53,6 +54,7 @@ import { createSearchPanel } from './searchPanel.js'
  * @property {(view: string) => void} onOpenSpread  week, month or someday
  * @property {(query: string) => {groups: import('../core/search.js').Group[], found: number}} onSearch
  * @property {(hit: import('../core/search.js').Hit) => void} onJump
+ * @property {import('./settingsPanel.js').SettingsHandlers} settings
  */
 
 /**
@@ -85,8 +87,9 @@ let currentState = null
  * @property {HTMLButtonElement} pin
  * @property {ReturnType<typeof createNotices>} notices
  * @property {ReturnType<typeof createSearchPanel>} search
+ * @property {ReturnType<typeof createSettingsPanel>} settings
  * @property {HTMLElement} note
- * @property {HTMLElement} count
+ * @property {ReturnType<typeof createDayFooter>} foot
  * @property {ReturnType<typeof createHorizonStrip>} horizon
  * @property {ReturnType<typeof createItemList>} items
  * @property {ReturnType<typeof createCarryBand>} carry
@@ -131,6 +134,7 @@ export function mount(root, handlers) {
 
   const notices = createNotices()
   const search = createSearchPanel({ onQuery: handlers.onSearch, onJump: handlers.onJump })
+  const settings = createSettingsPanel(handlers.settings)
   const carry = createCarryBand(handlers)
   const horizon = createHorizonStrip()
   const items = createItemList(handlers)
@@ -146,25 +150,12 @@ export function mount(root, handlers) {
   // last thing on the page before what you thought of it.
   const given = createContributions()
 
-  const count = el('span', 'count')
-  // The popover only ever shows a day; the other three open the window that
-  // shows more than one (spec §5.1). Buttons, not labels: they do something,
-  // and the keyboard has to be able to reach them.
-  const tabs = el('div', 'tabs')
-  for (const view of VIEWS) {
-    const tab = el('button', 'tab', viewLabel(view))
-    tab.setAttribute('type', 'button')
-    tab.addEventListener('click', () => handlers.onOpenSpread(view))
-    tabs.append(tab)
-  }
-  tabs.prepend(el('span', 'tab on', 'Day'))
-  const foot = el('div', 'page-foot')
-  foot.append(tabs, count)
+  const foot = createDayFooter(handlers.onOpenSpread)
 
   const surface = el('div', 'page')
   surface.append(
     head, notices.element, carry.element, horizon.element, items.element,
-    add.element, given.element, note, foot, search.element,
+    add.element, given.element, note, foot.element, search.element, settings.element,
   )
   root.replaceChildren(surface)
 
@@ -208,7 +199,7 @@ export function mount(root, handlers) {
     note.ownerDocument.execCommand('insertText', false, text)
   })
 
-  page = { weekday, date, todayButton, head, pin, notices, note, count, horizon, items, carry, given, search }
+  page = { weekday, date, todayButton, head, pin, notices, note, foot, horizon, items, carry, given, search, settings }
 }
 
 /**
@@ -241,6 +232,16 @@ export function search() {
 }
 
 /**
+ * The settings pane, which lies over the page in the same way (spec §3.6).
+ *
+ * @returns {ReturnType<typeof createSettingsPanel>}
+ */
+export function settings() {
+  if (page === null) throw new Error('settings before mount')
+  return page.settings
+}
+
+/**
  * @param {DayState} state
  * @returns {void}
  */
@@ -260,8 +261,7 @@ export function render(state) {
   page.given.render(state.events)
   renderNote(page.note, state.doc)
 
-  const open = openCount(state.doc)
-  setText(page.count, open === 0 ? 'nothing left' : `${open} left`)
+  page.foot.render(openCount(state.doc))
 }
 
 /**

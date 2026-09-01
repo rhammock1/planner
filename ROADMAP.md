@@ -6,12 +6,6 @@ the README is not planned.
 
 ## Next
 
-- **A settings pane.** `config.toml` is currently the only way to switch a
-  plugin on and approve what it may reach, which was fine for the first one
-  and is not fine for the second: a permission granted in a text editor
-  months ago is one you will not remember granting. Installed plugins with
-  toggles and their capabilities, and the settings the config already holds.
-
 - **Token help while typing** — the four tokens (`@10:30`, `!2026-09-04`,
   `~3d`, `>2026-09-02`) already work anywhere a line is typed, because the
   line is re-parsed on the way to disk. Nothing says so. Two candidates, in
@@ -50,9 +44,6 @@ the README is not planned.
   `On the calendar` because one plugin contributes to it. A second one would
   need the heading to say whose lines those are, which means either a field in
   the manifest or a section per plugin.
-- Notifications and the menu bar badge
-- Search
-- A settings pane, so `config.toml` is not the only way in
 - Bundled fonts. Themes name `Newsreader`, `Public Sans` and `IBM Plex Mono`;
   no `woff2` files ship, so all three fall back to Georgia, system-ui and the
   default monospace.

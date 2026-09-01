@@ -15,7 +15,7 @@
 import { parse } from './core/parse.js'
 import { serialize } from './core/serialize.js'
 import { buildIndex, getPage, withPage } from './core/vaultIndex.js'
-import { DEFAULTS, DEFAULT_CONFIG_TEXT, updateConfig } from './core/config.js'
+import { DEFAULTS, DEFAULT_CONFIG_TEXT, updateConfig, updatePlugin } from './core/config.js'
 import { createWriteQueue } from './writeQueue.js'
 import * as ipc from './ipc.js'
 import * as startup from './startup.js'
@@ -26,7 +26,9 @@ import * as startup from './startup.js'
 /**
  * @typedef {object} Store
  * @property {(onChanged: () => void) => Promise<{home: string}>} start
- * @property {(path: string) => Promise<void>} useVault
+ * @property {(patch: Partial<Omit<import('./core/config.js').Config, 'plugins'>>) => Promise<void>} saveConfig
+ * @property {(name: string, settings: import('./core/config.js').PluginConfig) => Promise<void>} savePlugin
+ * @property {() => import('./core/plugins.js').Folder[]} folders
  * @property {() => boolean} vaultExists
  * @property {() => Promise<void>} startPlugins
  * @property {(from: string, to: string) => Promise<void>} loadContributions
@@ -63,6 +65,10 @@ export function createStore() {
   let pluginNotices = []
   /** Where `~` points, learned when the config was read. */
   let home = ''
+  /** Every plugin folder on disk, whether switched on or not. The settings
+   *  pane lists these, so it has to know about the ones that are off.
+   *  @type {import('./core/plugins.js').Folder[]} */
+  let folders = []
   /** False when the configured folder is not there. The page offers a picker
    *  rather than creating one somewhere nobody asked for (spec §8). */
   let vaultExists = false
@@ -94,24 +100,30 @@ export function createStore() {
     // should not leave the line saying it was not.
     notices = [...loaded.notices, ...themed, ...opened.notices]
 
+    const found = await startup.listPlugins()
+    folders = found.folders
+    notices = [...notices, ...found.notices]
+
     const files = await ipc.readVault()
     vault = buildIndex(files.map((file) => ({ page: file.page, doc: parse(file.text) })))
   }
 
   /**
-   * Points the app at a different folder, and writes that down (spec §8).
+   * Writes settings to `config.toml` and reads the whole file back.
    *
-   * The config is edited rather than regenerated, so a file with comments in
-   * it keeps them. A first run has no file at all, and gets the commented
-   * default with the chosen path in it.
+   * Edited rather than regenerated, so a file with comments in it keeps them.
+   * A first run has no file at all and gets the commented default (spec §3.6).
    *
-   * @param {string} path
+   * Read back rather than assumed: a theme that is not there, a folder that
+   * does not exist and a hotkey another app already holds are all things the
+   * page has to say, and it only learns them by opening again.
+   *
+   * @param {(text: string) => string} edit
    * @returns {Promise<void>}
    */
-  async function useVault(path) {
+  async function save(edit) {
     const file = await ipc.readConfig()
-    const before = file.text.trim() === '' ? DEFAULT_CONFIG_TEXT : file.text
-    await ipc.writeConfig(updateConfig(before, { vault: path }))
+    await ipc.writeConfig(edit(file.text.trim() === '' ? DEFAULT_CONFIG_TEXT : file.text))
     await open()
     changed()
   }
@@ -154,7 +166,7 @@ export function createStore() {
    * @returns {Promise<void>}
    */
   async function startPlugins() {
-    const said = await startup.startPlugins(config.plugins)
+    const said = await startup.startPlugins(folders, config.plugins)
     if (said.length === 0) return
     notices = [...notices, ...said]
     changed()
@@ -184,7 +196,9 @@ export function createStore() {
 
   return {
     start,
-    useVault,
+    saveConfig: (patch) => save((text) => updateConfig(text, patch)),
+    savePlugin: (name, settings) => save((text) => updatePlugin(text, name, settings)),
+    folders: () => folders,
     vaultExists: () => vaultExists,
     startPlugins,
     loadContributions,

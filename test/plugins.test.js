@@ -7,7 +7,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { plan } from '../src/core/plugins.js'
+import { plan, installed } from '../src/core/plugins.js'
 
 /** @typedef {import('../src/core/config.js').PluginConfig} PluginConfig */
 
@@ -131,4 +131,45 @@ test('a manifest with no permissions at all is granted nothing', () => {
   )
   assert.deepEqual(start, [{ name: 'macos-calendar', entry: 'index.js', capabilities: [] }])
   assert.deepEqual(notices, [])
+})
+
+// The settings pane lists what is there, on or off - a folder that is
+// switched off is exactly the one you opened the pane to switch on.
+
+test('a plugin that is switched off is still listed', () => {
+  assert.deepEqual(installed(folders(), configured({ enabled: false })), [{
+    name: 'macos-calendar',
+    enabled: false,
+    asked: ['macos.calendar.read'],
+    approved: ['macos.calendar.read'],
+    problem: null,
+  }])
+})
+
+test('a plugin the config has never heard of is listed as off and ungranted', () => {
+  assert.deepEqual(installed(folders(), new Map()), [{
+    name: 'macos-calendar',
+    enabled: false,
+    asked: ['macos.calendar.read'],
+    approved: [],
+    problem: null,
+  }])
+})
+
+// The manifest is the ceiling, so a tick for something the plugin never asked
+// for would be showing a permission that does not exist.
+test('a capability the config approves but the manifest does not ask for is not shown as granted', () => {
+  const settings = configured({ approvedCapabilities: ['macos.calendar.read', 'macos.reminders.read'] })
+  assert.deepEqual(installed(folders(), settings)[0]?.approved, ['macos.calendar.read'])
+})
+
+test('a manifest that cannot be read says why, instead of listing nothing', () => {
+  const one = installed(folders('entry = '), configured())[0]
+  assert.equal(one?.name, 'macos-calendar')
+  assert.ok(one?.problem !== null && one?.problem !== undefined, 'no reason was given')
+  assert.deepEqual(one?.asked, [])
+})
+
+test('nothing installed is an empty list, not an error', () => {
+  assert.deepEqual(installed([], configured()), [])
 })
