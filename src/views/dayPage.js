@@ -14,15 +14,16 @@
 import { addDays } from '../core/dates.js'
 import { openCount } from '../core/glance.js'
 import { el, setText, setClass } from '../ui/dom.js'
-import { patchList } from '../ui/keyedList.js'
 import { VIEWS, viewLabel } from './spreadViews.js'
 import { createAddRow } from './addRow.js'
 import { createHorizonStrip } from './horizonStrip.js'
 import { createItemList } from './itemList.js'
 import { createCarryBand } from './carryBand.js'
 import { createContributions } from './contributions.js'
+import { createNotices } from './notices.js'
 
 /** @typedef {import('../core/model.js').Document} Document */
+/** @typedef {import('./notices.js').Action} Action */
 
 /**
  * @typedef {object} DayState
@@ -33,6 +34,7 @@ import { createContributions } from './contributions.js'
  * @property {import('../core/carry.js').CarryGroup[]} carry  empty unless today
  * @property {import('../core/contributions.js').Event[]} events  from plugins; today only
  * @property {string[]} notices
+ * @property {Action[]} actions  offered under the notices; usually none
  */
 
 /**
@@ -78,7 +80,7 @@ let currentState = null
  * @property {HTMLElement} todayButton
  * @property {HTMLElement} head
  * @property {HTMLButtonElement} pin
- * @property {HTMLElement} notices
+ * @property {ReturnType<typeof createNotices>} notices
  * @property {HTMLElement} note
  * @property {HTMLElement} count
  * @property {ReturnType<typeof createHorizonStrip>} horizon
@@ -123,7 +125,7 @@ export function mount(root, handlers) {
   const head = el('div', 'page-head')
   head.append(heading, nav)
 
-  const notices = el('ul', 'notices')
+  const notices = createNotices()
   const carry = createCarryBand(handlers)
   const horizon = createHorizonStrip()
   const items = createItemList(handlers)
@@ -156,7 +158,7 @@ export function mount(root, handlers) {
 
   const surface = el('div', 'page')
   surface.append(
-    head, notices, carry.element, horizon.element, items.element,
+    head, notices.element, carry.element, horizon.element, items.element,
     add.element, given.element, note, foot,
   )
   root.replaceChildren(surface)
@@ -235,7 +237,7 @@ export function render(state) {
   setText(page.date, FULL_DATE.format(when))
   setClass(page.todayButton, 'now', state.page === state.today)
 
-  renderNotices(page.notices, state.notices)
+  page.notices.render(state.notices, state.actions)
   page.carry.render(state.carry, state.today)
   page.horizon.render(state.horizon)
   page.items.render(state.doc)
@@ -252,19 +254,6 @@ export function render(state) {
  */
 function step(days) {
   return currentState === null ? '' : addDays(currentState.page, days)
-}
-
-/**
- * @param {HTMLElement} list
- * @param {string[]} notices
- * @returns {void}
- */
-function renderNotices(list, notices) {
-  patchList(list, notices, {
-    keyOf: (notice) => notice,
-    create: () => el('li'),
-    update: (element, notice) => setText(element, notice),
-  })
 }
 
 /**

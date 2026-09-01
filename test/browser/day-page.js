@@ -30,9 +30,11 @@ function pageOf(count) {
 /**
  * @param {number} count
  * @param {number} [events]  how many a plugin contributed
+ * @param {string[]} [notices]
+ * @param {import('../../src/views/notices.js').Action[]} [actions]
  * @returns {void}
  */
-function show(count, events) {
+function show(count, events, notices, actions) {
   stage.replaceChildren()
   const root = document.createElement('main')
   root.id = 'app'
@@ -61,7 +63,8 @@ function show(count, events) {
       time: `${String(9 + at).padStart(2, '0')}:00`,
       text: `Meeting number ${at + 1}`,
     })),
-    notices: [],
+    notices: notices ?? [],
+    actions: actions ?? [],
   })
 }
 
@@ -163,7 +166,7 @@ check('a day with nothing contributed shows no section at all', () => {
 check('contributed events appear under the list and above the note', () => {
   show(3, 2)
   const order = [...stage.querySelectorAll('.page > *')].map((part) => part.className)
-  equal(order.join(' '), 'page-head notices carry horizon items add given note page-foot', 'the section is in the wrong place')
+  equal(order.join(' '), 'page-head notice-band carry horizon items add given note page-foot', 'the section is in the wrong place')
   equal(stage.querySelectorAll('.given-item').length, 2, 'the events did not appear')
 })
 
@@ -192,6 +195,34 @@ check('the list is still what gives when both are long', () => {
   ok(items instanceof HTMLElement, 'no list')
   ok(items.scrollHeight > items.clientHeight, 'the item list stopped scrolling')
   equal(Math.round(part('.page').getBoundingClientRect().height), 560, 'the page grew past the window')
+})
+
+// A page with nothing wrong with it should look like a page, not like a page
+// with an empty band at the top of it.
+check('a page with nothing to say shows no notice band', () => {
+  show(3)
+  const bar = part('.notice-actions')
+  equal(bar.getBoundingClientRect().height, 0, 'an empty action bar took up room')
+  equal(part('.notices').childElementCount, 0, 'an empty notice list had children')
+})
+
+check('a notice with something to press shows the button', () => {
+  let pressed = 0
+  show(3, 0, ['No vault at /nowhere.'], [{ label: 'Choose a folder…', run: () => { pressed += 1 } }])
+  const button = part('.notice-action')
+  equal(button.textContent, 'Choose a folder…', 'the button was not labelled')
+  button.click()
+  equal(pressed, 1, 'pressing the button did nothing')
+})
+
+// The band is above everything else on the page, and the page still fits.
+check('a notice does not push the footer off the bottom', () => {
+  show(20, 0, ['No vault at /nowhere.'], [{ label: 'Choose a folder…', run: () => {} }])
+  const foot = part('.page-foot')
+  ok(
+    foot.getBoundingClientRect().bottom <= stage.getBoundingClientRect().bottom + 1,
+    'the notice band pushed the footer out of the window',
+  )
 })
 
 report()

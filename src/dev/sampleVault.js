@@ -34,6 +34,11 @@ export function sampleHost() {
       return { text: `vault = "~/Planner"\ntheme = "${chosen}"\n`, home: '/home/sample' }
     },
 
+    // Nothing to write and nowhere to browse: the pages below are the
+    // vault, and a browser has no folder picker to offer.
+    writeConfig: async () => {},
+    chooseVault: async () => null,
+
     // Nothing to open: the pages below are the vault.
     setVault: async () => ({ exists: true, watching: 'events' }),
 

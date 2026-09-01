@@ -129,7 +129,8 @@ It puts an item in the menu bar and nothing else — no dock icon, no window
 until you click it. The icon carries how much of today is still open, and a
 dot when a deadline has come inside its lead time; `menu_bar_count` and
 `menu_bar_horizon_dot` turn either off. A line with an `@10:30` on it gets a
-notification when ten thirty comes round. The page can be resized, and the list scrolls inside it. Clicking away closes the page again; the pin in its header
+notification when ten thirty comes round. If the vault folder is not there,
+the page says so and offers to pick one — it will not make one for you. The page can be resized, and the list scrolls inside it. Clicking away closes the page again; the pin in its header
 keeps it open, and a pinned page can be dragged anywhere by that header and
 reopens where you left it. Unpin it and it goes back to opening under the
 icon.

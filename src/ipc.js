@@ -21,6 +21,8 @@
  *
  * @typedef {object} Host
  * @property {() => Promise<{text: string, home: string}>} readConfig
+ * @property {(text: string) => Promise<void>} writeConfig
+ * @property {() => Promise<string|null>} chooseVault
  * @property {(path: string) => Promise<VaultStatus>} setVault
  * @property {(accelerator: string) => Promise<void>} setHotkey
  * @property {() => Promise<void>} closeQuickAdd
@@ -91,6 +93,28 @@ export function hasTauriHost() {
  */
 export async function readConfig() {
   return (await getHost()).readConfig()
+}
+
+/**
+ * Writes `config.toml` whole.
+ *
+ * The text is edited by `core/tomlEdit.js` before it gets here, so comments,
+ * alignment and keys this version does not know about all survive (spec §3.6).
+ *
+ * @param {string} text
+ * @returns {Promise<void>}
+ */
+export async function writeConfig(text) {
+  return (await getHost()).writeConfig(text)
+}
+
+/**
+ * Asks the user for a folder to keep the vault in (spec §8).
+ *
+ * @returns {Promise<string|null>} null if the dialog was dismissed
+ */
+export async function chooseVault() {
+  return (await getHost()).chooseVault()
 }
 
 /**
@@ -317,6 +341,8 @@ function tauriHost() {
 
   return {
     readConfig: () => invoke('read_config'),
+    writeConfig: (text) => invoke('write_config', { text }),
+    chooseVault: () => invoke('choose_vault'),
     setVault: (path) => invoke('set_vault', { path }),
     setHotkey: (accelerator) => invoke('set_hotkey', { accelerator }),
     closeQuickAdd: () => invoke('close_quick_add'),

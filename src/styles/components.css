@@ -383,6 +383,28 @@
   border-bottom: 1px solid var(--edge-soft);
 }
 
+.notice-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 9px;
+  border-bottom: 1px solid var(--edge-soft);
+}
+
+.notice-actions[hidden] { display: none; }
+
+.notice-action {
+  padding: 3px 10px;
+  font-family: var(--font-meta);
+  font-size: 11px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.notice-action:hover { border-color: var(--ink); }
+
 /* ── carry-forward band ─────────────────────────────────── */
 
 .carry {

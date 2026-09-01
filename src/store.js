@@ -15,7 +15,7 @@
 import { parse } from './core/parse.js'
 import { serialize } from './core/serialize.js'
 import { buildIndex, getPage, withPage } from './core/vaultIndex.js'
-import { DEFAULTS } from './core/config.js'
+import { DEFAULTS, DEFAULT_CONFIG_TEXT, updateConfig } from './core/config.js'
 import { createWriteQueue } from './writeQueue.js'
 import * as ipc from './ipc.js'
 import * as startup from './startup.js'
@@ -26,6 +26,8 @@ import * as startup from './startup.js'
 /**
  * @typedef {object} Store
  * @property {(onChanged: () => void) => Promise<{home: string}>} start
+ * @property {(path: string) => Promise<void>} useVault
+ * @property {() => boolean} vaultExists
  * @property {() => Promise<void>} startPlugins
  * @property {(from: string, to: string) => Promise<void>} loadContributions
  * @property {() => unknown[]} contributions
@@ -59,6 +61,11 @@ export function createStore() {
    *  the same line behind on every open until the page was all notice.
    *  @type {string[]} */
   let pluginNotices = []
+  /** Where `~` points, learned when the config was read. */
+  let home = ''
+  /** False when the configured folder is not there. The page offers a picker
+   *  rather than creating one somewhere nobody asked for (spec §8). */
+  let vaultExists = false
   /** @type {() => void} */
   let changed = () => {}
   /** Whatever the plugins last returned. Not this app's data; checked on the
@@ -67,20 +74,55 @@ export function createStore() {
   let contributions = []
 
   /**
+   * Reads the config, applies the theme, opens the vault and indexes it.
+   *
+   * Separate from `start` because it happens again when the vault moves: the
+   * theme may be different, the notices certainly are, and the index has to be
+   * built from the new folder rather than added to the old one.
+   *
+   * @returns {Promise<void>}
+   */
+  async function open() {
+    const loaded = await startup.loadConfig()
+    config = loaded.config
+    home = loaded.home
+
+    const themed = await startup.applyTheme(config.theme)
+    const opened = await startup.openVault(config.vault, home)
+    vaultExists = opened.exists
+    // Replaced rather than added to: reopening a vault that is now there
+    // should not leave the line saying it was not.
+    notices = [...loaded.notices, ...themed, ...opened.notices]
+
+    const files = await ipc.readVault()
+    vault = buildIndex(files.map((file) => ({ page: file.page, doc: parse(file.text) })))
+  }
+
+  /**
+   * Points the app at a different folder, and writes that down (spec §8).
+   *
+   * The config is edited rather than regenerated, so a file with comments in
+   * it keeps them. A first run has no file at all, and gets the commented
+   * default with the chosen path in it.
+   *
+   * @param {string} path
+   * @returns {Promise<void>}
+   */
+  async function useVault(path) {
+    const file = await ipc.readConfig()
+    const before = file.text.trim() === '' ? DEFAULT_CONFIG_TEXT : file.text
+    await ipc.writeConfig(updateConfig(before, { vault: path }))
+    await open()
+    changed()
+  }
+
+  /**
    * @param {() => void} onChanged
    * @returns {Promise<{home: string}>}
    */
   async function start(onChanged) {
     changed = onChanged
-
-    const loaded = await startup.loadConfig()
-    config = loaded.config
-    notices = [...notices, ...loaded.notices]
-    notices = [...notices, ...await startup.applyTheme(config.theme)]
-    notices = [...notices, ...await startup.openVault(config.vault, loaded.home)]
-
-    const files = await ipc.readVault()
-    vault = buildIndex(files.map((file) => ({ page: file.page, doc: parse(file.text) })))
+    await open()
 
     // One subscription, for every change: this window's writes, the other
     // window's writes, and an edit made in nvim all arrive here by the same
@@ -102,7 +144,7 @@ export function createStore() {
       notices = [...notices, `Edits will save but not appear: ${message(error)}`]
     }
 
-    return { home: loaded.home }
+    return { home }
   }
 
   /**
@@ -142,6 +184,8 @@ export function createStore() {
 
   return {
     start,
+    useVault,
+    vaultExists: () => vaultExists,
     startPlugins,
     loadContributions,
     contributions: () => contributions,

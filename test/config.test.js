@@ -155,6 +155,30 @@ describe('writing', () => {
   })
 })
 
+// The first run has no config file at all, so what gets written is the
+// commented default with the chosen folder in it (spec §8).
+describe('choosing a folder on the first run', () => {
+  test('the chosen path lands in the default file', () => {
+    const written = updateConfig(DEFAULT_CONFIG_TEXT, { vault: '/Users/someone/Notes/Planner' })
+    assert.equal(readConfig(written).config.vault, '/Users/someone/Notes/Planner')
+  })
+
+  test('the comments the default file ships with survive it', () => {
+    const written = updateConfig(DEFAULT_CONFIG_TEXT, { vault: '/tmp/pages' })
+    assert.ok(written.includes('# planner - settings.'), 'the header comment was lost')
+    assert.ok(written.includes('# remaining count on the icon'), 'an inline comment was lost')
+  })
+
+  test('nothing else in the file moves', () => {
+    const written = updateConfig(DEFAULT_CONFIG_TEXT, { vault: '/tmp/pages' })
+    const before = readConfig(DEFAULT_CONFIG_TEXT).config
+    const after = readConfig(written).config
+    assert.equal(after.theme, before.theme)
+    assert.equal(after.hotkey, before.hotkey)
+    assert.equal(after.horizonLeadDays, before.horizonLeadDays)
+  })
+})
+
 describe('expandHome', () => {
   test('a leading tilde becomes the home directory', () => {
     assert.equal(expandHome('~/Planner', '/Users/rob'), '/Users/rob/Planner')

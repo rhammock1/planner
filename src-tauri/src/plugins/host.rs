@@ -186,7 +186,7 @@ fn serve(app: &AppHandle, name: &str, path: &str) -> Result<(Vec<u8>, &'static s
         return Ok((page.into_bytes(), "text/html"));
     }
 
-    let root = crate::planner_dir()
+    let root = crate::settings::planner_dir()
         .map(|dir| dir.join("plugins").join(name))
         .ok_or("no plugin folder")?;
     let resolved = within(&root, path)?;

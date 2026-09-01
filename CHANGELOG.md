@@ -11,6 +11,7 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Added
 
+-   A missing vault now offers a folder picker rather than a dead end (spec §8). What you pick is written into `config.toml` - the commented default on a first run, your own file with its comments intact after that. The app still never creates a vault somewhere you did not ask for
 -   The vault is polled every two seconds when the filesystem's own notifications will not start, and the page says which of the two it is getting (spec §8). It used to print a line to a console nobody has open and carry on looking like an app that was watching
 -   A line with a time on it now says so when the time comes (spec §5.9). The schedule is worked out in JavaScript and handed to the shell complete, because a hidden webview's timers are throttled and a reminder that fires whenever you next open the page is not a reminder. An alarm whose moment went by while the machine was asleep is dropped rather than fired late
 -   The menu bar icon says how much of today is still open, and gains a dot when a deadline has come inside its lead time (spec §5.8). A day with nothing left leaves the icon bare, because `0` is a number you have to read and then dismiss. `menu_bar_count` and `menu_bar_horizon_dot` were settings the app read and then ignored; they now do what they say

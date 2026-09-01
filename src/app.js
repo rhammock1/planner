@@ -155,10 +155,31 @@ function draw() {
     // is reading, not triage, so the band stays out of the way there.
     carry: showing === now ? unfinished(store.vault(), now, store.config().carryForwardScanDays) : [],
     events: given.events,
+    // The one thing a notice ever needs pressing for: the app will not put a
+    // vault somewhere nobody asked for (spec §8).
+    actions: store.vaultExists() ? [] : [{ label: 'Choose a folder…', run: () => { void pickVault() } }],
     // Worked out on the way to the page rather than kept, so redrawing the
     // same contributions does not say the same thing twice.
     notices: [...store.notices(), ...given.notices],
   })
+}
+
+/**
+ * Asks for a folder to keep the vault in, and writes it down (spec §8).
+ *
+ * Dismissing the dialog is an answer - not now - so it leaves everything as
+ * it was rather than saying anything.
+ *
+ * @returns {Promise<void>}
+ */
+async function pickVault() {
+  try {
+    const path = await ipc.chooseVault()
+    if (path === null) return
+    await store.useVault(path)
+  } catch (error) {
+    store.notice(`Could not use that folder: ${message(error)}`)
+  }
 }
 
 /**

@@ -149,7 +149,7 @@ pub struct Folder {
 /// Everything installed, whether or not the config enables it.
 #[tauri::command]
 pub fn list_plugins() -> Vec<Folder> {
-    let Some(root) = crate::planner_dir().map(|dir| dir.join("plugins")) else {
+    let Some(root) = crate::settings::planner_dir().map(|dir| dir.join("plugins")) else {
         return Vec::new();
     };
     let Ok(entries) = std::fs::read_dir(&root) else { return Vec::new() };
