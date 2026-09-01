@@ -10,7 +10,7 @@
  */
 
 /** @type {readonly string[]} */
-export const VIEWS = ['someday']
+export const VIEWS = ['week', 'someday']
 
 /**
  * @param {string} view

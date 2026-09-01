@@ -67,3 +67,71 @@
 .back-page .items { padding: 2px 0 6px; }
 .back-page .item { padding: 8px 18px; }
 .back-page .add { padding: 10px 18px; }
+
+/* ── the week ───────────────────────────────────────────── */
+
+/* Seven columns of equal width, and no more than the window has. A column
+   narrower than this stops being a list and becomes a stack of broken words,
+   so past that point the week scrolls sideways rather than shrinking.
+   No `min-height: 0` here, unlike the body above it: each column's list is
+   its own scroll container, which already lets the grid shrink to the
+   window. */
+.week-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(124px, 1fr));
+  overflow-x: auto;
+}
+
+.day-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-left: 1px solid var(--edge-soft);
+}
+
+.day-column:first-child { border-left: none; }
+
+/* Today is the column the eye should land on first: a rule across the top of
+   it, the way a week planner marks the day you are on. */
+.day-column.is-today { background: var(--surface); }
+.day-column.is-today .day-head { box-shadow: inset 0 2px 0 var(--accent); }
+.day-column.past .day-head { opacity: 0.55; }
+
+.day-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid var(--edge-soft);
+}
+
+.day-name {
+  font-family: var(--font-meta);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.day-number {
+  font-family: var(--font-head);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.is-today .day-name,
+.is-today .day-number { color: var(--accent); }
+
+/* A column is narrow, so everything in it is tighter than the day page: no
+   checkbox column of its own, and the time badge sits under the line. */
+.day-column .items { padding: 2px 0; }
+.day-column .item { padding: 6px 10px; gap: 0 7px; grid-template-columns: 13px minmax(0, 1fr); }
+.day-column .item-text { font-size: 13px; }
+.day-column .item-time { grid-column: 2; justify-self: start; margin-top: 3px; }
+.day-column .item-note { font-size: 10.5px; }
+.day-column .opaque { padding: 4px 10px; font-size: 10.5px; }
+
+.day-column .add { padding: 7px 10px; font-size: 13px; gap: 6px; }
+.day-column .add::before { font-size: 11px; }

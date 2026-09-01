@@ -40,10 +40,20 @@ async function start() {
   })
   dayPage.setPinned(pinned)
 
-  // Escape puts the day away (spec §5.1) - unless something on the page has
-  // already used it to cancel an edit, which is the nearer meaning.
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !event.defaultPrevented) void ipc.closePopover()
+    // Escape puts the day away (spec §5.1) - unless something on the page has
+    // already used it to cancel an edit, which is the nearer meaning.
+    if (event.key === 'Escape' && !event.defaultPrevented) {
+      void ipc.closePopover()
+      return
+    }
+    // The way out of one day and into the week, without reaching for the
+    // footer (spec §5.1). Enter on its own finishes a line, so this is the
+    // one place the modifier matters.
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault()
+      void openSpread('week')
+    }
   })
 
   await store.start(draw)

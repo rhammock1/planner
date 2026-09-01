@@ -21,6 +21,13 @@ const store = createStore()
 /** Which view is on screen. The shell decides, from the tab that opened it. */
 let view = VIEWS[0] ?? ''
 
+/**
+ * The week, or month, being looked at - as a date inside it. Shared between
+ * the views, so switching from a week in October to the month view lands on
+ * October rather than back on today.
+ */
+let anchor = today()
+
 async function start() {
   const root = document.querySelector('#app')
   if (!(root instanceof HTMLElement)) throw new Error('no #app element to mount into')
@@ -28,9 +35,14 @@ async function start() {
   spreadPage.mount(root, {
     // One set of gestures per page, bound to that page. A view that shows
     // seven days asks for seven of these.
-    editsFor: (page) => createPageEdits(store, () => page),
+    editsFor: (pageOf) => createPageEdits(store, pageOf),
     onView: (next) => {
       view = next
+      draw()
+    },
+    onAnchor: (next) => {
+      // '' is how a view says "back to now" without holding a clock itself.
+      anchor = next === '' ? today() : next
       draw()
     },
   })
@@ -57,6 +69,7 @@ function draw() {
   spreadPage.render({
     view,
     today: today(),
+    anchor,
     vault: store.vault(),
     notices: store.notices(),
   })

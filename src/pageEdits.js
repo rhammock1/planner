@@ -36,12 +36,28 @@ import { SOMEDAY } from './core/vaultIndex.js'
  */
 export function createPageEdits(store, pageOf) {
   /**
+   * The one door out of this module.
+   *
+   * A view that has not drawn yet addresses no page - the week view's seven
+   * columns know which day they are only once they have been given a week -
+   * and nothing is written to nowhere.
+   *
+   * @param {(doc: Document|null) => Document|null} mutate
+   * @returns {Promise<boolean>}
+   */
+  function write(mutate) {
+    const page = pageOf()
+    if (page === '') return Promise.resolve(false)
+    return store.change(page, mutate)
+  }
+
+  /**
    * @param {number} index
    * @param {(doc: Document, item: import('./core/model.js').Item) => Document|null} mutate
    * @returns {Promise<boolean>}
    */
   function changeItem(index, mutate) {
-    return store.change(pageOf(), (doc) => {
+    return write((doc) => {
       const node = doc?.nodes[index]
       if (doc === null || node === undefined || node.kind !== 'item') return null
       return mutate(doc, node)
@@ -102,12 +118,11 @@ export function createPageEdits(store, pageOf) {
     onAdd: (line) => {
       const text = line.trim()
       if (text === '') return Promise.resolve(false)
-      const page = pageOf()
-      return store.change(page, (doc) => appendItem(doc ?? blankPage(page), createItem(text)))
+      return write((doc) => appendItem(doc ?? blankPage(pageOf()), createItem(text)))
     },
 
     /** The day's own line, at the bottom of the page. */
-    onDailyNote: (note) => store.change(pageOf(), (doc) => (doc === null ? null : setDailyNote(doc, note.trim()))),
+    onDailyNote: (note) => write((doc) => (doc === null ? null : setDailyNote(doc, note.trim()))),
   }
 }
 

@@ -12,8 +12,10 @@
 
 import { el, setText, setClass } from '../ui/dom.js'
 import { patchList } from '../ui/keyedList.js'
+import { SOMEDAY } from '../core/vaultIndex.js'
 import { VIEWS, viewLabel } from './spreadViews.js'
 import { createBackPage } from './backPage.js'
+import { createWeekView } from './weekView.js'
 
 /** @typedef {import('../core/vaultIndex.js').VaultIndex} VaultIndex */
 
@@ -21,14 +23,16 @@ import { createBackPage } from './backPage.js'
  * @typedef {object} SpreadState
  * @property {string} view  which of VIEWS is showing
  * @property {string} today `YYYY-MM-DD`
+ * @property {string} anchor  a date in the week, or month, being looked at
  * @property {VaultIndex} vault
  * @property {string[]} notices
  */
 
 /**
  * @typedef {object} SpreadHandlers
- * @property {(page: string) => import('../pageEdits.js').PageEdits} editsFor
+ * @property {(pageOf: () => string) => import('../pageEdits.js').PageEdits} editsFor
  * @property {(view: string) => void} onView
+ * @property {(anchor: string) => void} onAnchor  '' means today
  */
 
 /** @typedef {{element: HTMLElement, render: (state: SpreadState) => void}} View */
@@ -48,7 +52,10 @@ let currentState = null
  */
 export function mount(root, handlers) {
   /** @type {Map<string, View>} */
-  const views = new Map([['someday', createBackPage(handlers.editsFor('someday'))]])
+  const views = new Map([
+    ['week', createWeekView(handlers.editsFor, handlers.onAnchor)],
+    ['someday', createBackPage(handlers.editsFor(() => SOMEDAY))],
+  ])
 
   /** @type {Map<string, HTMLElement>} */
   const tabs = new Map()

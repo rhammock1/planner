@@ -7,6 +7,7 @@
 //! without a Rust toolchain (spec §4.2).
 
 mod quick_add;
+mod spread;
 mod tray;
 
 /// Public so the tests in `tests/` can reach it.
@@ -215,7 +216,9 @@ pub fn run() {
             read_page,
             write_page,
             tray::set_pinned,
-            tray::close_popover
+            tray::close_popover,
+            spread::open_spread,
+            spread::spread_view
         ])
         .setup(|app| {
             // No dock icon and no menu bar of its own: the app is the item in
@@ -223,6 +226,7 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
+            app.manage(spread::View::default());
             tray::install(app.handle())?;
             Ok(())
         })
