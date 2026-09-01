@@ -9,6 +9,9 @@
 mod quick_add;
 mod tray;
 
+/// Public so the tests in `tests/` can reach it.
+pub mod popover;
+
 /// Public so the tests in `tests/` can reach it; nothing outside this crate
 /// has any business calling it.
 pub mod vault_io;
