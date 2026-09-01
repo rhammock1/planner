@@ -13,7 +13,7 @@
 import { el, setText, setClass } from '../ui/dom.js'
 import { weekOf } from '../core/calendar.js'
 import { addDays } from '../core/dates.js'
-import { createItemList, openCount } from './itemList.js'
+import { createItemList, openCount, indexOf } from './itemList.js'
 import { createAddRow } from './addRow.js'
 
 /** @typedef {import('./spreadPage.js').SpreadState} SpreadState */
@@ -24,11 +24,19 @@ const MONTH = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric',
 const SPAN = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 
 /**
+ * How a line in flight is addressed. A custom type rather than `text/plain`,
+ * so a line dragged in from a text editor is not mistaken for one of ours -
+ * and so ours is not offered to every text field on the machine.
+ */
+const ITEM = 'application/x-planner-item'
+
+/**
  * @param {(pageOf: () => string) => import('../pageEdits.js').PageEdits} editsFor
  * @param {(anchor: string) => void} onAnchor
+ * @param {(from: string, index: number, to: string) => void} onMove
  * @returns {{element: HTMLElement, render: (state: SpreadState) => void}}
  */
-export function createWeekView(editsFor, onAnchor) {
+export function createWeekView(editsFor, onAnchor, onMove) {
   /** The seven days on screen. Empty until the first render. */
   /** @type {string[]} */
   let days = []
@@ -48,11 +56,102 @@ export function createWeekView(editsFor, onAnchor) {
 
   const columns = [0, 1, 2, 3, 4, 5, 6].map((slot) => createColumn(slot, () => days[slot] ?? '', editsFor))
 
+  /**
+   * @param {EventTarget|null} target
+   * @param {string} selector
+   * @returns {HTMLElement|null}
+   */
+  function enclosing(target, selector) {
+    // A drag begun inside an editable line reports the text node itself as the
+    // target, and a text node has no `closest`. Without this the line carries
+    // no payload, every column refuses the drop, and the line springs back
+    // with nothing to say why.
+    const from = target instanceof Text ? target.parentElement : target
+    const found = from instanceof Element ? from.closest(selector) : null
+    return found instanceof HTMLElement ? found : null
+  }
+
+  /**
+   * @param {EventTarget|null} target
+   * @returns {HTMLElement|null}
+   */
+  function rowOf(target) {
+    return enclosing(target, '.item')
+  }
+
+  /**
+   * @param {EventTarget|null} target
+   * @returns {HTMLElement|null}
+   */
+  function columnOf(target) {
+    return enclosing(target, '.day-column')
+  }
+
+  /**
+   * The day a row is on, read off the column it sits in rather than the slot
+   * it was built as - the columns are re-pointed every time the week moves.
+   *
+   * @param {HTMLElement} row
+   * @returns {string|null}
+   */
+  function pageOf(row) {
+    return columnOf(row)?.dataset['page'] ?? null
+  }
+
   const grid = el('div', 'week-grid')
   for (const column of columns) grid.append(column.element)
 
   const element = el('section', 'view week')
   element.append(head, grid)
+
+  // A line is dragged from one day to another. Delegated onto the grid,
+  // because both ends of the gesture are inside it.
+  grid.addEventListener('dragstart', (event) => {
+    const row = rowOf(event.target)
+    const from = row === null ? null : pageOf(row)
+    const at = row === null ? null : indexOf(row)
+    if (row === null || from === null || at === null || event.dataTransfer === null) return
+
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData(ITEM, JSON.stringify({ page: from, index: at }))
+    row.classList.add('lifting')
+  })
+
+  grid.addEventListener('dragend', (event) => {
+    const row = rowOf(event.target)
+    row?.classList.remove('lifting')
+    for (const column of columns) column.element.classList.remove('dropping')
+  })
+
+  grid.addEventListener('dragover', (event) => {
+    const column = columnOf(event.target)
+    if (column === null || !carriesItem(event.dataTransfer)) return
+    // Without this the browser refuses the drop, and the line springs back
+    // with no explanation.
+    event.preventDefault()
+    if (event.dataTransfer !== null) event.dataTransfer.dropEffect = 'move'
+    for (const other of columns) setClass(other.element, 'dropping', other.element === column)
+  })
+
+  grid.addEventListener('dragleave', (event) => {
+    // Only when the pointer has actually left the grid: moving between two
+    // rows of the same column fires this too, and the highlight would flicker.
+    if (event.relatedTarget instanceof Node && grid.contains(event.relatedTarget)) return
+    for (const column of columns) column.element.classList.remove('dropping')
+  })
+
+  grid.addEventListener('drop', (event) => {
+    for (const column of columns) column.element.classList.remove('dropping')
+    const column = columnOf(event.target)
+    const payload = event.dataTransfer?.getData(ITEM) ?? ''
+    if (column === null || payload === '') return
+    event.preventDefault()
+
+    const to = column.dataset['page'] ?? ''
+    const { page, index } = JSON.parse(payload)
+    if (typeof page !== 'string' || typeof index !== 'number' || to === '' || to === page) return
+    onMove(page, index, to)
+  })
 
   previous.addEventListener('click', () => onAnchor(addDays(days[0] ?? '', -7)))
   next.addEventListener('click', () => onAnchor(addDays(days[0] ?? '', 7)))
@@ -84,7 +183,7 @@ function createColumn(slot, pageOf, editsFor) {
   const head = el('div', 'day-head')
   head.append(name, number)
 
-  const items = createItemList(edits)
+  const items = createItemList(edits, { draggable: true, editable: false })
   const add = createAddRow(edits.onAdd, '')
 
   const element = el('div', 'day-column')
@@ -102,6 +201,8 @@ function createColumn(slot, pageOf, editsFor) {
       // A day already gone is not somewhere you write; it is somewhere you
       // look. Dimmed, not hidden - the week is the record as much as the plan.
       setClass(element, 'past', page < state.today)
+      // Which day this column is, for a drag that has to know where it landed.
+      element.dataset['page'] = page
 
       const doc = state.vault.get(page) ?? null
       items.render(doc)
@@ -126,4 +227,12 @@ function label(days) {
   const to = new Date(`${last}T00:00:00Z`)
   if (first.slice(0, 7) === last.slice(0, 7)) return MONTH.format(from)
   return `${SPAN.format(from)} – ${SPAN.format(to)} ${last.slice(0, 4)}`
+}
+
+/**
+ * @param {DataTransfer|null} data
+ * @returns {boolean}
+ */
+function carriesItem(data) {
+  return data !== null && data.types.includes(ITEM)
 }

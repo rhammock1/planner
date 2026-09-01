@@ -10,6 +10,7 @@
  */
 
 import { today } from './clock.js'
+import { moveItem } from './core/move.js'
 import { createStore } from './store.js'
 import { createPageEdits } from './pageEdits.js'
 import * as ipc from './ipc.js'
@@ -40,6 +41,7 @@ async function start() {
       view = next
       draw()
     },
+    onMove: (from, index, to) => { void move(from, index, to) },
     onAnchor: (next) => {
       // '' is how a view says "back to now" without holding a clock itself.
       anchor = next === '' ? today() : next
@@ -63,6 +65,38 @@ async function start() {
   }
 
   draw()
+}
+
+/**
+ * Moves a line from one page onto another (spec §5.6).
+ *
+ * Two pages change, and they are written in the order `moveItem` returns them
+ * - the destination first - so a failure part way through can only leave the
+ * line on two pages, never on none (spec §8).
+ *
+ * @param {string} from
+ * @param {number} index  position in the source page's `doc.nodes`
+ * @param {string} to
+ * @returns {Promise<void>}
+ */
+async function move(from, index, to) {
+  // Decided against the freshest state, not against the index: a line added a
+  // moment ago may still be in the post.
+  const fresh = store.freshest([from, to])
+
+  /** @type {ReturnType<typeof moveItem>} */
+  let writes
+  try {
+    writes = moveItem(fresh, from, index, to, today())
+  } catch (error) {
+    // The line is where it was. Say why it did not move (spec §8).
+    store.notice(`Could not move that line: ${message(error)}`)
+    return
+  }
+
+  for (const write of writes) {
+    if (!await store.change(write.page, () => write.doc)) return
+  }
 }
 
 function draw() {

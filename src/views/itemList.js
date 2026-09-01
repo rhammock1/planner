@@ -19,9 +19,15 @@ import { el, setText } from '../ui/dom.js'
 
 /**
  * @param {{onToggle: (index: number) => void, onEdit: (index: number, text: string) => Promise<boolean>, onNote: (index: number, note: string) => Promise<boolean>, onStrike: (index: number) => void, onRemove: (index: number) => Promise<boolean>}} handlers
+ * @param {{draggable?: boolean, editable?: boolean}} [options]
+ *   `draggable`: rows can be picked up and dropped on another day. Only where
+ *   there is somewhere to drop them.
+ *   `editable`: the line's text and note are written in place. On by default;
+ *   off is what makes a row draggable at all, because a contenteditable
+ *   region takes the press to place a caret and no drag ever begins.
  * @returns {{element: HTMLElement, render: (doc: Document|null) => void}}
  */
-export function createItemList(handlers) {
+export function createItemList(handlers, options) {
   const element = el('ul', 'items')
 
   // What the text said when editing began, so Escape has something to put
@@ -136,7 +142,11 @@ export function createItemList(handlers) {
     render: (doc) => {
       patchList(element, rowsOf(doc), {
         keyOf: (row) => `${row.kind}:${row.index}`,
-        create: (row) => (row.node.kind === 'item' ? createRow() : el('li', 'opaque')),
+        create: (row) => (
+          row.node.kind === 'item'
+            ? createRow(options?.draggable === true, options?.editable !== false)
+            : el('li', 'opaque')
+        ),
         update: (row, data, caret) => {
           if (data.node.kind === 'opaque') setText(row, data.node.raw)
           else updateRow(row, data.node, caret)
@@ -158,9 +168,14 @@ export function openCount(doc) {
   return doc.nodes.filter((node) => node.kind === 'item' && node.state === 'open').length
 }
 
-/** @returns {HTMLElement} */
-function createRow() {
+/**
+ * @param {boolean} draggable
+ * @param {boolean} editable
+ * @returns {HTMLElement}
+ */
+function createRow(draggable, editable) {
   const row = el('li', 'item')
+  if (draggable) row.draggable = true
 
   // A button, not a styled span: Space and Enter activate it for free, which
   // is what spec §5.1 asks of the keyboard and what a screen reader expects.
@@ -169,15 +184,17 @@ function createRow() {
   check.setAttribute('role', 'checkbox')
 
   const text = el('span', 'item-text')
-  // plaintext-only keeps the line a line; where it is not supported the paste
-  // handler and a textContent read on commit do the same job.
-  text.setAttribute('contenteditable', 'plaintext-only')
-  text.setAttribute('role', 'textbox')
-
   const note = el('span', 'item-note')
-  note.setAttribute('contenteditable', 'plaintext-only')
-  note.setAttribute('role', 'textbox')
   note.setAttribute('aria-label', 'A note under this line')
+
+  if (editable) {
+    // plaintext-only keeps the line a line; where it is not supported the
+    // paste handler and a textContent read on commit do the same job.
+    for (const line of [text, note]) {
+      line.setAttribute('contenteditable', 'plaintext-only')
+      line.setAttribute('role', 'textbox')
+    }
+  }
 
   row.append(check, text, el('span', 'item-time'), note)
   return row
@@ -216,10 +233,14 @@ function caretToEnd(element) {
 /**
  * The node index a row addresses, from the key the list patcher wrote.
  *
+ * Exported because moving a line between days happens above any one list: the
+ * week view reads the index off the row it is given, rather than keeping a
+ * second copy of what the rows mean.
+ *
  * @param {HTMLElement} within
  * @returns {number|null}
  */
-function indexOf(within) {
+export function indexOf(within) {
   const row = within.closest('.item')
   if (!(row instanceof HTMLElement)) return null
   const index = Number(row.dataset['key']?.split(':')[1])

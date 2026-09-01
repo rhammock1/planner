@@ -28,6 +28,9 @@ const anchored = []
 /** @type {string[]} */
 const viewed = []
 
+/** @type {string[]} */
+const moved = []
+
 /**
  * @param {number} count
  * @returns {string}
@@ -74,6 +77,7 @@ function showAt(anchor, view, count = 0, days = [], lines = '') {
     }),
     onView: (next) => { viewed.push(next) },
     onAnchor: (next) => { anchored.push(next) },
+    onMove: (from, index, to) => { moved.push(`${from}:${index} -> ${to}`) },
   })
 
   spreadPage.render({
@@ -357,6 +361,103 @@ check('the month grid stays inside the window', () => {
   const window = box('.spread', stage)
   const grid = box('.month-grid')
   ok(grid.bottom <= window.bottom + 1, `the grid ends at ${grid.bottom} in a window ending at ${window.bottom}`)
+})
+
+/**
+ * Picks a row up and drops it on a column, with the same events a pointer
+ * would generate.
+ *
+ * @param {HTMLElement} row
+ * @param {HTMLElement} onto
+ * @returns {{allowed: boolean}}  whether the column agreed to take it
+ */
+function dragTo(row, onto) {
+  const data = new DataTransfer()
+  row.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: data }))
+  const over = new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: data })
+  onto.dispatchEvent(over)
+  onto.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }))
+  row.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: data }))
+  return { allowed: over.defaultPrevented }
+}
+
+/**
+ * @param {number} slot 0 for Monday
+ * @returns {HTMLElement}
+ */
+function column(slot) {
+  const found = onScreen().querySelectorAll('.day-column')[slot]
+  if (!(found instanceof HTMLElement)) throw new Error(`no column ${slot}`)
+  return found
+}
+
+check("a week column's lines can be picked up; the back page's cannot", () => {
+  show(2, 'week', ['2026-09-02'])
+  ok(find('.item', column(2)).draggable, 'a line in the week')
+  show(2, 'someday')
+  equal(find('.item').draggable, false, 'a line on the back page, which has nowhere to drop')
+})
+
+check('a line dropped on another day is moved to it', () => {
+  show(2, 'week', ['2026-09-02'])
+  moved.length = 0
+  const { allowed } = dragTo(find('.item', column(2)), column(4))
+  ok(allowed, 'the column agreed to take it')
+  equal(moved[0], '2026-09-02:1 -> 2026-09-04', 'from where, which line, to where')
+})
+
+check('a line dropped back on its own day is not moved', () => {
+  show(2, 'week', ['2026-09-02'])
+  moved.length = 0
+  dragTo(find('.item', column(2)), column(2))
+  equal(moved.length, 0, 'moves')
+})
+
+check('a week line is read-only, so the press starts a drag rather than a caret', () => {
+  show(2, 'week', ['2026-09-02'])
+  const text = find('.item-text', column(2))
+  equal(text.isContentEditable, false, 'a line in the week')
+  // A contenteditable region takes the press to place a caret, and no drag
+  // ever begins - which is what this is here to stop coming back.
+  show(2, 'someday')
+  equal(find('.item-text').isContentEditable, true, 'a line on the back page, which is written in')
+})
+
+check('a drag begun on the text inside a line still carries the line', () => {
+  show(2, 'week', ['2026-09-02'])
+  moved.length = 0
+  // The browser reports the text node itself as the target of such a drag,
+  // and a text node has no `closest`.
+  const text = find('.item-text', column(2))
+  const data = new DataTransfer()
+  text.firstChild?.dispatchEvent?.(new DragEvent('dragstart', { bubbles: true, dataTransfer: data }))
+  text.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: data }))
+  const over = new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: data })
+  column(4).dispatchEvent(over)
+  column(4).dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }))
+  equal(moved[0], '2026-09-02:1 -> 2026-09-04', 'from where, which line, to where')
+})
+
+check('something dragged in from elsewhere is not offered a drop', () => {
+  show(2, 'week', ['2026-09-02'])
+  const data = new DataTransfer()
+  data.setData('text/plain', 'a line from a text editor')
+  const over = new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: data })
+  column(4).dispatchEvent(over)
+  equal(over.defaultPrevented, false, 'the column did not agree to take it')
+})
+
+check('the column a line would land in is the only one marked', () => {
+  show(2, 'week', ['2026-09-02'])
+  const data = new DataTransfer()
+  const row = find('.item', column(2))
+  row.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: data }))
+  column(5).dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: data }))
+  const marked = [...onScreen().querySelectorAll('.day-column.dropping')]
+  equal(marked.length, 1, 'columns marked')
+  equal(marked[0], column(5), 'which one')
+  row.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: data }))
+  equal(onScreen().querySelectorAll('.day-column.dropping').length, 0, 'and the mark is let go of')
 })
 
 report()

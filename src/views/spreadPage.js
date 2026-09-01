@@ -34,6 +34,8 @@ import { createMonthView } from './monthView.js'
  * @property {(pageOf: () => string) => import('../pageEdits.js').PageEdits} editsFor
  * @property {(view: string) => void} onView
  * @property {(anchor: string) => void} onAnchor  '' means today
+ * @property {(from: string, index: number, to: string) => void} onMove  a line
+ *   dragged from one page onto another
  */
 
 /** @typedef {{element: HTMLElement, render: (state: SpreadState) => void}} View */
@@ -54,7 +56,7 @@ let currentState = null
 export function mount(root, handlers) {
   /** @type {Map<string, View>} */
   const views = new Map([
-    ['week', createWeekView(handlers.editsFor, handlers.onAnchor)],
+    ['week', createWeekView(handlers.editsFor, handlers.onAnchor, handlers.onMove)],
     ['month', createMonthView(handlers.onAnchor, handlers.onView)],
     ['someday', createBackPage(handlers.editsFor(() => SOMEDAY))],
   ])
