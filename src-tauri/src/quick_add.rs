@@ -54,6 +54,9 @@ pub fn show(app: &AppHandle) {
         .skip_taskbar(true)
         .center()
         .visible(false)
+        // The app's own origin only. The same hook fires for subframes, and
+        // the app has none (spec §0.2).
+        .on_navigation(crate::plugins::app_navigable)
         .build();
 
     match built {

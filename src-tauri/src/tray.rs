@@ -131,6 +131,9 @@ fn create_popover(app: &AppHandle) {
         .always_on_top(true)
         .skip_taskbar(true)
         .visible(false)
+        // The app's own origin only. The same hook fires for subframes, and
+        // the app has none (spec §0.2).
+        .on_navigation(crate::plugins::app_navigable)
         .build();
 
     // Nothing else can report this: there is no window to report it in.

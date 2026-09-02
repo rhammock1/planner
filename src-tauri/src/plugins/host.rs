@@ -49,8 +49,18 @@ pub fn start(app: &AppHandle, name: &str, entry: &str, capabilities: Vec<String>
     let url = Url::parse(&format!("plugin://{name}/index.html"))
         .map_err(|error| format!("{name} has a name that cannot be a URL: {error}"))?;
 
+    // Refused, and said out loud. Task 4 makes it a strike; until then a
+    // plugin that tries it simply does not go anywhere.
+    let refused = name.to_string();
     WebviewWindowBuilder::new(app, &label, WebviewUrl::CustomProtocol(url))
         .visible(false)
+        .on_navigation(move |url| {
+            if super::navigable(&refused, url) {
+                return true;
+            }
+            eprintln!("planner: {refused} tried to go to {url}");
+            false
+        })
         .build()
         .map_err(|error| format!("could not start {name}: {error}"))?;
 
@@ -135,11 +145,19 @@ fn literal(value: &Value) -> String {
 /// from outside it asks for as a capability, where the manifest can be
 /// consulted (spec §7.3). The one channel this leaves open is the IPC bridge,
 /// which is not a network request and is answered by the gate instead.
+/// `form-action 'none'` is the other half of the navigation handler: a form
+/// post is a navigation the handler would refuse, and refusing it twice costs
+/// nothing. `base-uri 'none'` stops a `<base>` element moving what "its own
+/// folder" means. `frame-ancestors 'none'` guards nothing today - there is no
+/// frame - and is here so that the day one appears, it is refused by default.
 const POLICY: &str = "default-src 'self'; \
                       script-src 'self' 'unsafe-inline'; \
                       connect-src 'none'; \
                       img-src 'none'; \
-                      style-src 'unsafe-inline'";
+                      style-src 'unsafe-inline'; \
+                      form-action 'none'; \
+                      base-uri 'none'; \
+                      frame-ancestors 'none'";
 
 /// A plugin's own file, or nothing at all.
 pub fn respond(app: &AppHandle, request: &Request<Vec<u8>>) -> Response<Vec<u8>> {

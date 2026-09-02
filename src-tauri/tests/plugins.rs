@@ -242,3 +242,60 @@ mod files {
         assert!(within(&planted(), "nothing.js").is_err());
     }
 }
+
+/// Where a webview may go. `connect-src 'none'` says nothing about
+/// navigation, so this is what keeps a plugin's reading on this machine.
+mod navigation {
+    use planner_lib::plugins::{app_navigable, navigable};
+    use tauri::Url;
+
+    fn url(text: &str) -> Url {
+        Url::parse(text).expect("a URL")
+    }
+
+    #[test]
+    fn a_plugin_may_load_its_own_files() {
+        assert!(navigable("ticket-links", &url("plugin://ticket-links/index.html")));
+        assert!(navigable("ticket-links", &url("plugin://ticket-links/")));
+        assert!(navigable("ticket-links", &url("plugin://ticket-links/sub/thing.js#top")));
+    }
+
+    #[test]
+    fn a_plugin_may_not_leave_the_machine() {
+        for target in [
+            "https://evil.example/?d=c2Vlbg",
+            "http://127.0.0.1:9/",
+            "data:text/html,<script>1</script>",
+            "about:blank",
+            "file:///etc/hosts",
+            "tauri://localhost/index.html",
+        ] {
+            assert!(!navigable("ticket-links", &url(target)), "{target} was allowed");
+        }
+    }
+
+    #[test]
+    fn a_plugin_may_not_load_another_plugins_page() {
+        // Same scheme, someone else's origin: the plugin folder is the unit
+        // of trust, and reading another plugin's page would cross it.
+        assert!(!navigable("ticket-links", &url("plugin://macos-calendar/index.html")));
+        // Host comparison is exact. `plugin` is not a special scheme, so the
+        // parser leaves the case alone rather than folding it for us.
+        assert!(!navigable("ticket-links", &url("plugin://TICKET-LINKS/index.html")));
+    }
+
+    #[test]
+    fn the_apps_own_windows_stay_on_their_own_origin() {
+        assert!(app_navigable(&url("tauri://localhost/index.html")));
+        assert!(app_navigable(&url("tauri://localhost/spread.html")));
+
+        for target in [
+            "https://example.com/",
+            "plugin://ticket-links/index.html",
+            "tauri://elsewhere/index.html",
+            "about:blank",
+        ] {
+            assert!(!app_navigable(&url(target)), "{target} was allowed");
+        }
+    }
+}
