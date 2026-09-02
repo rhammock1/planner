@@ -5,7 +5,7 @@
 //! asks, Rust decides. By the time a call arrives here the manifest check has
 //! already passed - this file's job is only to do the thing.
 
-mod calendar;
+pub mod calendar;
 
 use serde_json::Value;
 

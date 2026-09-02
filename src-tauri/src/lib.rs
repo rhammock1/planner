@@ -6,7 +6,9 @@
 //! `src/core/`, in JavaScript, where it can be tested in half a second
 //! without a Rust toolchain (spec §4.2).
 
-mod bridges;
+/// Public so the tests in `tests/` can reach the day arithmetic; nothing
+/// outside this crate has any business calling a bridge.
+pub mod bridges;
 mod notify;
 mod quick_add;
 mod settings;

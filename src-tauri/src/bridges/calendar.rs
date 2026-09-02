@@ -24,12 +24,65 @@ const DAY: &str = "yyyy-MM-dd";
 const CLOCK: &str = "HH:mm";
 const BOTH: &str = "yyyy-MM-dd HH:mm:ss";
 
+/// The most days one call may ask about.
+///
+/// Two months, which is wider than any question this app asks. Beyond it,
+/// EventKit's predicate walks every recurrence in every calendar the account
+/// has, and it does so on a thread the plugin is holding (spec §0.2).
+pub const MAX_SPAN: i64 = 62;
+
+/// Days from one written-down day to another, or `None` when either is not a
+/// day. Both are `YYYY-MM-DD`.
+///
+/// Civil days rather than seconds between two instants: two dates a
+/// daylight-saving change apart are still one day apart, and an hour-counting
+/// span would say otherwise twice a year.
+pub fn days_between(from: &str, to: &str) -> Option<i64> {
+    Some(civil_days(to)? - civil_days(from)?)
+}
+
+/// Days since 1970-01-01, by Howard Hinnant's `days_from_civil`.
+///
+/// The shift to a March-first year is what makes the leap day the last day of
+/// it, so the four/hundred/four-hundred rule falls out of the division rather
+/// than being written down as three special cases.
+fn civil_days(day: &str) -> Option<i64> {
+    let bytes = day.as_bytes();
+    if day.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
+        return None;
+    }
+    let year: i64 = day[0..4].parse().ok()?;
+    let month: i64 = day[5..7].parse().ok()?;
+    let date: i64 = day[8..10].parse().ok()?;
+    if !(1..=12).contains(&month) || !(1..=31).contains(&date) {
+        return None;
+    }
+
+    let year = if month <= 2 { year - 1 } else { year };
+    let era = if year >= 0 { year } else { year - 399 } / 400;
+    let year_of_era = year - era * 400;
+    let day_of_year = (153 * (if month > 2 { month - 3 } else { month + 9 }) + 2) / 5 + date - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    Some(era * 146_097 + day_of_era - 719_468)
+}
+
 /// The events between two local days, inclusive.
 ///
 /// @param params `{from, to}`, each `YYYY-MM-DD`
 pub fn events(params: &Value) -> Result<Value, String> {
     let from = day_of(params, "from")?;
     let to = day_of(params, "to")?;
+
+    let span = days_between(&from, &to)
+        .ok_or_else(|| format!("{from} to {to} is not a range of days"))?;
+    if span < 0 {
+        return Err(format!("{to} is before {from}"));
+    }
+    if span > MAX_SPAN {
+        return Err(format!(
+            "a calendar may be asked about at most {MAX_SPAN} days at a time, and that is {span}"
+        ));
+    }
 
     authorized()?;
 
