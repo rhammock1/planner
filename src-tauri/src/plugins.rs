@@ -18,13 +18,15 @@
 //! What a plugin may then ask for is a second question, answered by
 //! `Registry` against the capabilities the config granted it.
 
+pub mod door;
 pub mod host;
+pub mod registry;
 pub mod waiting;
 
-use std::collections::HashMap;
-use std::sync::Mutex;
+pub use door::Message;
+pub use registry::{Registry, STRIKES};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
 
@@ -50,90 +52,6 @@ pub fn plugin_of(label: &str) -> Option<&str> {
 /// answering the question here rather than inside each command.
 pub fn allowed(label: &str, command: &str) -> bool {
     plugin_of(label).is_none() || command == DOOR
-}
-
-/// What each running plugin was granted, and whether it is still trusted.
-#[derive(Default)]
-pub struct Registry(Mutex<HashMap<String, Grant>>);
-
-struct Grant {
-    /// The file the plugin starts at, from its manifest.
-    entry: String,
-    /// The intersection of what the manifest asked for and what the config
-    /// granted, worked out in the frontend where the one TOML reader lives.
-    capabilities: Vec<String>,
-    /// Requests for something never granted. A plugin asking once may have a
-    /// stale manifest; asking repeatedly is not a misunderstanding.
-    strikes: u32,
-    disabled: bool,
-}
-
-/// How many ungranted requests a plugin gets before it is put away.
-const STRIKES: u32 = 3;
-
-impl Registry {
-    /// Records what a plugin may reach. Called by the app's own window, which
-    /// read the manifest and the config; never by a plugin, which cannot
-    /// reach this command at all.
-    pub fn grant(&self, name: &str, entry: String, capabilities: Vec<String>) {
-        let mut held = self.0.lock().expect("registry lock");
-        held.insert(
-            name.to_string(),
-            Grant { entry, capabilities, strikes: 0, disabled: false },
-        );
-    }
-
-    pub fn entry_of(&self, name: &str) -> Option<String> {
-        let held = self.0.lock().expect("registry lock");
-        held.get(name).map(|grant| grant.entry.clone())
-    }
-
-    /// The plugins worth asking anything of: started, and not put away.
-    pub fn running(&self) -> Vec<String> {
-        let held = self.0.lock().expect("registry lock");
-        let mut names: Vec<String> = held
-            .iter()
-            .filter(|(_, grant)| !grant.disabled)
-            .map(|(name, _)| name.clone())
-            .collect();
-        // Stable order, so two runs contribute the same list in the same
-        // order and the section does not shuffle between launches.
-        names.sort();
-        names
-    }
-
-    /// Whether a plugin may use a capability right now.
-    pub fn permits(&self, name: &str, capability: &str) -> bool {
-        let held = self.0.lock().expect("registry lock");
-        held.get(name).is_some_and(|grant| {
-            !grant.disabled && grant.capabilities.iter().any(|held| held == capability)
-        })
-    }
-
-    /// Records a request for something the plugin was not granted, and says
-    /// whether that was one too many.
-    pub fn strike(&self, name: &str) -> bool {
-        let mut held = self.0.lock().expect("registry lock");
-        let Some(grant) = held.get_mut(name) else { return false };
-        grant.strikes += 1;
-        if grant.strikes >= STRIKES {
-            grant.disabled = true;
-        }
-        grant.disabled
-    }
-
-    /// Puts a plugin away for the session - it threw, hung, or overran.
-    pub fn disable(&self, name: &str) {
-        let mut held = self.0.lock().expect("registry lock");
-        if let Some(grant) = held.get_mut(name) {
-            grant.disabled = true;
-        }
-    }
-
-    pub fn disabled(&self, name: &str) -> bool {
-        let held = self.0.lock().expect("registry lock");
-        held.get(name).map(|grant| grant.disabled).unwrap_or(true)
-    }
 }
 
 /// A plugin folder as found on disk, for the frontend to make sense of.
@@ -178,77 +96,6 @@ pub fn start_plugin(
     capabilities: Vec<String>,
 ) -> Result<(), String> {
     host::start(&app, &name, &entry, capabilities)
-}
-
-/// What a plugin sends up through the one door.
-#[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
-pub enum Message {
-    /// Asking the app for something. Checked against the manifest below.
-    Capability { capability: String, method: String, params: Value },
-    /// Answering a question the app asked.
-    Reply { id: u64, value: Value },
-    /// Failing to answer one. A plugin that says so is better behaved than
-    /// one that goes quiet, and is not struck for it.
-    Failed { id: u64, error: String },
-    /// The plugin's own code has run. Nothing is asked of it before this.
-    Ready,
-}
-
-/// The door (spec §7.1). Every message a plugin sends arrives here.
-#[tauri::command]
-pub fn plugin_message(
-    app: AppHandle,
-    webview: tauri::Webview,
-    message: Message,
-) -> Result<Value, String> {
-    // The window's label, not anything the message claims to be. A plugin
-    // cannot name itself something else: the label was set when the app built
-    // the window, and nothing inside it can change it.
-    let name = plugin_of(webview.label())
-        .ok_or("only a plugin may send this")?
-        .to_string();
-
-    match message {
-        Message::Ready => {
-            app.state::<waiting::Started>().mark(&name);
-            Ok(Value::Null)
-        }
-        Message::Reply { id, value } => answer(&app, &name, id, Ok(value)),
-        Message::Failed { id, error } => {
-            eprintln!("planner: {name} could not answer: {error}");
-            answer(&app, &name, id, Err(error))
-        }
-        Message::Capability { capability, method, params } => {
-            let registry = app.state::<Registry>();
-            if !registry.permits(&name, &capability) {
-                eprintln!("planner: {name} asked for {capability}, which it was not granted");
-                if registry.strike(&name) {
-                    eprintln!("planner: {name} has been put away for this session");
-                }
-                return Err(format!("{name} was not granted {capability}"));
-            }
-            crate::bridges::dispatch(&capability, &method, &params)
-        }
-    }
-}
-
-/// Passes an answer back, if it was this plugin's to give.
-///
-/// A plugin answering a question put to another is not a mistake it could
-/// make by accident - the id was never sent to it - so it counts as a strike.
-fn answer(app: &AppHandle, name: &str, id: u64, result: Result<Value, String>) -> Result<Value, String> {
-    let registry = app.state::<Registry>();
-    match app.state::<waiting::Pending>().settle(name, id, result) {
-        Ok(()) => Ok(Value::Null),
-        Err(refusal) => {
-            eprintln!("planner: {refusal}");
-            if registry.strike(name) {
-                eprintln!("planner: {name} has been put away for this session");
-            }
-            Err(refusal)
-        }
-    }
 }
 
 /// What the plugins have to add to a range of days, and anything that went

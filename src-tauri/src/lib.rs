@@ -197,7 +197,7 @@ pub fn run() {
         tray::close_popover,
         spread::open_spread,
         spread::spread_view,
-        plugins::plugin_message,
+        plugins::door::plugin_message,
         plugins::list_plugins,
         plugins::start_plugin,
         plugins::contribute
