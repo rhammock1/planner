@@ -16,6 +16,7 @@
 //! day page waits for, and the day page waits for nothing.
 
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::RecvTimeoutError;
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
@@ -143,12 +144,20 @@ pub fn ask(app: &AppHandle, name: &str, request: &Value) -> Result<Value, String
     let left = deadline.saturating_duration_since(Instant::now());
     match answer.recv_timeout(left) {
         Ok(result) => result,
-        Err(_) => {
+        Err(RecvTimeoutError::Timeout) => {
             app.state::<Pending>().forget(id);
             // A plugin that misses its deadline is not asked again this
             // session: the next page turn would wait the same two seconds.
             put_away(app, name, &format!("did not answer within {}s", DEADLINE.as_secs()));
             Err(format!("{name} did not answer within {}s", DEADLINE.as_secs()))
+        }
+        // The sender was dropped rather than the deadline missed. Nobody has
+        // done that yet; a restart will (spec §1.2), and putting a healthy
+        // plugin away for having been restarted would make the first thing
+        // phase one builds unusable.
+        Err(RecvTimeoutError::Disconnected) => {
+            app.state::<Pending>().forget(id);
+            Err(format!("{name} was interrupted before it answered"))
         }
     }
 }
