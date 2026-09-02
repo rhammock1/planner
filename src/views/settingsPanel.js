@@ -149,6 +149,10 @@ function pluginRow(plugin, handlers) {
   const box = el('input', 'setting-box')
   box.setAttribute('type', 'checkbox')
   if (box instanceof HTMLInputElement) box.checked = plugin.enabled
+  // A folder with a problem cannot run, so a switch beside it would be a
+  // switch that does nothing - or worse, for a bad name, one that writes a
+  // table header into config.toml (spec §0.2).
+  if (plugin.problem !== null && box instanceof HTMLInputElement) box.disabled = true
   box.addEventListener('change', () => {
     if (box instanceof HTMLInputElement) {
       handlers.onPlugin(plugin.name, { enabled: box.checked, approvedCapabilities: plugin.approved })

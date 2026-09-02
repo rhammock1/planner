@@ -12,6 +12,7 @@
 
 import { parseToml, getPath } from './toml.js'
 import { updateToml } from './tomlEdit.js'
+import { isPluginName } from './plugins.js'
 
 /** @typedef {import('./toml.js').TomlValue} TomlValue */
 /** @typedef {import('./toml.js').TomlTable} TomlTable */
@@ -143,6 +144,11 @@ export function updateConfig(text, patch) {
  * @returns {string}
  */
 export function updatePlugin(text, name, settings) {
+  // The one place a plugin's own table header is written. A name that could
+  // not be a folder name could open somebody else's table, and the pane
+  // cannot be trusted not to offer the switch (spec §0.2).
+  if (!isPluginName(name)) return text
+
   return updateToml(text, [
     { path: ['plugins', name, 'enabled'], value: settings.enabled },
     { path: ['plugins', name, 'approved_capabilities'], value: settings.approvedCapabilities },

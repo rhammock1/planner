@@ -248,3 +248,15 @@ describe('expandHome', () => {
     assert.equal(expandHome('~notrob/x', '/Users/rob'), '~notrob/x')
   })
 })
+
+test('a plugin whose folder cannot be a plugin name is never written to the config', () => {
+  const before = 'vault = "~/Planner"\n'
+  // The whole reason the name rule exists: `tomlEdit` writes a header
+  // verbatim, so this would open a table belonging to somebody else.
+  const after = updatePlugin(before, 'x]\n[plugins.other', {
+    enabled: true,
+    approvedCapabilities: [],
+  })
+
+  assert.equal(after, before)
+})

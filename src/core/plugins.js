@@ -40,6 +40,29 @@ import { parseToml } from './toml.js'
  */
 
 /**
+ * What a plugin folder may be called.
+ *
+ * The name becomes a URL host, a window label and a `config.toml` table
+ * header, and `tomlEdit` writes headers verbatim - a folder called
+ * `x]\n[plugins.other` would write another plugin's config (spec §0.2). So
+ * the name is checked before anything else about the folder is believed,
+ * including its manifest.
+ */
+const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/
+
+/** Said the same way in both places a folder is refused for its name. */
+const BAD_NAME =
+  'the folder name may only be lowercase letters, digits and hyphens, starting with a letter or a digit'
+
+/**
+ * @param {string} name
+ * @returns {boolean}
+ */
+export function isPluginName(name) {
+  return NAME.test(name)
+}
+
+/**
  * Every plugin folder on disk, settled against the config (spec §7).
  *
  * `approved` is the intersection rather than what the config says, for the
@@ -54,6 +77,18 @@ import { parseToml } from './toml.js'
 export function installed(folders, configured) {
   return folders.map((folder) => {
     const settings = configured.get(folder.name)
+    // Before the manifest is read: a folder that cannot be a plugin has not
+    // earned a reading of anything else it says.
+    if (!isPluginName(folder.name)) {
+      return {
+        name: folder.name,
+        enabled: settings?.enabled === true,
+        asked: [],
+        approved: [],
+        problem: BAD_NAME,
+      }
+    }
+
     const read = readManifest(folder)
     const asked = read.capabilities
     const allowed = settings?.approvedCapabilities ?? []
@@ -84,6 +119,13 @@ export function plan(folders, configured) {
     // Installed but not switched on. Not a problem, and not worth a line:
     // a folder sitting in ~/.planner/plugins is how a plugin waits.
     if (settings === undefined || !settings.enabled) continue
+
+    // After the enabled check, not before it: a folder sitting switched off
+    // is how a plugin waits, and a waiting plugin is not a fault to report.
+    if (!isPluginName(folder.name)) {
+      notices.push(`${folder.name}: ${BAD_NAME}`)
+      continue
+    }
 
     const read = readManifest(folder)
     if (read.error !== null) {

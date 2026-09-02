@@ -7,7 +7,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { plan, installed } from '../src/core/plugins.js'
+import { plan, installed, isPluginName } from '../src/core/plugins.js'
 
 /** @typedef {import('../src/core/config.js').PluginConfig} PluginConfig */
 
@@ -172,4 +172,56 @@ test('a manifest that cannot be read says why, instead of listing nothing', () =
 
 test('nothing installed is an empty list, not an error', () => {
   assert.deepEqual(installed([], configured()), [])
+})
+
+test('a folder whose name is not a plugin name is listed with the problem', () => {
+  const bad = [{ name: 'x]\n[plugins.other', manifest: MANIFEST }]
+  const [one] = installed(bad, new Map())
+
+  assert.equal(one?.name, 'x]\n[plugins.other')
+  assert.equal(
+    one?.problem,
+    'the folder name may only be lowercase letters, digits and hyphens, starting with a letter or a digit',
+  )
+  // The manifest is not read at all: a name that could rewrite config.toml
+  // has not earned a reading of anything else it says.
+  assert.deepEqual(one?.asked, [])
+  assert.deepEqual(one?.approved, [])
+})
+
+test('a folder whose name is not a plugin name never starts', () => {
+  const bad = [{ name: 'Ticket Links', manifest: MANIFEST }]
+  const configured = new Map([['Ticket Links', { enabled: true, approvedCapabilities: [] }]])
+  const { start, notices } = plan(bad, configured)
+
+  assert.deepEqual(start, [])
+  assert.deepEqual(notices, [
+    'Ticket Links: the folder name may only be lowercase letters, digits and hyphens, starting with a letter or a digit',
+  ])
+})
+
+test('a badly named folder that is switched off says nothing', () => {
+  const bad = [{ name: 'Ticket Links', manifest: MANIFEST }]
+  // Installed and off is how a plugin waits, whatever it is called.
+  assert.deepEqual(plan(bad, new Map()).notices, [])
+})
+
+test('what a plugin folder may be called', () => {
+  for (const name of ['a', 'ticket-links', 'macos-calendar', 'x9', '0', 'a'.repeat(64)]) {
+    assert.equal(isPluginName(name), true, `${name} was refused`)
+  }
+  for (const name of [
+    '',
+    '-leading',
+    'Upper',
+    'under_score',
+    'dot.ted',
+    'space here',
+    'x]\n[plugins.other',
+    '../escape',
+    'a'.repeat(65),
+    'café',
+  ]) {
+    assert.equal(isPluginName(name), false, `${name} was allowed`)
+  }
 })
