@@ -328,3 +328,33 @@ fn strikes_survive_a_second_grant_too() {
     assert!(registry.strike("macos-calendar"));
     assert!(registry.disabled("macos-calendar"));
 }
+
+/// What may come up through the door in one message.
+mod size {
+    use planner_lib::plugins::door::{too_large, LIMIT};
+    use serde_json::{json, Value};
+
+    #[test]
+    fn an_ordinary_answer_fits() {
+        assert!(!too_large(&json!({ "kind": "ready" })));
+        assert!(!too_large(&json!({
+            "kind": "reply",
+            "id": 3,
+            "value": [{ "date": "2026-09-02", "time": "09:30", "text": "Standup" }],
+        })));
+    }
+
+    #[test]
+    fn a_megabyte_of_it_does_not() {
+        let big = Value::from("x".repeat(LIMIT));
+        assert!(too_large(&json!({ "kind": "reply", "id": 3, "value": big })));
+    }
+
+    /// The cap is on the message, not on one field: a thousand strings of a
+    /// thousand characters is the same megabyte spelled differently.
+    #[test]
+    fn the_cap_is_on_the_whole_message() {
+        let many: Vec<Value> = (0..2000).map(|_| Value::from("y".repeat(1000))).collect();
+        assert!(too_large(&json!({ "kind": "reply", "id": 3, "value": many })));
+    }
+}
