@@ -34,6 +34,11 @@ const DEADLINE: Duration = Duration::from_secs(2);
 /// thing that stands between it and the app.
 const RUNTIME: &str = include_str!("../../../src/plugins/runtime.js");
 
+/// Removes WebRTC from a plugin's webview. Injected into every frame rather
+/// than the main one, which is what keeps a same-origin child frame from
+/// getting a fresh copy of a constructor the main frame has lost (spec §0.2).
+const NO_WEBRTC: &str = include_str!("../../../src/plugins/noWebRTC.js");
+
 /// Starts a plugin: records what it may reach, then builds its webview.
 ///
 /// The window is never shown and has no decorations. It exists to run
@@ -66,6 +71,7 @@ pub fn start(app: &AppHandle, name: &str, entry: &str, capabilities: Vec<String>
             }
             false
         })
+        .initialization_script_for_all_frames(NO_WEBRTC)
         .build()
         .map_err(|error| format!("could not start {name}: {error}"))?;
 
