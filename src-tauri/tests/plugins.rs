@@ -358,3 +358,51 @@ mod size {
         assert!(too_large(&json!({ "kind": "reply", "id": 3, "value": many })));
     }
 }
+
+/// One capability call at a time, per plugin.
+mod in_flight {
+    use planner_lib::plugins::door::InFlight;
+
+    #[test]
+    fn a_second_call_from_the_same_plugin_finds_the_slot_taken() {
+        let flight = InFlight::default();
+
+        assert!(flight.enter("macos-calendar"));
+        assert!(!flight.enter("macos-calendar"), "two calls were let through at once");
+
+        flight.leave("macos-calendar");
+        assert!(flight.enter("macos-calendar"), "the slot was not given back");
+    }
+
+    #[test]
+    fn one_plugin_does_not_hold_the_slot_of_another() {
+        let flight = InFlight::default();
+        assert!(flight.enter("macos-calendar"));
+        assert!(flight.enter("ticket-links"));
+    }
+
+    /// Leaving a slot nobody took is what a refused call does on its way out
+    /// of an error branch. It must not open a door for somebody else.
+    #[test]
+    fn leaving_a_slot_that_was_never_taken_is_harmless() {
+        let flight = InFlight::default();
+        flight.leave("macos-calendar");
+        assert!(flight.enter("macos-calendar"));
+    }
+
+    /// The whole reason the slot is held by a guard. A statement after the
+    /// call does not run when the future around it is dropped, and a plugin
+    /// whose slot was never given back could never use a capability again.
+    #[test]
+    fn a_dropped_call_gives_its_slot_back() {
+        let flight = InFlight::default();
+
+        {
+            let held = flight.hold("macos-calendar");
+            assert!(held.is_some());
+            assert!(flight.hold("macos-calendar").is_none(), "two at once");
+        }
+
+        assert!(flight.hold("macos-calendar").is_some(), "the slot never came back");
+    }
+}

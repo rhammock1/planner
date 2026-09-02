@@ -4,6 +4,9 @@
 //! second question, answered by `Registry` against the capabilities the
 //! config granted it.
 
+use std::collections::HashSet;
+use std::sync::Mutex;
+
 use serde::Deserialize;
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
@@ -34,6 +37,48 @@ pub fn too_large(message: &Value) -> bool {
         // and refusing it is the safe way round.
         .unwrap_or(usize::MAX)
         > LIMIT
+}
+
+/// The plugins with a capability call in flight.
+///
+/// `spawn_blocking` runs on a pool the whole app shares, and it is not a
+/// plugin's to fill: ten calls at once from one plugin would hold ten threads
+/// while the app's own work queued behind them. One at a time, per plugin.
+#[derive(Default)]
+pub struct InFlight(Mutex<HashSet<String>>);
+
+impl InFlight {
+    /// Takes the plugin's one slot, or says it was already taken.
+    pub fn enter(&self, name: &str) -> bool {
+        self.0.lock().expect("in-flight lock").insert(name.to_string())
+    }
+
+    /// Gives it back. Called on every way out of a call, including the ones
+    /// that failed.
+    pub fn leave(&self, name: &str) {
+        self.0.lock().expect("in-flight lock").remove(name);
+    }
+
+    /// Takes the plugin's slot and hands back something that gives it up.
+    pub fn hold(&self, name: &str) -> Option<Flying<'_>> {
+        self.enter(name).then(|| Flying { flight: self, name: name.to_string() })
+    }
+}
+
+/// Holds a plugin's one slot for as long as this is alive.
+///
+/// A guard rather than a line after the call, because the line does not run
+/// when the future around it is dropped, and the plugin would be locked out
+/// of every capability for the rest of the session with nothing said.
+pub struct Flying<'a> {
+    flight: &'a InFlight,
+    name: String,
+}
+
+impl Drop for Flying<'_> {
+    fn drop(&mut self) {
+        self.flight.leave(&self.name);
+    }
 }
 
 /// What a plugin sends up through the one door.
@@ -130,6 +175,19 @@ async fn run_capability(
             return Err(format!("{name} was not granted {capability}"));
         }
     }
+
+    // Refused rather than queued, and never a strike: a plugin that asks
+    // twice at once is impatient, not dishonest, and the second call would
+    // hold a thread waiting for the first (spec §0.2, §6).
+    //
+    // `inner()` rather than the `State` itself, because the guard has to
+    // outlive the temporary and `State::inner` hands back a borrow with the
+    // app handle's own lifetime. `_flying` gives the slot back when this
+    // function returns, however it returns.
+    let flight = app.state::<InFlight>();
+    let Some(_flying) = flight.inner().hold(name) else {
+        return Err(format!("{name} is already waiting on a capability"));
+    };
 
     let done = tauri::async_runtime::spawn_blocking(move || {
         crate::bridges::dispatch(&capability, &method, &params)

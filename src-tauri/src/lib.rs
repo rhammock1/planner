@@ -210,6 +210,7 @@ pub fn run() {
         .manage(SharedVault::default())
         .manage(notify::Alarms::default())
         .manage(plugins::Registry::default())
+        .manage(plugins::door::InFlight::default())
         .manage(plugins::waiting::Pending::default())
         .manage(plugins::waiting::Started::default())
         // Every plugin's page and code is served from here, out of its own
