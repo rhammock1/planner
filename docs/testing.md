@@ -79,3 +79,14 @@ PLANNER_HOME=/tmp/planner-home npm run app
 - [ ] Unticking `macos.calendar.read` while leaving the plugin on gives a
       notice saying the plugin asked for something the config has not
       approved.
+- [ ] A plugin whose entry sets `location.href` to a website is refused, the
+      site never loads, and the app carries on. Three tries put it away.
+- [ ] A plugin that never answers is put away after two seconds *and* its
+      webview goes: the app's `WebContent` process count in Activity Monitor
+      drops within a second or two.
+- [ ] A plugin put away, then switched off and on again in the settings pane,
+      stays put away until the app is relaunched.
+- [ ] With a plugin holding a capability call open, typing in the add row is
+      answered at once. The door does not sit on the main thread.
+- [ ] A folder in `~/.planner/plugins` named `Ticket Links` is listed in the
+      settings pane with the reason and never starts.

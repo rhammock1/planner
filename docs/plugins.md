@@ -93,23 +93,45 @@ The first call after the plugin is enabled asks macOS for permission and
 fails politely while the prompt is up. Open the popover again once you have
 allowed it.
 
+`events` may be asked about at most 62 days at a time. A wider range is
+refused with an error rather than trimmed, because a plugin that asked for a
+decade should find out that it did.
+
 ## What is stopping you
 
 Worth knowing, because it explains the shape of everything above.
 
 A plugin runs in its own hidden webview at `plugin://<name>/`, served only
-from its own folder. It has no core permissions, so it cannot listen for or
+from its own folder, and it cannot leave that origin: a navigation anywhere
+else — `location.href`, a form post, a link — is refused, and three of them
+put the plugin away. It has no core permissions, so it cannot listen for or
 emit any of the app's events. It may call exactly one command,
 `plugin_message`, and every message through it is checked against the
-capabilities the manifest and the config both agreed on. It cannot reach the
-network: `connect-src 'none'`, so `fetch`, `XMLHttpRequest` and websockets
-are all closed. Whatever it needs from outside, it asks for as a capability.
+capabilities the manifest and the config both agreed on.
+
+It cannot reach the network. `connect-src 'none'` closes `fetch`,
+`XMLHttpRequest`, `sendBeacon` and websockets; `RTCPeerConnection` and the
+rest of WebRTC are removed from every frame before the plugin's code runs,
+because a `stun:` hostname is a network request no CSP directive covers.
+Whatever a plugin needs from outside, it asks for as a capability.
+
+One message may carry a megabyte, and one capability call may be in flight at
+a time. A second call while the first is running is refused with an error and
+is not held against the plugin; a message over the megabyte is.
 
 Every question has a two-second deadline. A plugin that throws, hangs,
-overruns, asks three times for something it was never granted, or answers a
-question put to a different plugin, is put away for the session with a line
-on the page saying so. The day page never waits for a plugin: it draws
+overruns, asks three times for something it was never granted, keeps trying to
+navigate away, or answers a question put to a different plugin, is put away for
+the session — its webview closed, not merely ignored — with a line on the page
+saying so. Switching it off and on again in the settings pane does not undo
+that; relaunching the app does. The day page never waits for a plugin: it draws
 without contributions and again if they arrive.
+
+A plugin folder must be named in lowercase letters, digits and hyphens,
+starting with a letter or a digit, at most 64 characters. A folder named
+anything else is listed in the settings pane with the reason and never started:
+the name becomes a URL host, a window label and a `config.toml` table header,
+and a header is written to that file verbatim.
 
 ## Not in v1
 
