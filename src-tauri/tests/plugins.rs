@@ -299,3 +299,32 @@ mod navigation {
         }
     }
 }
+
+/// A judgement about somebody's code is not cleared by starting it again.
+///
+/// It matters from this commit on: a plugin put away now has its webview
+/// closed, so its label leaves the window map, so `host::start`'s early
+/// return no longer stands between a second start and a fresh grant.
+#[test]
+fn starting_a_plugin_again_does_not_forgive_it() {
+    let registry = granted();
+    registry.disable("macos-calendar");
+
+    registry.grant("macos-calendar", "index.js".into(), vec!["macos.calendar.read".into()]);
+
+    assert!(registry.disabled("macos-calendar"), "a put-away plugin was let back in");
+    assert!(!registry.permits("macos-calendar", "macos.calendar.read"));
+}
+
+#[test]
+fn strikes_survive_a_second_grant_too() {
+    let registry = granted();
+    assert!(!registry.strike("macos-calendar"));
+    assert!(!registry.strike("macos-calendar"));
+
+    registry.grant("macos-calendar", "index.js".into(), Vec::new());
+
+    // The third strike is still the third, not the first of a new three.
+    assert!(registry.strike("macos-calendar"));
+    assert!(registry.disabled("macos-calendar"));
+}

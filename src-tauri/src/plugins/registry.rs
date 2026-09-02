@@ -31,12 +31,17 @@ impl Registry {
     /// Records what a plugin may reach. Called by the app's own window, which
     /// read the manifest and the config; never by a plugin, which cannot
     /// reach this command at all.
+    ///
+    /// A judgement already made is kept. Being put away is about how the code
+    /// behaved, not about what the config says it may have, and the person
+    /// switching a plugin off and on again does not know what it did.
     pub fn grant(&self, name: &str, entry: String, capabilities: Vec<String>) {
         let mut held = self.0.lock().expect("registry lock");
-        held.insert(
-            name.to_string(),
-            Grant { entry, capabilities, strikes: 0, disabled: false },
-        );
+        let (strikes, disabled) = held
+            .get(name)
+            .map(|grant| (grant.strikes, grant.disabled))
+            .unwrap_or((0, false));
+        held.insert(name.to_string(), Grant { entry, capabilities, strikes, disabled });
     }
 
     pub fn entry_of(&self, name: &str) -> Option<String> {

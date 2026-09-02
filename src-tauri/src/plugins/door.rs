@@ -55,7 +55,7 @@ pub fn plugin_message(
             if !registry.permits(&name, &capability) {
                 eprintln!("planner: {name} asked for {capability}, which it was not granted");
                 if registry.strike(&name) {
-                    eprintln!("planner: {name} has been put away for this session");
+                    super::host::put_away(&app, &name, "asked three times for something it was not granted");
                 }
                 return Err(format!("{name} was not granted {capability}"));
             }
@@ -75,7 +75,7 @@ fn answer(app: &AppHandle, name: &str, id: u64, result: Result<Value, String>) -
         Err(refusal) => {
             eprintln!("planner: {refusal}");
             if registry.strike(name) {
-                eprintln!("planner: {name} has been put away for this session");
+                super::host::put_away(app, name, "answered a question put to another plugin");
             }
             Err(refusal)
         }

@@ -49,9 +49,8 @@ pub fn start(app: &AppHandle, name: &str, entry: &str, capabilities: Vec<String>
     let url = Url::parse(&format!("plugin://{name}/index.html"))
         .map_err(|error| format!("{name} has a name that cannot be a URL: {error}"))?;
 
-    // Refused, and said out loud. Task 4 makes it a strike; until then a
-    // plugin that tries it simply does not go anywhere.
     let refused = name.to_string();
+    let handle = app.clone();
     WebviewWindowBuilder::new(app, &label, WebviewUrl::CustomProtocol(url))
         .visible(false)
         .on_navigation(move |url| {
@@ -59,6 +58,11 @@ pub fn start(app: &AppHandle, name: &str, entry: &str, capabilities: Vec<String>
                 return true;
             }
             eprintln!("planner: {refused} tried to go to {url}");
+            // A strike, not an immediate put-away: the handler also fires for
+            // a redirect the plugin did not write, and one is a mistake.
+            if handle.state::<Registry>().strike(&refused) {
+                put_away(&handle, &refused, "kept trying to navigate off its own page");
+            }
             false
         })
         .build()
@@ -66,6 +70,45 @@ pub fn start(app: &AppHandle, name: &str, entry: &str, capabilities: Vec<String>
 
     eprintln!("planner: plugin {name} started");
     Ok(())
+}
+
+/// Puts a plugin away for the session, and takes its webview with it.
+///
+/// Marking the record is not enough. A plugin put away for hanging is a
+/// plugin still running - a pathological regular expression would spin a
+/// hidden webview until the app was quit - so the window goes as well.
+pub fn put_away(app: &AppHandle, name: &str, reason: &str) {
+    app.state::<Registry>().disable(name);
+    eprintln!("planner: {name} has been put away for this session: {reason}");
+    close(app, name);
+}
+
+/// Closes a plugin's webview, from wherever this was called.
+///
+/// Posted to the event loop rather than run here, and deliberately from
+/// another thread: `run_on_main_thread` runs its closure *inline* when it is
+/// already on the main thread, and one of this function's callers is a
+/// navigation delegate that has not yet answered its own decision handler.
+/// Closing the window underneath it would be re-entrant. The async runtime is
+/// a different thread, so the message takes the event loop's queue instead.
+fn close(app: &AppHandle, name: &str) {
+    let label = format!("{WINDOW_PREFIX}{name}");
+    let handle = app.clone();
+
+    tauri::async_runtime::spawn(async move {
+        let inner = handle.clone();
+        let asked = handle.run_on_main_thread(move || {
+            // Already gone is the ordinary case: a plugin can be put away
+            // twice, and the second time there is nothing left to close.
+            let Some(window) = inner.get_webview_window(&label) else { return };
+            if let Err(error) = window.close() {
+                eprintln!("planner: could not close {label}: {error}");
+            }
+        });
+        if let Err(error) = asked {
+            eprintln!("planner: could not ask the event loop to close a plugin: {error}");
+        }
+    });
 }
 
 /// Asks a plugin something and waits for the answer, or the deadline.
@@ -82,7 +125,7 @@ pub fn ask(app: &AppHandle, name: &str, request: &Value) -> Result<Value, String
     // cannot afford is the total wait.
     let deadline = Instant::now() + DEADLINE;
     if !app.state::<Started>().wait(name, deadline) {
-        app.state::<Registry>().disable(name);
+        put_away(app, name, "did not finish starting");
         return Err(format!("{name} did not finish starting"));
     }
 
@@ -104,7 +147,7 @@ pub fn ask(app: &AppHandle, name: &str, request: &Value) -> Result<Value, String
             app.state::<Pending>().forget(id);
             // A plugin that misses its deadline is not asked again this
             // session: the next page turn would wait the same two seconds.
-            app.state::<Registry>().disable(name);
+            put_away(app, name, &format!("did not answer within {}s", DEADLINE.as_secs()));
             Err(format!("{name} did not answer within {}s", DEADLINE.as_secs()))
         }
     }
