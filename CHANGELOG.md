@@ -60,6 +60,7 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Fixed
 
+-   The popover follows the clock over midnight. Left open overnight it went on showing yesterday, so the first glance of the morning was the wrong page and the carry-forward band only appeared once you pressed the today dot yourself. The day being shown was worked out at launch and then kept; it is now brought up to date at every redraw. A page you flipped to on purpose still stays where you put it, and the roll-over happens at the redraw rather than under a gesture, so a line added at one minute past midnight lands on the page you were looking at
 -   A day with more lines than fit no longer pushes the footer off the bottom of the window. Nothing gave the page a height, so it grew past the window and took the tabs and the count somewhere no scrollbar could reach
 -   A row is repainted while its own text holds the caret. Only that one element is left alone now, not the whole row — a line crossed out while you were in it went on looking open, which is a page inviting you to delete something it never showed you striking out
 -   Every edit now appears. Ticking a box, adding a line, keeping or dropping a carried item all reached the file and none of them reached the screen: the webview had no permission to listen for the change event, and the app only ever repaints when that arrives

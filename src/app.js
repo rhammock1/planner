@@ -16,6 +16,7 @@ import { readContributions } from './core/contributions.js'
 import { search } from './core/search.js'
 import { installed } from './core/plugins.js'
 import { today } from './clock.js'
+import { createShowing } from './showing.js'
 import { createStore } from './store.js'
 import { createPageEdits } from './pageEdits.js'
 import { createAmbient } from './ambient.js'
@@ -24,9 +25,12 @@ import * as dayPage from './views/dayPage.js'
 import * as startup from './startup.js'
 
 const store = createStore()
-let showing = today()
+// The day on screen. Not a `let` set at launch: this window outlives the day
+// it opened on, and the page has to follow the clock over midnight
+// (showing.js).
+const showing = createShowing(today())
 let pinned = false
-const edits = createPageEdits(store, () => showing)
+const edits = createPageEdits(store, () => showing.page())
 // What the app says while nobody is looking at it: the menu bar icon, and
 // the alarms it hands the shell (spec §5.8, §5.9).
 const ambient = createAmbient(store)
@@ -38,7 +42,7 @@ async function start() {
   dayPage.mount(root, {
     ...edits,
     onNavigate: (page) => {
-      showing = page
+      showing.go(page, today())
       draw()
     },
     onCarry: (decisions) => { void carry(decisions) },
@@ -53,7 +57,7 @@ async function start() {
     onJump: (hit) => {
       // The day it is on, and then out of the way: what you were looking for
       // is a line on a page, not a row in a list of results (spec §5.7).
-      showing = hit.page
+      showing.go(hit.page, today())
       dayPage.search().close()
       draw()
     },
@@ -165,10 +169,14 @@ async function openSpread(view) {
 
 function draw() {
   const now = today()
+  // Before anything is read off it: the day may have turned since the last
+  // draw, and if this is today's page it is now a different one.
+  showing.tick(now)
+  const page = showing.page()
   // Today's page only. Flipping back to Friday shows what you wrote that
   // day, not what your calendar said (addendum §1).
-  const given = showing === now
-    ? readContributions(store.contributions(), showing)
+  const given = page === now
+    ? readContributions(store.contributions(), page)
     : { events: [], notices: [] }
 
   ambient.update(now)
@@ -179,12 +187,12 @@ function draw() {
 
   dayPage.render({
     today: now,
-    page: showing,
-    doc: store.page(showing),
+    page,
+    doc: store.page(page),
     horizon: horizon(store.vault(), now, store.config().horizonLeadDays),
     // Carry-forward is about arriving at today. Looking back at last Tuesday
     // is reading, not triage, so the band stays out of the way there.
-    carry: showing === now ? unfinished(store.vault(), now, store.config().carryForwardScanDays) : [],
+    carry: page === now ? unfinished(store.vault(), now, store.config().carryForwardScanDays) : [],
     events: given.events,
     // The one thing a notice ever needs pressing for: the app will not put a
     // vault somewhere nobody asked for (spec §8).
@@ -219,15 +227,16 @@ async function write(change) {
  */
 async function openInEditor() {
   try {
-    const path = await ipc.pagePath(showing)
+    const page = showing.page()
+    const path = await ipc.pagePath(page)
     if (path === null) {
       store.notice('There is no vault open to find that page in.')
       return
     }
-    if (store.page(showing) === null) {
+    if (store.page(page) === null) {
       // Nothing has been written on this day, so there is no file. The app
       // does not make one until there is something to put in it (spec §3.1).
-      store.notice(`Nothing has been written on ${showing} yet, so there is no file to open.`)
+      store.notice(`Nothing has been written on ${page} yet, so there is no file to open.`)
       return
     }
     await ipc.openInEditor(path, store.config().editor)
