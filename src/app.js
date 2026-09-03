@@ -14,6 +14,7 @@ import { horizon } from './core/horizon.js'
 import { unfinished, carryForward } from './core/carry.js'
 import { readContributions } from './core/contributions.js'
 import { badgesFor, openBadge } from './plugins/pageAsking.js'
+import { openInEditor, pickVault } from './vaultActions.js'
 import { search } from './core/search.js'
 import { installed } from './core/plugins.js'
 import { today } from './clock.js'
@@ -54,7 +55,7 @@ async function start() {
     settings: {
       onChange: (patch) => { void write(() => store.saveConfig(patch)) },
       onPlugin: (name, plugin) => { void write(() => store.savePlugin(name, plugin)) },
-      onChooseVault: () => { void pickVault() },
+      onChooseVault: () => { void pickVault(store, ipc) },
     },
     onJump: (hit) => {
       // The day it is on, and then out of the way: what you were looking for
@@ -101,7 +102,7 @@ async function start() {
     // (spec §8). The vault is Markdown so that this is always possible.
     if (event.key === 'e' && (event.metaKey || event.ctrlKey)) {
       event.preventDefault()
-      void openInEditor()
+      void openInEditor(store, ipc, showing.page())
     }
   })
 
@@ -203,7 +204,7 @@ function draw() {
     badges: marked.badges,
     // The one thing a notice ever needs pressing for: the app will not put a
     // vault somewhere nobody asked for (spec §8).
-    actions: store.vaultExists() ? [] : [{ label: 'Choose a folder…', run: () => { void pickVault() } }],
+    actions: store.vaultExists() ? [] : [{ label: 'Choose a folder…', run: () => { void pickVault(store, ipc) } }],
     // Worked out on the way to the page rather than kept, so redrawing the
     // same contributions does not say the same thing twice.
     notices: [...store.notices(), ...given.notices, ...marked.notices],
@@ -221,52 +222,6 @@ async function write(change) {
     await change()
   } catch (error) {
     store.notice(`Could not save that setting: ${message(error)}`)
-  }
-}
-
-/**
- * Opens the day being shown in the user's own editor (spec §8).
- *
- * The page being shown, not today: if there is something in Friday's file
- * this app has misread, Friday is the file to open.
- *
- * @returns {Promise<void>}
- */
-async function openInEditor() {
-  try {
-    const page = showing.page()
-    const path = await ipc.pagePath(page)
-    if (path === null) {
-      store.notice('There is no vault open to find that page in.')
-      return
-    }
-    if (store.page(page) === null) {
-      // Nothing has been written on this day, so there is no file. The app
-      // does not make one until there is something to put in it (spec §3.1).
-      store.notice(`Nothing has been written on ${page} yet, so there is no file to open.`)
-      return
-    }
-    await ipc.openInEditor(path, store.config().editor)
-  } catch (error) {
-    store.notice(`Could not open the file: ${message(error)}`)
-  }
-}
-
-/**
- * Asks for a folder to keep the vault in, and writes it down (spec §8).
- *
- * Dismissing the dialog is an answer - not now - so it leaves everything as
- * it was rather than saying anything.
- *
- * @returns {Promise<void>}
- */
-async function pickVault() {
-  try {
-    const path = await ipc.chooseVault()
-    if (path === null) return
-    await store.saveConfig({ vault: path })
-  } catch (error) {
-    store.notice(`Could not use that folder: ${message(error)}`)
   }
 }
 
