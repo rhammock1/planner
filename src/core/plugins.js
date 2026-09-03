@@ -19,8 +19,11 @@
  */
 
 import { readManifest } from './manifest.js'
+import { settled } from './pluginSettings.js'
 
 /** @typedef {import('./config.js').PluginConfig} PluginConfig */
+/** @typedef {import('./manifest.js').SettingsField} SettingsField */
+/** @typedef {import('./toml.js').TomlValue} TomlValue */
 
 /**
  * @typedef {object} Start
@@ -29,6 +32,7 @@ import { readManifest } from './manifest.js'
  * @property {string[]} slots  granted: declared and approved
  * @property {string[]} capabilities  granted: asked for and approved
  * @property {string[]} open  addresses granted: declared and approved
+ * @property {Map<string, TomlValue>} settings  checked against the manifest's schema
  */
 
 /** @typedef {{name: string, manifest: string}} Folder */
@@ -46,6 +50,8 @@ import { readManifest } from './manifest.js'
  * @property {string[]} open  addresses the manifest declares
  * @property {string[]} approvedOpen  of those, the ones config.toml allows
  * @property {string|null} problem  why it cannot run, when it cannot
+ * @property {SettingsField[]} schema  the settings the manifest declares
+ * @property {Map<string, TomlValue>} settings  the settled values, checked against schema
  */
 
 /**
@@ -80,8 +86,8 @@ export function isPluginName(name) {
  */
 export function installed(folders, configured) {
   return folders.map((folder) => {
-    const settings = configured.get(folder.name)
-    const enabled = settings?.enabled === true
+    const configEntry = configured.get(folder.name)
+    const enabled = configEntry?.enabled === true
 
     // Before the manifest is read: a folder that cannot be a plugin has not
     // earned a reading of anything else it says.
@@ -91,6 +97,8 @@ export function installed(folders, configured) {
         enabled,
         slots: [], approvedSlots: [], asked: [], approved: [], open: [], approvedOpen: [],
         problem: BAD_NAME,
+        schema: [],
+        settings: new Map(),
       }
     }
 
@@ -99,12 +107,14 @@ export function installed(folders, configured) {
       name: folder.name,
       enabled,
       slots: read.slots,
-      approvedSlots: both(read.slots, settings?.approvedSlots),
+      approvedSlots: both(read.slots, configEntry?.approvedSlots),
       asked: read.capabilities,
-      approved: both(read.capabilities, settings?.approvedCapabilities),
+      approved: both(read.capabilities, configEntry?.approvedCapabilities),
       open: read.open,
-      approvedOpen: both(read.open, settings?.approvedOpen),
+      approvedOpen: both(read.open, configEntry?.approvedOpen),
       problem: read.error,
+      schema: read.settings,
+      settings: settled(folder.name, read.settings, configEntry?.settings ?? new Map(), []),
     }
   })
 }
@@ -157,6 +167,7 @@ export function plan(folders, configured) {
       slots: both(read.slots, settings.approvedSlots),
       capabilities: both(read.capabilities, settings.approvedCapabilities),
       open: both(read.open, settings.approvedOpen),
+      settings: settled(folder.name, read.settings, settings.settings, notices),
     })
   }
 
@@ -180,6 +191,7 @@ export function signature(start) {
     [...start.slots].sort(),
     [...start.capabilities].sort(),
     [...start.open].sort(),
+    [...start.settings].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
   ])
 }
 

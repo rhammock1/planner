@@ -6,6 +6,8 @@ import {
   DEFAULTS, DEFAULT_CONFIG_TEXT, readConfig, updateConfig, updatePlugin, expandHome,
 } from '../src/core/config.js'
 
+/** @typedef {import('../src/core/toml.js').TomlValue} TomlValue */
+
 describe('defaults', () => {
   test('an empty file is every default, with nothing to report', () => {
     const { config, notices } = readConfig('')
@@ -70,9 +72,10 @@ describe('reading', () => {
     assert.deepEqual([...config.plugins.keys()], ['macos-calendar', 'macos-reminders'])
     assert.deepEqual(config.plugins.get('macos-calendar'), {
       enabled: true, approvedSlots: [], approvedCapabilities: ['macos.calendar.read'], approvedOpen: [],
+      settings: new Map(),
     })
     assert.deepEqual(config.plugins.get('macos-reminders'), {
-      enabled: false, approvedSlots: [], approvedCapabilities: [], approvedOpen: [],
+      enabled: false, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], settings: new Map(),
     })
   })
 
@@ -124,6 +127,7 @@ describe('a file the app cannot use', () => {
     ].join(''))
     assert.deepEqual(config.plugins.get('macos-calendar'), {
       enabled: false, approvedSlots: [], approvedCapabilities: ['macos.calendar.read'], approvedOpen: [],
+      settings: new Map(),
     })
     assert.equal(notices.length, 1)
     assert.match(notices[0] ?? '', /macos-calendar/)
@@ -188,10 +192,12 @@ describe('switching a plugin on and off', () => {
       approvedSlots: [],
       approvedCapabilities: ['macos.calendar.read'],
       approvedOpen: [],
+      settings: new Map(),
     })
     const settings = readConfig(written).config.plugins.get('macos-calendar')
     assert.deepEqual(settings, {
       enabled: true, approvedSlots: [], approvedCapabilities: ['macos.calendar.read'], approvedOpen: [],
+      settings: new Map(),
     })
   })
 
@@ -201,18 +207,21 @@ describe('switching a plugin on and off', () => {
       approvedSlots: [],
       approvedCapabilities: ['macos.calendar.read'],
       approvedOpen: [],
+      settings: new Map(),
     })
     const off = updatePlugin(on, 'macos-calendar', {
       enabled: false,
       approvedSlots: [],
       approvedCapabilities: ['macos.calendar.read'],
       approvedOpen: [],
+      settings: new Map(),
     })
     assert.deepEqual(readConfig(off).config.plugins.get('macos-calendar'), {
       enabled: false,
       approvedSlots: [],
       approvedCapabilities: ['macos.calendar.read'],
       approvedOpen: [],
+      settings: new Map(),
     })
   })
 
@@ -222,15 +231,17 @@ describe('switching a plugin on and off', () => {
       approvedSlots: [],
       approvedCapabilities: ['macos.calendar.read'],
       approvedOpen: [],
+      settings: new Map(),
     })
     const none = updatePlugin(on, 'macos-calendar', {
-      enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [],
+      enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], settings: new Map(),
     })
     assert.deepEqual(readConfig(none).config.plugins.get('macos-calendar'), {
       enabled: true,
       approvedSlots: [],
       approvedCapabilities: [],
       approvedOpen: [],
+      settings: new Map(),
     })
   })
 
@@ -240,6 +251,7 @@ describe('switching a plugin on and off', () => {
       approvedSlots: [],
       approvedCapabilities: [],
       approvedOpen: [],
+      settings: new Map(),
     })
     assert.ok(written.includes('# planner - settings.'), 'the header comment was lost')
     assert.equal(readConfig(written).config.theme, 'ledger')
@@ -247,17 +259,17 @@ describe('switching a plugin on and off', () => {
 
   test('two plugins keep their own sections', () => {
     let text = updatePlugin(DEFAULT_CONFIG_TEXT, 'macos-calendar', {
-      enabled: true, approvedSlots: [], approvedCapabilities: ['a'], approvedOpen: [],
+      enabled: true, approvedSlots: [], approvedCapabilities: ['a'], approvedOpen: [], settings: new Map(),
     })
     text = updatePlugin(text, 'macos-reminders', {
-      enabled: false, approvedSlots: [], approvedCapabilities: ['b'], approvedOpen: [],
+      enabled: false, approvedSlots: [], approvedCapabilities: ['b'], approvedOpen: [], settings: new Map(),
     })
     const plugins = readConfig(text).config.plugins
     assert.deepEqual(plugins.get('macos-calendar'), {
-      enabled: true, approvedSlots: [], approvedCapabilities: ['a'], approvedOpen: [],
+      enabled: true, approvedSlots: [], approvedCapabilities: ['a'], approvedOpen: [], settings: new Map(),
     })
     assert.deepEqual(plugins.get('macos-reminders'), {
-      enabled: false, approvedSlots: [], approvedCapabilities: ['b'], approvedOpen: [],
+      enabled: false, approvedSlots: [], approvedCapabilities: ['b'], approvedOpen: [], settings: new Map(),
     })
   })
 
@@ -267,12 +279,14 @@ describe('switching a plugin on and off', () => {
       approvedSlots: ['item.badge'],
       approvedCapabilities: ['shell.open'],
       approvedOpen: ['https://github.com/gotab-inc/node/pull/'],
+      settings: new Map(),
     })
     assert.deepEqual(readConfig(written).config.plugins.get('ticket-links'), {
       enabled: true,
       approvedSlots: ['item.badge'],
       approvedCapabilities: ['shell.open'],
       approvedOpen: ['https://github.com/gotab-inc/node/pull/'],
+      settings: new Map(),
     })
   })
 
@@ -281,7 +295,7 @@ describe('switching a plugin on and off', () => {
     // omitted - an absent key would otherwise read back the same as an empty
     // one, hiding "never asked" behind "asked, and approved for nothing".
     const written = updatePlugin(DEFAULT_CONFIG_TEXT, 'ticket-links', {
-      enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [],
+      enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], settings: new Map(),
     })
     assert.match(written, /approved_open\s*=\s*\[\]/)
   })
@@ -349,6 +363,7 @@ test('writing a plugin writes all three lists', () => {
     approvedSlots: ['item.badge'],
     approvedCapabilities: ['shell.open'],
     approvedOpen: ['https://github.com/gotab-inc/node/pull/'],
+    settings: new Map(),
   })
   assert.match(written, /approved_slots\s*=\s*\["item\.badge"\]/)
   assert.match(written, /approved_capabilities\s*=\s*\["shell\.open"\]/)
@@ -368,6 +383,50 @@ describe('expandHome', () => {
   })
 })
 
+test('a plugin section holds the plugin own settings, unvalidated', () => {
+  const { config } = readConfig(`
+[plugins.ticket-links]
+enabled = true
+
+[plugins.ticket-links.settings]
+pattern = "#(\\\\d+)"
+depth   = 3
+loud    = true
+`)
+  const held = config.plugins.get('ticket-links')?.settings
+  assert.equal(held?.get('pattern'), '#(\\d+)')
+  assert.equal(held?.get('depth'), 3)
+  assert.equal(held?.get('loud'), true)
+})
+
+test('a plugin with no settings table has an empty map, not undefined', () => {
+  const { config } = readConfig('[plugins.ticket-links]\nenabled = true\n')
+  assert.equal(config.plugins.get('ticket-links')?.settings.size, 0)
+})
+
+test('the settings table is a Map, so a setting called __proto__ is a setting', () => {
+  const { config } = readConfig(`
+[plugins.x]
+enabled = true
+[plugins.x.settings]
+__proto__ = "no"
+`)
+  assert.equal(config.plugins.get('x')?.settings.get('__proto__'), 'no')
+})
+
+test('writing settings writes one key each, under the plugin own table', () => {
+  const written = updatePlugin('', 'ticket-links', {
+    enabled: true,
+    approvedSlots: [],
+    approvedCapabilities: [],
+    approvedOpen: [],
+    settings: new Map(/** @type {[string, TomlValue][]} */ ([['pattern', '#(\\d+)'], ['depth', 3]])),
+  })
+  assert.match(written, /\[plugins\.ticket-links\.settings\]/)
+  assert.match(written, /pattern\s*=\s*"#\(\\\\d\+\)"/)
+  assert.match(written, /depth\s*=\s*3/)
+})
+
 test('a plugin whose folder cannot be a plugin name is never written to the config', () => {
   const before = 'vault = "~/Planner"\n'
   // The whole reason the name rule exists: `tomlEdit` writes a header
@@ -377,6 +436,7 @@ test('a plugin whose folder cannot be a plugin name is never written to the conf
     approvedSlots: [],
     approvedCapabilities: [],
     approvedOpen: [],
+    settings: new Map(),
   })
 
   assert.equal(after, before)

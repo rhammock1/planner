@@ -33,6 +33,7 @@ function configured(settings) {
       approvedSlots: settings?.approvedSlots ?? ['vault.contribute'],
       approvedCapabilities: settings?.approvedCapabilities ?? ['macos.calendar.read'],
       approvedOpen: settings?.approvedOpen ?? [],
+      settings: settings?.settings ?? new Map(),
     },
   ]])
 }
@@ -52,6 +53,7 @@ test('a plugin the config enables starts with what both files agree on', () => {
       slots: ['vault.contribute'],
       capabilities: ['macos.calendar.read'],
       open: [],
+      settings: new Map(),
     },
   ])
   assert.deepEqual(notices, [])
@@ -103,7 +105,9 @@ test('a manifest that will not parse stops that plugin and nothing else', () => 
     { name: 'macos-calendar', manifest: MANIFEST },
   ]
   const settings = configured()
-  settings.set('broken', { enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [] })
+  settings.set('broken', {
+    enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], settings: new Map(),
+  })
 
   const { start, notices } = plan(broken, settings)
 
@@ -126,6 +130,8 @@ test('a plugin that is switched off is still listed', () => {
     open: [],
     approvedOpen: [],
     problem: null,
+    schema: [],
+    settings: new Map(),
   }])
 })
 
@@ -140,6 +146,8 @@ test('a plugin the config has never heard of is listed as off and ungranted', ()
     open: [],
     approvedOpen: [],
     problem: null,
+    schema: [],
+    settings: new Map(),
   }])
 })
 
@@ -179,7 +187,9 @@ test('a folder whose name is not a plugin name is listed with the problem', () =
 test('a folder whose name is not a plugin name never starts', () => {
   const bad = [{ name: 'Ticket Links', manifest: MANIFEST }]
   const configured = new Map([
-    ['Ticket Links', { enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [] }],
+    ['Ticket Links', {
+      enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], settings: new Map(),
+    }],
   ])
   const { start, notices } = plan(bad, configured)
 
@@ -340,6 +350,7 @@ function started(over) {
     slots: over?.slots ?? ['item.badge'],
     capabilities: over?.capabilities ?? ['shell.open'],
     open: over?.open ?? [],
+    settings: over?.settings ?? new Map(),
   }
 }
 
@@ -389,4 +400,73 @@ test('a plugin whose record changed is stopped and started again', () => {
 test('what is stopped comes back in a settled order', () => {
   const running = new Map([['zulu', 'x'], ['alpha', 'x']])
   assert.deepEqual(diff(running, []).stop, ['alpha', 'zulu'])
+})
+
+const SCHEMA = `
+entry = "index.js"
+slots = ["item.badge"]
+
+[settings.pattern]
+label   = "Ticket pattern"
+kind    = "text"
+default = "#(\\\\d+)"
+
+[settings.depth]
+label = "How far back"
+kind  = "count"
+`
+
+test('a setting the person has not set falls back to the manifest default', () => {
+  const { start } = plan(folders(SCHEMA), configured())
+  assert.equal(start[0]?.settings.get('pattern'), '#(\\d+)')
+})
+
+test('a setting with no default and no value is simply absent', () => {
+  const { start } = plan(folders(SCHEMA), configured())
+  assert.equal(start[0]?.settings.has('depth'), false)
+})
+
+test('a value the person set wins over the default', () => {
+  const config = configured()
+  const macosCalendar = config.get('macos-calendar')
+  assert.ok(macosCalendar)
+  macosCalendar.settings = new Map([['pattern', 'TICKET-(\\d+)']])
+  const { start } = plan(folders(SCHEMA), config)
+  assert.equal(start[0]?.settings.get('pattern'), 'TICKET-(\\d+)')
+})
+
+test('a value of the wrong kind is dropped, the default used, and a line said', () => {
+  const config = configured()
+  const macosCalendar = config.get('macos-calendar')
+  assert.ok(macosCalendar)
+  macosCalendar.settings = new Map([['depth', 'lots']])
+  const { start, notices } = plan(folders(SCHEMA), config)
+  assert.equal(start[0]?.settings.has('depth'), false)
+  assert.ok(notices.some((line) => /depth/.test(line)))
+})
+
+test('a setting the manifest never declared is not handed to the plugin', () => {
+  // The manifest is the ceiling here too: a key in config.toml the plugin
+  // knows nothing about is a typo, not a permission.
+  const config = configured()
+  const macosCalendar = config.get('macos-calendar')
+  assert.ok(macosCalendar)
+  macosCalendar.settings = new Map([['pattren', 'oops']])
+  const { start } = plan(folders(SCHEMA), config)
+  assert.equal(start[0]?.settings.has('pattren'), false)
+})
+
+test('changing a setting changes the signature, so the plugin restarts', () => {
+  const config = configured()
+  const first = plan(folders(SCHEMA), config).start[0]
+  assert.ok(first)
+  const before = signature(first)
+
+  const macosCalendar = config.get('macos-calendar')
+  assert.ok(macosCalendar)
+  macosCalendar.settings = new Map([['pattern', 'X-(\\d+)']])
+
+  const second = plan(folders(SCHEMA), config).start[0]
+  assert.ok(second)
+  assert.notEqual(before, signature(second))
 })

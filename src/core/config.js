@@ -12,7 +12,9 @@
 
 import { parseToml, getPath } from './toml.js'
 import { updateToml } from './tomlEdit.js'
-import { isPluginName } from './plugins.js'
+import { readPlugins, updatePlugin } from './pluginConfig.js'
+
+export { updatePlugin }
 
 /** @typedef {import('./toml.js').TomlValue} TomlValue */
 /** @typedef {import('./toml.js').TomlTable} TomlTable */
@@ -23,6 +25,7 @@ import { isPluginName } from './plugins.js'
  * @property {string[]} approvedSlots
  * @property {string[]} approvedCapabilities
  * @property {string[]} approvedOpen
+ * @property {Map<string, TomlValue>} settings  the plugin's own settings, unvalidated
  */
 
 /**
@@ -134,32 +137,6 @@ export function updateConfig(text, patch) {
 }
 
 /**
- * Switches a plugin on or off, and says what it may reach (spec §7).
- *
- * Its own function because a plugin's settings live in a table of their own,
- * named after a folder the user put there - which is not something the FIELDS
- * table above can describe.
- *
- * @param {string} text
- * @param {string} name  the plugin's folder name
- * @param {PluginConfig} settings
- * @returns {string}
- */
-export function updatePlugin(text, name, settings) {
-  // The one place a plugin's own table header is written. A name that could
-  // not be a folder name could open somebody else's table, and the pane
-  // cannot be trusted not to offer the switch (spec §0.2).
-  if (!isPluginName(name)) return text
-
-  return updateToml(text, [
-    { path: ['plugins', name, 'enabled'], value: settings.enabled },
-    { path: ['plugins', name, 'approved_slots'], value: settings.approvedSlots },
-    { path: ['plugins', name, 'approved_capabilities'], value: settings.approvedCapabilities },
-    { path: ['plugins', name, 'approved_open'], value: settings.approvedOpen },
-  ])
-}
-
-/**
  * Resolves a leading `~` against a home directory. Paths in the config are
  * written the way a person writes them; core has no home directory of its
  * own, so it is passed in.
@@ -172,60 +149,6 @@ export function expandHome(path, home) {
   if (path === '~') return home
   if (path.startsWith('~/')) return home + path.slice(1)
   return path
-}
-
-/**
- * Plugin sections are keyed by a name the user chose, so they live in a Map:
- * a plain object would let a plugin folder called `__proto__` write somewhere
- * it has no business being.
- *
- * @param {TomlTable} table
- * @param {string[]} notices
- * @returns {Map<string, PluginConfig>}
- */
-function readPlugins(table, notices) {
-  /** @type {Map<string, PluginConfig>} */
-  const plugins = new Map()
-
-  const section = table['plugins']
-  if (section === undefined) return plugins
-  if (typeof section !== 'object' || Array.isArray(section)) {
-    notices.push('config.toml: plugins is not a table of plugin settings; ignoring it')
-    return plugins
-  }
-
-  for (const [name, entry] of Object.entries(section)) {
-    if (typeof entry !== 'object' || Array.isArray(entry)) {
-      notices.push(`config.toml: plugins.${name} is not a table; ignoring it`)
-      continue
-    }
-    const enabled = coerce(entry['enabled'] ?? false, 'boolean')
-    if (enabled === null) notices.push(`config.toml: plugins.${name}.enabled is not a boolean; treating it as disabled`)
-    plugins.set(name, {
-      enabled: enabled === null ? false : Boolean(enabled),
-      approvedSlots: readNames(name, 'approved_slots', entry['approved_slots'], notices),
-      approvedCapabilities:
-        readNames(name, 'approved_capabilities', entry['approved_capabilities'], notices),
-      approvedOpen: readNames(name, 'approved_open', entry['approved_open'], notices),
-    })
-  }
-  return plugins
-}
-
-/**
- * @param {string} name
- * @param {string} key
- * @param {TomlValue|TomlTable|undefined} raw
- * @param {string[]} notices
- * @returns {string[]}
- */
-function readNames(name, key, raw, notices) {
-  if (raw === undefined) return []
-  if (!Array.isArray(raw)) {
-    notices.push(`config.toml: plugins.${name}.${key} is not a list; treating it as empty`)
-    return []
-  }
-  return [...raw]
 }
 
 /**

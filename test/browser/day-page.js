@@ -336,6 +336,8 @@ check('the settings pane lists a plugin and what it asks for', () => {
     open: [],
     approvedOpen: [],
     problem: null,
+    schema: [],
+    settings: new Map(),
   }])
   dayPage.settings().open()
 

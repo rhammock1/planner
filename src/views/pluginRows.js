@@ -54,6 +54,7 @@ function pluginRow(plugin, states, handlers) {
         approvedSlots: plugin.approvedSlots,
         approvedCapabilities: plugin.approved,
         approvedOpen: plugin.approvedOpen,
+        settings: plugin.settings,
       })
     }
   })
@@ -78,6 +79,7 @@ function pluginRow(plugin, states, handlers) {
         approvedSlots: toggled(plugin.approvedSlots, slot, on),
         approvedCapabilities: plugin.approved,
         approvedOpen: plugin.approvedOpen,
+        settings: plugin.settings,
       }),
     ))
   }
@@ -94,6 +96,7 @@ function pluginRow(plugin, states, handlers) {
         approvedSlots: plugin.approvedSlots,
         approvedCapabilities: toggled(plugin.approved, capability, on),
         approvedOpen: plugin.approvedOpen,
+        settings: plugin.settings,
       }),
     ))
   }
@@ -111,6 +114,7 @@ function pluginRow(plugin, states, handlers) {
           approvedSlots: plugin.approvedSlots,
           approvedCapabilities: plugin.approved,
           approvedOpen: toggled(plugin.approvedOpen, address, on),
+          settings: plugin.settings,
         }),
       ))
     }
