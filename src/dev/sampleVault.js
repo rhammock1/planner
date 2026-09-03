@@ -90,6 +90,9 @@ export function sampleHost() {
 
     // No plugin host in a browser: nothing to report on.
     pluginStates: async () => [],
+
+    // No shell to hand a URL to: a browser tab can open its own links.
+    openUrl: async () => {},
   }
 }
 

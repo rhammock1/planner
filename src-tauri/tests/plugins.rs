@@ -46,6 +46,7 @@ fn granted() -> Registry {
         "index.js".into(),
         vec!["vault.contribute".into()],
         vec!["macos.calendar.read".into()],
+        Vec::new(),
     );
     registry
 }
@@ -98,7 +99,7 @@ fn a_plugin_nobody_started_is_not_running() {
 fn the_plugins_are_asked_in_a_settled_order() {
     let registry = Registry::default();
     for name in ["zeta", "alpha", "mu"] {
-        registry.grant(name, "index.js".into(), Vec::new(), Vec::new());
+        registry.grant(name, "index.js".into(), Vec::new(), Vec::new(), Vec::new());
     }
     // Otherwise the section's lines would shuffle from launch to launch, for
     // no reason the reader could see.
@@ -316,6 +317,7 @@ fn starting_a_plugin_again_does_not_forgive_it() {
         "index.js".into(),
         vec!["vault.contribute".into()],
         vec!["macos.calendar.read".into()],
+        Vec::new(),
     );
 
     assert!(registry.disabled("macos-calendar"), "a put-away plugin was let back in");
@@ -328,7 +330,7 @@ fn strikes_survive_a_second_grant_too() {
     assert!(!registry.strike("macos-calendar"));
     assert!(!registry.strike("macos-calendar"));
 
-    registry.grant("macos-calendar", "index.js".into(), Vec::new(), Vec::new());
+    registry.grant("macos-calendar", "index.js".into(), Vec::new(), Vec::new(), Vec::new());
 
     // The third strike is still the third, not the first of a new three.
     assert!(registry.strike("macos-calendar"));
@@ -423,12 +425,14 @@ mod slots {
             "index.js".into(),
             vec!["item.badge".into()],
             vec!["shell.open".into()],
+            Vec::new(),
         );
         registry.grant(
             "macos-calendar",
             "index.js".into(),
             vec!["vault.contribute".into()],
             vec!["macos.calendar.read".into()],
+            Vec::new(),
         );
         registry
     }
@@ -452,7 +456,7 @@ mod slots {
     fn the_plugins_for_a_slot_come_back_in_a_settled_order() {
         let registry = Registry::default();
         for name in ["zulu", "alpha", "mike"] {
-            registry.grant(name, "index.js".into(), vec!["item.badge".into()], Vec::new());
+            registry.grant(name, "index.js".into(), vec!["item.badge".into()], Vec::new(), Vec::new());
         }
         assert_eq!(registry.running_for("item.badge"), vec!["alpha", "mike", "zulu"]);
     }

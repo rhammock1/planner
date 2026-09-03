@@ -22,6 +22,7 @@ import { isPluginName } from './plugins.js'
  * @property {boolean} enabled
  * @property {string[]} approvedSlots
  * @property {string[]} approvedCapabilities
+ * @property {string[]} approvedOpen
  */
 
 /**
@@ -154,6 +155,7 @@ export function updatePlugin(text, name, settings) {
     { path: ['plugins', name, 'enabled'], value: settings.enabled },
     { path: ['plugins', name, 'approved_slots'], value: settings.approvedSlots },
     { path: ['plugins', name, 'approved_capabilities'], value: settings.approvedCapabilities },
+    { path: ['plugins', name, 'approved_open'], value: settings.approvedOpen },
   ])
 }
 
@@ -204,6 +206,7 @@ function readPlugins(table, notices) {
       approvedSlots: readNames(name, 'approved_slots', entry['approved_slots'], notices),
       approvedCapabilities:
         readNames(name, 'approved_capabilities', entry['approved_capabilities'], notices),
+      approvedOpen: readNames(name, 'approved_open', entry['approved_open'], notices),
     })
   }
   return plugins

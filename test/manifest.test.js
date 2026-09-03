@@ -91,3 +91,35 @@ test('a manifest with no permissions asks for nothing', () => {
   assert.equal(read.error, null)
   assert.deepEqual(read.capabilities, [])
 })
+
+test('a manifest says what it may open', () => {
+  const read = readManifest(`
+entry = "index.js"
+[permissions]
+capabilities = ["shell.open"]
+[permissions.open]
+urls = ["https://github.com/gotab-inc/node/pull/"]
+`)
+  assert.equal(read.error, null)
+  assert.deepEqual(read.open, ['https://github.com/gotab-inc/node/pull/'])
+})
+
+test('a prefix that is not an address is dropped, and said out loud', () => {
+  const read = readManifest(`
+entry = "index.js"
+[permissions.open]
+urls = ["https://ok.example/x/", "file:///etc/"]
+`)
+  assert.deepEqual(read.open, ['https://ok.example/x/'])
+  assert.equal(read.notices.length, 1)
+  assert.match(read.notices[0] ?? '', /file:/)
+})
+
+test('urls in the wrong shape are a fault', () => {
+  const read = readManifest('entry = "i.js"\n[permissions.open]\nurls = "https://x/"')
+  assert.match(read.error ?? '', /urls/)
+})
+
+test('a manifest that opens nothing has no prefixes', () => {
+  assert.deepEqual(readManifest('entry = "i.js"').open, [])
+})

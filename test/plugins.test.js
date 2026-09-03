@@ -32,6 +32,7 @@ function configured(settings) {
       enabled: settings?.enabled ?? true,
       approvedSlots: settings?.approvedSlots ?? ['vault.contribute'],
       approvedCapabilities: settings?.approvedCapabilities ?? ['macos.calendar.read'],
+      approvedOpen: settings?.approvedOpen ?? [],
     },
   ]])
 }
@@ -50,6 +51,7 @@ test('a plugin the config enables starts with what both files agree on', () => {
       entry: 'index.js',
       slots: ['vault.contribute'],
       capabilities: ['macos.calendar.read'],
+      open: [],
     },
   ])
   assert.deepEqual(notices, [])
@@ -101,7 +103,7 @@ test('a manifest that will not parse stops that plugin and nothing else', () => 
     { name: 'macos-calendar', manifest: MANIFEST },
   ]
   const settings = configured()
-  settings.set('broken', { enabled: true, approvedSlots: [], approvedCapabilities: [] })
+  settings.set('broken', { enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [] })
 
   const { start, notices } = plan(broken, settings)
 
@@ -121,6 +123,8 @@ test('a plugin that is switched off is still listed', () => {
     approvedSlots: ['vault.contribute'],
     asked: ['macos.calendar.read'],
     approved: ['macos.calendar.read'],
+    open: [],
+    approvedOpen: [],
     problem: null,
   }])
 })
@@ -133,6 +137,8 @@ test('a plugin the config has never heard of is listed as off and ungranted', ()
     approvedSlots: [],
     asked: ['macos.calendar.read'],
     approved: [],
+    open: [],
+    approvedOpen: [],
     problem: null,
   }])
 })
@@ -173,7 +179,7 @@ test('a folder whose name is not a plugin name is listed with the problem', () =
 test('a folder whose name is not a plugin name never starts', () => {
   const bad = [{ name: 'Ticket Links', manifest: MANIFEST }]
   const configured = new Map([
-    ['Ticket Links', { enabled: true, approvedSlots: [], approvedCapabilities: [] }],
+    ['Ticket Links', { enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [] }],
   ])
   const { start, notices } = plan(bad, configured)
 
@@ -281,6 +287,51 @@ test('an approved slot the manifest does not ask for is not shown as granted', (
   assert.deepEqual(listed?.approvedSlots, [])
 })
 
+const OPENS = `
+entry = "index.js"
+[permissions.open]
+urls = ["https://github.com/gotab-inc/node/pull/"]
+`
+
+test('a plugin is granted the addresses both files agree on', () => {
+  const { start } = plan(
+    folders(OPENS),
+    configured({ approvedOpen: ['https://github.com/gotab-inc/node/pull/'], approvedCapabilities: [] }),
+  )
+  assert.deepEqual(start[0]?.open, ['https://github.com/gotab-inc/node/pull/'])
+})
+
+test('an address the config has not approved is not granted, and is said out loud', () => {
+  const { start, notices } = plan(
+    folders(OPENS),
+    configured({ approvedSlots: [], approvedCapabilities: [] }),
+  )
+  assert.equal(start.length, 1)
+  assert.deepEqual(start[0]?.open, [])
+  assert.equal(notices.length, 1)
+  assert.match(notices[0] ?? '', /gotab-inc\/node\/pull/)
+})
+
+test('the manifest is the ceiling for addresses too', () => {
+  const { start, notices } = plan(
+    folders(OPENS),
+    configured({
+      approvedSlots: [],
+      approvedOpen: ['https://github.com/gotab-inc/node/pull/', 'https://evil.example/x/'],
+      approvedCapabilities: [],
+    }),
+  )
+  assert.deepEqual(start[0]?.open, ['https://github.com/gotab-inc/node/pull/'])
+  assert.equal(notices.length, 1)
+  assert.match(notices[0] ?? '', /evil\.example/)
+})
+
+test('the pane is shown what a plugin asks to open', () => {
+  const [listed] = installed(folders(OPENS), configured({ approvedSlots: [], approvedCapabilities: [] }))
+  assert.deepEqual(listed?.open, ['https://github.com/gotab-inc/node/pull/'])
+  assert.deepEqual(listed?.approvedOpen, [])
+})
+
 /** @param {Partial<import('../src/core/plugins.js').Start>} [over] */
 function started(over) {
   return {
@@ -288,6 +339,7 @@ function started(over) {
     entry: over?.entry ?? 'index.js',
     slots: over?.slots ?? ['item.badge'],
     capabilities: over?.capabilities ?? ['shell.open'],
+    open: over?.open ?? [],
   }
 }
 

@@ -331,6 +331,8 @@ check('the settings pane lists a plugin and what it asks for', () => {
     approvedSlots: [],
     asked: ['macos.calendar.read'],
     approved: ['macos.calendar.read'],
+    open: [],
+    approvedOpen: [],
     problem: null,
   }])
   dayPage.settings().open()

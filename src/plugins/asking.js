@@ -43,7 +43,7 @@ const REMEMBERED = 32
 
 /**
  * @typedef {object} AskingDeps
- * @property {(name: string, entry: string, slots: string[], capabilities: string[]) => Promise<void>} startPlugin
+ * @property {(name: string, entry: string, slots: string[], capabilities: string[], open: string[]) => Promise<void>} startPlugin
  * @property {(name: string) => Promise<void>} stopPlugin
  * @property {(slot: string, now: {date: string, time: string}, params: Record<string, unknown>) => Promise<{answers: Answer[], notices: string[]}>} askPlugins
  * @property {() => Promise<PluginState[]>} pluginStates
@@ -128,7 +128,7 @@ export function createAsking(deps) {
     for (const one of change.start) {
       if (stuck.has(one.name)) continue
       try {
-        await deps.startPlugin(one.name, one.entry, one.slots, one.capabilities)
+        await deps.startPlugin(one.name, one.entry, one.slots, one.capabilities, one.open)
         running.set(one.name, signature(one))
       } catch (error) {
         failures.push(`Could not start ${one.name}: ${message(error)}`)

@@ -204,7 +204,8 @@ pub fn run() {
         plugins::start_plugin,
         plugins::stop_plugin,
         plugins::ask_plugins,
-        plugins::plugin_states
+        plugins::plugin_states,
+        plugins::opening::open_url
     ]);
 
     tauri::Builder::default()

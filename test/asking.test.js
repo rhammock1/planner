@@ -23,7 +23,13 @@ function host() {
   let drawn = 0
 
   const deps = {
-    startPlugin: async (/** @type {string} */ name, /** @type {string} */ _entry, /** @type {string[]} */ slots) => {
+    startPlugin: async (
+      /** @type {string} */ name,
+      /** @type {string} */ _entry,
+      /** @type {string[]} */ slots,
+      /** @type {string[]} */ _capabilities,
+      /** @type {string[]} */ _open,
+    ) => {
       started.push({ name, slots })
     },
     stopPlugin: async (/** @type {string} */ name) => { stopped.push(name) },
@@ -50,6 +56,7 @@ function configured(approvedSlots) {
     enabled: true,
     approvedSlots: approvedSlots ?? ['item.badge'],
     approvedCapabilities: [],
+    approvedOpen: [],
   }]])
 }
 

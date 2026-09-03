@@ -149,10 +149,11 @@ export async function listPlugins() {
  * @param {string} entry
  * @param {string[]} slots
  * @param {string[]} capabilities
+ * @param {string[]} open
  * @returns {Promise<void>}
  */
-export async function startPlugin(name, entry, slots, capabilities) {
-  return (await getHost()).startPlugin(name, entry, slots, capabilities)
+export async function startPlugin(name, entry, slots, capabilities, open) {
+  return (await getHost()).startPlugin(name, entry, slots, capabilities, open)
 }
 
 /**
@@ -191,6 +192,22 @@ export async function askPlugins(slot, now, params) {
  */
 export async function pluginStates() {
   return (await getHost()).pluginStates()
+}
+
+/**
+ * Opens a URL in the system browser, if the config approved it.
+ *
+ * The app's own window asks; the plugin whose badge carried the URL is not
+ * consulted and does not run again to do it. Refused is not shown as a
+ * strike against the plugin - approval may have changed since the badge was
+ * drawn (spec §6).
+ *
+ * @param {string} plugin
+ * @param {string} url
+ * @returns {Promise<void>}
+ */
+export async function openUrl(plugin, url) {
+  return (await getHost()).openUrl(plugin, url)
 }
 
 /**

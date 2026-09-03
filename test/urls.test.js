@@ -1,0 +1,77 @@
+// @ts-check
+
+/**
+ * What a plugin may open, and the comparison that decides it.
+ */
+
+import test from 'node:test'
+import assert from 'node:assert/strict'
+
+import { readPrefix, mayOpen } from '../src/core/urls.js'
+
+test('a prefix is an http URL ending in a slash', () => {
+  assert.equal(readPrefix('https://github.com/gotab-inc/node/pull/').error, null)
+  assert.equal(readPrefix('http://localhost:8080/tickets/').error, null)
+})
+
+test('a prefix that is not a URL at all is refused', () => {
+  assert.match(readPrefix('not a url').error ?? '', /not a URL/)
+})
+
+test('a prefix that is not http is refused', () => {
+  for (const bad of ['file:///etc/', 'javascript:alert(1)', 'plugin://x/', 'data:text/html,x']) {
+    assert.match(readPrefix(bad).error ?? '', /https/, bad)
+  }
+})
+
+test('a prefix carrying a username is refused', () => {
+  assert.match(readPrefix('https://user@github.com/x/').error ?? '', /user/)
+  assert.match(readPrefix('https://user:pw@github.com/x/').error ?? '', /user/)
+})
+
+test('a prefix that does not end in a slash is refused', () => {
+  // Without it, `https://github.com/gotab` would approve
+  // `https://github.com/gotabbing-elsewhere`.
+  assert.match(readPrefix('https://github.com/gotab-inc/node').error ?? '', /slash/)
+})
+
+const PREFIXES = ['https://github.com/gotab-inc/node/pull/']
+
+test('a URL under the prefix may be opened', () => {
+  assert.equal(mayOpen('https://github.com/gotab-inc/node/pull/4412', PREFIXES), true)
+  assert.equal(mayOpen('https://github.com/gotab-inc/node/pull/4412?tab=files#c1', PREFIXES), true)
+})
+
+test('a look-alike host may not', () => {
+  // The one a string comparison waves through.
+  assert.equal(mayOpen('https://github.com.evil.io/gotab-inc/node/pull/1', PREFIXES), false)
+  assert.equal(mayOpen('https://notgithub.com/gotab-inc/node/pull/1', PREFIXES), false)
+})
+
+test('climbing out of the prefix may not', () => {
+  assert.equal(mayOpen('https://github.com/gotab-inc/node/pull/../../evil/1', PREFIXES), false)
+  assert.equal(mayOpen('https://github.com/gotab-inc/node/pull/%2e%2e/evil', PREFIXES), false)
+})
+
+test('a sibling path that merely starts with the same letters may not', () => {
+  assert.equal(mayOpen('https://github.com/gotab-inc/nodex/pull/1', PREFIXES), false)
+})
+
+test('a different scheme, port or userinfo may not', () => {
+  assert.equal(mayOpen('http://github.com/gotab-inc/node/pull/1', PREFIXES), false)
+  assert.equal(mayOpen('https://github.com:8443/gotab-inc/node/pull/1', PREFIXES), false)
+  assert.equal(mayOpen('https://evil@github.com/gotab-inc/node/pull/1', PREFIXES), false)
+})
+
+test('the prefix itself may be opened', () => {
+  assert.equal(mayOpen('https://github.com/gotab-inc/node/pull/', PREFIXES), true)
+})
+
+test('with no prefixes, nothing opens', () => {
+  assert.equal(mayOpen('https://github.com/gotab-inc/node/pull/1', []), false)
+})
+
+test('a href that is not a URL opens nothing', () => {
+  assert.equal(mayOpen('javascript:alert(1)', PREFIXES), false)
+  assert.equal(mayOpen('', PREFIXES), false)
+})

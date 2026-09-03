@@ -26,6 +26,9 @@ struct Grant {
     /// The intersection of what the manifest asked for and what the config
     /// granted, worked out in the frontend where the one TOML reader lives.
     capabilities: Vec<String>,
+    /// The addresses this plugin may ask the app to open, agreed entry for
+    /// entry between the manifest and the config.
+    open: Vec<String>,
     /// What the plugin's page said it actually handles, from `ready`. `None`
     /// until it has said so.
     handles: Option<Vec<String>>,
@@ -52,7 +55,14 @@ impl Registry {
     /// it has said `ready` yet is kept too - a restart clears it (Task 5
     /// calls `stop` first), but a second `grant` on a running plugin must not
     /// make it look as though it never said ready.
-    pub fn grant(&self, name: &str, entry: String, slots: Vec<String>, capabilities: Vec<String>) {
+    pub fn grant(
+        &self,
+        name: &str,
+        entry: String,
+        slots: Vec<String>,
+        capabilities: Vec<String>,
+        open: Vec<String>,
+    ) {
         let mut held = self.0.lock().expect("registry lock");
         let kept = held
             .get(name)
@@ -60,7 +70,7 @@ impl Registry {
         let (strikes, disabled, reason, handles) = kept.unwrap_or((0, false, None, None));
         held.insert(
             name.to_string(),
-            Grant { entry, slots, capabilities, handles, strikes, disabled, reason, running: true },
+            Grant { entry, slots, capabilities, open, handles, strikes, disabled, reason, running: true },
         );
     }
 
@@ -133,6 +143,16 @@ impl Registry {
         held.get(name).is_some_and(|grant| {
             !grant.disabled && grant.capabilities.iter().any(|held| held == capability)
         })
+    }
+
+    /// What a plugin may ask the app to open. Empty for a plugin that was
+    /// never started, and for one put away.
+    pub fn may_open(&self, name: &str) -> Vec<String> {
+        let held = self.0.lock().expect("registry lock");
+        held.get(name)
+            .filter(|grant| !grant.disabled)
+            .map(|grant| grant.open.clone())
+            .unwrap_or_default()
     }
 
     /// Records a request for something the plugin was not granted, and says

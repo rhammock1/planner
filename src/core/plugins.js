@@ -28,6 +28,7 @@ import { readManifest } from './manifest.js'
  * @property {string} entry  the file the plugin begins at
  * @property {string[]} slots  granted: declared and approved
  * @property {string[]} capabilities  granted: asked for and approved
+ * @property {string[]} open  addresses granted: declared and approved
  */
 
 /** @typedef {{name: string, manifest: string}} Folder */
@@ -42,6 +43,8 @@ import { readManifest } from './manifest.js'
  * @property {string[]} approvedSlots  of those, the ones config.toml allows
  * @property {string[]} asked  capabilities the manifest asks for
  * @property {string[]} approved  of those, the ones config.toml has allowed
+ * @property {string[]} open  addresses the manifest declares
+ * @property {string[]} approvedOpen  of those, the ones config.toml allows
  * @property {string|null} problem  why it cannot run, when it cannot
  */
 
@@ -86,7 +89,7 @@ export function installed(folders, configured) {
       return {
         name: folder.name,
         enabled,
-        slots: [], approvedSlots: [], asked: [], approved: [],
+        slots: [], approvedSlots: [], asked: [], approved: [], open: [], approvedOpen: [],
         problem: BAD_NAME,
       }
     }
@@ -99,6 +102,8 @@ export function installed(folders, configured) {
       approvedSlots: both(read.slots, settings?.approvedSlots),
       asked: read.capabilities,
       approved: both(read.capabilities, settings?.approvedCapabilities),
+      open: read.open,
+      approvedOpen: both(read.open, settings?.approvedOpen),
       problem: read.error,
     }
   })
@@ -144,12 +149,14 @@ export function plan(folders, configured) {
     const approvedSlots = settings.approvedSlots.filter((one) => !read.unofferedSlots.includes(one))
     disagreements(folder.name, 'slot', read.slots, approvedSlots, notices)
     disagreements(folder.name, 'capability', read.capabilities, settings.approvedCapabilities, notices)
+    disagreements(folder.name, 'address', read.open, settings.approvedOpen, notices)
 
     start.push({
       name: folder.name,
       entry: read.entry,
       slots: both(read.slots, settings.approvedSlots),
       capabilities: both(read.capabilities, settings.approvedCapabilities),
+      open: both(read.open, settings.approvedOpen),
     })
   }
 
@@ -172,6 +179,7 @@ export function signature(start) {
     start.entry,
     [...start.slots].sort(),
     [...start.capabilities].sort(),
+    [...start.open].sort(),
   ])
 }
 

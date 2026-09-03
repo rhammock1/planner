@@ -47,6 +47,7 @@ pub fn start(
     entry: &str,
     slots: Vec<String>,
     capabilities: Vec<String>,
+    open: Vec<String>,
 ) -> Result<(), String> {
     let label = format!("{WINDOW_PREFIX}{name}");
     if app.get_webview_window(&label).is_some() {
@@ -57,7 +58,7 @@ pub fn start(
     }
 
     let registry = app.state::<Registry>();
-    registry.grant(name, entry.to_string(), slots, capabilities);
+    registry.grant(name, entry.to_string(), slots, capabilities, open);
 
     let url = Url::parse(&format!("plugin://{name}/index.html"))
         .map_err(|error| format!("{name} has a name that cannot be a URL: {error}"))?;

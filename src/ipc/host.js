@@ -37,11 +37,12 @@
  * @property {(page: string, text: string) => Promise<void>} writePage
  * @property {(handler: (page: string) => void) => void|Promise<void>} onVaultChanged
  * @property {() => Promise<{name: string, manifest: string}[]>} listPlugins
- * @property {(name: string, entry: string, slots: string[], capabilities: string[]) => Promise<void>} startPlugin
+ * @property {(name: string, entry: string, slots: string[], capabilities: string[], open: string[]) => Promise<void>} startPlugin
  * @property {(name: string) => Promise<void>} stopPlugin
  * @property {(slot: string, now: Now, params: Record<string, unknown>) => Promise<Answers>} askPlugins
  * @property {() => Promise<PluginState[]>} pluginStates
  * @property {(handler: () => void) => void|Promise<void>} onPopoverShown
+ * @property {(plugin: string, url: string) => Promise<void>} openUrl
  */
 
 /**
@@ -123,11 +124,12 @@ function tauriHost() {
     openSpread: (view) => invoke('open_spread', { view }),
     spreadView: () => invoke('spread_view'),
     listPlugins: () => invoke('list_plugins'),
-    startPlugin: (name, entry, slots, capabilities) =>
-      invoke('start_plugin', { name, entry, slots, capabilities }),
+    startPlugin: (name, entry, slots, capabilities, open) =>
+      invoke('start_plugin', { name, entry, slots, capabilities, open }),
     stopPlugin: (name) => invoke('stop_plugin', { name }),
     askPlugins: (slot, now, params) => invoke('ask_plugins', { slot, now, params }),
     pluginStates: () => invoke('plugin_states'),
+    openUrl: (plugin, url) => invoke('open_url', { plugin, url }),
     onPopoverShown: (handler) => tauri.event.listen('popover:shown', () => handler()),
     readTheme: (name) => invoke('read_theme', { name }),
     readVault: () => invoke('read_vault'),

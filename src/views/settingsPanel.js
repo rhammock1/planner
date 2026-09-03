@@ -156,7 +156,10 @@ function pluginRow(plugin, handlers) {
   box.addEventListener('change', () => {
     if (box instanceof HTMLInputElement) {
       handlers.onPlugin(plugin.name, {
-        enabled: box.checked, approvedSlots: plugin.approvedSlots, approvedCapabilities: plugin.approved,
+        enabled: box.checked,
+        approvedSlots: plugin.approvedSlots,
+        approvedCapabilities: plugin.approved,
+        approvedOpen: plugin.approvedOpen,
       })
     }
   })
@@ -181,7 +184,10 @@ function pluginRow(plugin, handlers) {
         ? [...plugin.approved, capability]
         : plugin.approved.filter((one) => one !== capability)
       handlers.onPlugin(plugin.name, {
-        enabled: plugin.enabled, approvedSlots: plugin.approvedSlots, approvedCapabilities: approved,
+        enabled: plugin.enabled,
+        approvedSlots: plugin.approvedSlots,
+        approvedCapabilities: approved,
+        approvedOpen: plugin.approvedOpen,
       })
     })
     allow.append(box, el('span', 'capability-name', capability))
