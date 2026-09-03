@@ -135,3 +135,14 @@ pub fn start_plugin(
 pub async fn ask_plugins(app: AppHandle, slot: String, now: Value, params: Value) -> host::Answers {
     host::ask_all(&app, &slot, &now, &params).await
 }
+
+/// Stops a plugin and waits for its webview to go.
+///
+/// Blocking - it waits on the event loop - so it is handed to the blocking
+/// pool rather than run on the runtime the door shares.
+#[tauri::command]
+pub async fn stop_plugin(app: AppHandle, name: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || host::stop(&app, &name))
+        .await
+        .map_err(|error| format!("could not stop the plugin: {error}"))?
+}

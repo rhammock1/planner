@@ -29,6 +29,9 @@ use super::{Registry, WINDOW_PREFIX};
 /// How long a plugin has to answer before it is assumed broken (spec §7.4).
 const DEADLINE: Duration = Duration::from_secs(2);
 
+/// How long a webview gets to go away before the app stops waiting for it.
+const CLOSING: Duration = Duration::from_secs(2);
+
 /// Removes WebRTC from a plugin's webview. Injected into every frame rather
 /// than the main one, which is what keeps a same-origin child frame from
 /// getting a fresh copy of a constructor the main frame has lost (spec §0.2).
@@ -47,7 +50,10 @@ pub fn start(
 ) -> Result<(), String> {
     let label = format!("{WINDOW_PREFIX}{name}");
     if app.get_webview_window(&label).is_some() {
-        return Ok(());
+        // Loud rather than silent. A start that quietly does nothing is a
+        // plugin running the old code with the new config, and the only
+        // symptom is a setting that appears not to have taken (spec §1.2).
+        return Err(format!("{name} is already running"));
     }
 
     let registry = app.state::<Registry>();
@@ -89,6 +95,51 @@ pub fn put_away(app: &AppHandle, name: &str, reason: &str) {
     app.state::<Registry>().disable(name, reason);
     eprintln!("planner: {name} has been put away for this session: {reason}");
     close(app, name);
+}
+
+/// Stops a plugin: settles what it was holding, forgets it, and closes its
+/// webview - and does not return until the webview is gone.
+///
+/// The waiting is the point. Tauri's `close()` posts to the event loop and the
+/// label leaves the window map only when `Destroyed` is processed, so a
+/// stop-then-start that did not wait would find the old label still there and
+/// `start` would refuse it (spec §1.2). A listener registered here sees
+/// `Destroyed` *after* the manager has removed the label: the runtime hands
+/// the event to Tauri's own callback before it runs the window's listeners
+/// (tauri-runtime-wry `src/lib.rs`, the `Event::WindowEvent` branch), and that
+/// callback is what removes it.
+pub fn stop(app: &AppHandle, name: &str) -> Result<(), String> {
+    // Off the list first, so nothing new is asked of it while it is going.
+    app.state::<Registry>().stop(name);
+    app.state::<Pending>().settle_all_of(name, &format!("{name} is restarting"));
+    app.state::<Started>().forget(name);
+
+    let label = format!("{WINDOW_PREFIX}{name}");
+    let Some(window) = app.get_webview_window(&label) else {
+        // Already gone is the ordinary case: a plugin put away for hanging
+        // has had its webview closed already.
+        return Ok(());
+    };
+
+    let (gone, went) = std::sync::mpsc::channel();
+    window.on_window_event(move |event| {
+        if matches!(event, tauri::WindowEvent::Destroyed) {
+            let _ = gone.send(());
+        }
+    });
+
+    close(app, name);
+
+    match went.recv_timeout(CLOSING) {
+        Ok(()) => Ok(()),
+        // Said out loud and returned as an error rather than swallowed: the
+        // caller is about to start a plugin under this label, and it will not
+        // go. A silent skip here is spec §1.2's "loud rather than silent".
+        Err(error) => {
+            eprintln!("planner: {label} did not close: {error}");
+            Err(format!("{name} would not close"))
+        }
+    }
 }
 
 /// Closes a plugin's webview, from wherever this was called.

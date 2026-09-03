@@ -61,6 +61,25 @@ impl Pending {
         self.waiting.lock().expect("pending lock").remove(&id);
     }
 
+    /// Settles every question one plugin is holding, with a reason.
+    ///
+    /// Used by `stop`. The reason travels as an `Err`, which the waiter reads
+    /// as an answer it did not like rather than as a deadline it missed - so
+    /// a plugin is never put away for having been restarted.
+    pub fn settle_all_of(&self, owner: &str, reason: &str) {
+        let mut waiting = self.waiting.lock().expect("pending lock");
+        let ids: Vec<u64> = waiting
+            .iter()
+            .filter(|(_, (who, _))| who == owner)
+            .map(|(id, _)| *id)
+            .collect();
+        for id in ids {
+            if let Some((_, sender)) = waiting.remove(&id) {
+                let _ = sender.send(Err(reason.to_string()));
+            }
+        }
+    }
+
     /// How many questions are still open. For the tests.
     pub fn open(&self) -> usize {
         self.waiting.lock().expect("pending lock").len()
@@ -105,5 +124,16 @@ impl Started {
             }
         }
         true
+    }
+
+    /// Forgets that a plugin ever finished starting.
+    ///
+    /// A restarted plugin is a new page with the same name, and nothing is
+    /// asked of it until that page has said so for itself.
+    pub fn forget(&self, name: &str) {
+        self.names.lock().expect("started lock").remove(name);
+        // Nothing is waiting *for* a removal, but a waiter holding the lock
+        // must not be left holding a stale view of it.
+        self.woken.notify_all();
     }
 }

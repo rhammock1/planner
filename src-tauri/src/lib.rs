@@ -202,6 +202,7 @@ pub fn run() {
         plugins::door::plugin_message,
         plugins::list_plugins,
         plugins::start_plugin,
+        plugins::stop_plugin,
         plugins::ask_plugins
     ]);
 

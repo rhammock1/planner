@@ -156,6 +156,19 @@ export async function startPlugin(name, entry, slots, capabilities) {
 }
 
 /**
+ * Stops a plugin and closes its webview.
+ *
+ * Does not resolve until the webview is gone, so a caller may start a plugin
+ * under the same name the moment this settles (spec §1.2).
+ *
+ * @param {string} name
+ * @returns {Promise<void>}
+ */
+export async function stopPlugin(name) {
+  return (await getHost()).stopPlugin(name)
+}
+
+/**
  * Asks every plugin granted this slot, all at once.
  *
  * Slow by nature - it waits on somebody else's code - so nothing renders

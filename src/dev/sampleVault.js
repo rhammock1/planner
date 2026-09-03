@@ -83,6 +83,7 @@ export function sampleHost() {
     // A browser tab is never opened from a menu bar icon.
     onPopoverShown: () => {},
     startPlugin: async () => {},
+    stopPlugin: async () => {},
 
     // No plugin host in a browser: nothing running to ask.
     askPlugins: async () => ({ answers: [], notices: [] }),

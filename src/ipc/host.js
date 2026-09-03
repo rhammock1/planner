@@ -38,6 +38,7 @@
  * @property {(handler: (page: string) => void) => void|Promise<void>} onVaultChanged
  * @property {() => Promise<{name: string, manifest: string}[]>} listPlugins
  * @property {(name: string, entry: string, slots: string[], capabilities: string[]) => Promise<void>} startPlugin
+ * @property {(name: string) => Promise<void>} stopPlugin
  * @property {(slot: string, now: Now, params: Record<string, unknown>) => Promise<Answers>} askPlugins
  * @property {(handler: () => void) => void|Promise<void>} onPopoverShown
  */
@@ -117,6 +118,7 @@ function tauriHost() {
     listPlugins: () => invoke('list_plugins'),
     startPlugin: (name, entry, slots, capabilities) =>
       invoke('start_plugin', { name, entry, slots, capabilities }),
+    stopPlugin: (name) => invoke('stop_plugin', { name }),
     askPlugins: (slot, now, params) => invoke('ask_plugins', { slot, now, params }),
     onPopoverShown: (handler) => tauri.event.listen('popover:shown', () => handler()),
     readTheme: (name) => invoke('read_theme', { name }),

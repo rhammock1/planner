@@ -34,6 +34,9 @@ struct Grant {
     /// Why it was put away, for the pane to show. A person who switches a
     /// plugin off and on again does not know what it did (spec §1.2).
     reason: Option<String>,
+    /// Whether its webview is up. A stop is not a judgement, so it is kept
+    /// apart from `disabled`, which is.
+    running: bool,
 }
 
 impl Registry {
@@ -55,7 +58,7 @@ impl Registry {
         let (strikes, disabled, reason, handles) = kept.unwrap_or((0, false, None, None));
         held.insert(
             name.to_string(),
-            Grant { entry, slots, capabilities, handles, strikes, disabled, reason },
+            Grant { entry, slots, capabilities, handles, strikes, disabled, reason, running: true },
         );
     }
 
@@ -87,7 +90,9 @@ impl Registry {
         let held = self.0.lock().expect("registry lock");
         let mut names: Vec<String> = held
             .iter()
-            .filter(|(_, grant)| !grant.disabled && grant.slots.iter().any(|one| one == slot))
+            .filter(|(_, grant)| {
+                grant.running && !grant.disabled && grant.slots.iter().any(|one| one == slot)
+            })
             .map(|(name, _)| name.clone())
             .collect();
         // Stable order, so two runs answer in the same order and a section
@@ -155,5 +160,16 @@ impl Registry {
     pub fn disabled(&self, name: &str) -> bool {
         let held = self.0.lock().expect("registry lock");
         held.get(name).map(|grant| grant.disabled).unwrap_or(true)
+    }
+
+    /// Takes a plugin off the list of things worth asking, without forgiving
+    /// anything. Its strikes, its disabling and the reason all stay.
+    pub fn stop(&self, name: &str) {
+        let mut held = self.0.lock().expect("registry lock");
+        if let Some(grant) = held.get_mut(name) {
+            grant.running = false;
+            // Its next page will say for itself what it handles.
+            grant.handles = None;
+        }
     }
 }
