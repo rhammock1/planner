@@ -157,6 +157,63 @@ export function plan(folders, configured) {
 }
 
 /**
+ * A plugin's whole record as one string, for deciding whether it has changed.
+ *
+ * Sorted and written out by hand rather than handed to `JSON.stringify`,
+ * which writes a `Map` as `{}` - settings live in one (§2.2), so a plugin
+ * whose settings changed would otherwise look identical to itself (spec §1.2).
+ *
+ * @param {Start} start
+ * @returns {string}
+ */
+export function signature(start) {
+  return JSON.stringify([
+    start.name,
+    start.entry,
+    [...start.slots].sort(),
+    [...start.capabilities].sort(),
+  ])
+}
+
+/**
+ * What has to happen for what is running to become what is planned.
+ *
+ * A restart is the only way anything about a plugin changes: a page that
+ * reloads is simpler than one that has to be right while its inputs move.
+ *
+ * @param {Map<string, string>} running  name -> the signature it was started with
+ * @param {Start[]} planned
+ * @returns {{stop: string[], start: Start[]}}
+ */
+export function diff(running, planned) {
+  /** @type {string[]} */
+  const stop = []
+  /** @type {Start[]} */
+  const start = []
+
+  const wanted = new Map(planned.map((one) => [one.name, one]))
+
+  for (const [name, was] of running) {
+    const now = wanted.get(name)
+    if (now === undefined) {
+      stop.push(name)
+      continue
+    }
+    if (signature(now) !== was) stop.push(name)
+  }
+  // Settled, so two runs of the same change do the same thing in the same
+  // order and a log reads the same twice.
+  stop.sort()
+
+  for (const one of planned) {
+    const was = running.get(one.name)
+    if (was === undefined || was !== signature(one)) start.push(one)
+  }
+
+  return { stop, start }
+}
+
+/**
  * The intersection, in the manifest's order: the manifest is the ceiling, so
  * what it does not ask for cannot be granted however the config is written.
  *

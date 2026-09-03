@@ -17,6 +17,7 @@ import { serialize } from './core/serialize.js'
 import { buildIndex, getPage, withPage } from './core/vaultIndex.js'
 import { DEFAULTS, DEFAULT_CONFIG_TEXT, updateConfig, updatePlugin } from './core/config.js'
 import { createWriteQueue } from './writeQueue.js'
+import { createAsking } from './plugins/asking.js'
 import * as ipc from './ipc.js'
 import * as startup from './startup.js'
 import { today, nowTime } from './clock.js'
@@ -31,9 +32,11 @@ import { today, nowTime } from './clock.js'
  * @property {(name: string, settings: import('./core/config.js').PluginConfig) => Promise<void>} savePlugin
  * @property {() => import('./core/plugins.js').Folder[]} folders
  * @property {() => boolean} vaultExists
- * @property {() => Promise<void>} startPlugins
- * @property {(from: string, to: string) => Promise<void>} loadContributions
- * @property {() => {plugin: string, value: unknown}[]} contributions
+ * @property {() => Promise<void>} syncPlugins
+ * @property {(slot: string, key: string, params: Record<string, unknown>) => {plugin: string, value: unknown}[]} pluginAnswers
+ * @property {() => void} refreshPlugins
+ * @property {() => number} pluginGeneration
+ * @property {() => import('./ipc/host.js').PluginState[]} pluginStates
  * @property {() => VaultIndex} vault
  * @property {() => import('./core/config.js').Config} config
  * @property {() => string[]} notices
@@ -57,11 +60,12 @@ export function createStore() {
   let config = DEFAULTS
   /** @type {string[]} */
   let notices = []
-  /** What the plugins said about the last time they were asked.
+  /** What syncing the plugins last said - a manifest that could not be read,
+   *  a plugin that would not start or stop.
    *
-   *  Kept apart from the rest because they are asked again every time the
-   *  popover is opened: appended, a calendar that is not allowed would leave
-   *  the same line behind on every open until the page was all notice.
+   *  Kept apart from the rest because a sync happens every time the popover
+   *  is opened: appended, a problem that has since been fixed would leave the
+   *  same line behind on every open until the page was all notice.
    *  @type {string[]} */
   let pluginNotices = []
   /** Where `~` points, learned when the config was read. */
@@ -75,10 +79,18 @@ export function createStore() {
   let vaultExists = false
   /** @type {() => void} */
   let changed = () => {}
-  /** Whatever the plugins last returned. Not this app's data; checked on the
-   *  way to a page, not here. */
-  /** @type {{plugin: string, value: unknown}[]} */
-  let contributions = []
+
+  // Which plugins are up, and what they have said. Every window has one; only
+  // the popover ever calls `sync`, because the popover is the window that
+  // always exists (spec §1.3).
+  const plugins = createAsking({
+    startPlugin: ipc.startPlugin,
+    stopPlugin: ipc.stopPlugin,
+    askPlugins: ipc.askPlugins,
+    pluginStates: ipc.pluginStates,
+    now: () => ({ date: today(), time: nowTime() }),
+    onChanged: () => changed(),
+  })
 
   /**
    * Reads the config, applies the theme, opens the vault and indexes it.
@@ -160,53 +172,43 @@ export function createStore() {
     return { home }
   }
 
-  /**
-   * Starts the plugins the config enables. The popover does this; the other
-   * windows do not, because nothing in them shows what a plugin contributes.
-   *
-   * @returns {Promise<void>}
-   */
-  async function startPlugins() {
-    const said = await startup.startPlugins(folders, config.plugins)
-    if (said.length === 0) return
-    notices = [...notices, ...said]
-    changed()
-  }
-
-  /**
-   * Asks the plugins what they have for a range of days.
-   *
-   * Nothing waits for this. The page has already been drawn without them,
-   * and is drawn again if and when they answer.
-   *
-   * @param {string} from
-   * @param {string} to
-   * @returns {Promise<void>}
-   */
-  async function loadContributions(from, to) {
-    try {
-      const given = await ipc.askPlugins('vault.contribute', nowOf(), { from, to })
-      contributions = given.answers
-      pluginNotices = given.notices
-    } catch (error) {
-      contributions = []
-      pluginNotices = [`Could not ask the plugins: ${message(error)}`]
-    }
-    changed()
-  }
-
   return {
     start,
     saveConfig: (patch) => save((text) => updateConfig(text, patch)),
-    savePlugin: (name, settings) => save((text) => updatePlugin(text, name, settings)),
+
+    /**
+     * Writes settings to `config.toml`, then brings what is running into
+     * line with what the file now says: a pane write is the one thing that
+     * changes a plugin while the app is up.
+     */
+    savePlugin: async (name, settings) => {
+      await save((text) => updatePlugin(text, name, settings))
+      const said = await plugins.sync(folders, config.plugins)
+      pluginNotices = said
+      changed()
+    },
+
     folders: () => folders,
     vaultExists: () => vaultExists,
-    startPlugins,
-    loadContributions,
-    contributions: () => contributions,
+
+    /**
+     * Brings what is running into line with what the two files say. The
+     * popover does this; the other windows do not, because nothing in them
+     * asks a plugin for anything (spec §1.3).
+     */
+    syncPlugins: async () => {
+      const said = await plugins.sync(folders, config.plugins)
+      pluginNotices = said
+      changed()
+    },
+    pluginAnswers: plugins.answers,
+    refreshPlugins: plugins.refresh,
+    pluginGeneration: plugins.generation,
+    pluginStates: plugins.states,
+
     vault: () => vault,
     config: () => config,
-    notices: () => [...notices, ...pluginNotices],
+    notices: () => [...notices, ...pluginNotices, ...plugins.notices()],
 
     notice: (text) => {
       notices = [...notices, text]
@@ -251,9 +253,4 @@ export function createStore() {
  */
 function message(error) {
   return error instanceof Error ? error.message : String(error)
-}
-
-/** The day and the time, as every question to a plugin carries them. */
-function nowOf() {
-  return { date: today(), time: nowTime() }
 }

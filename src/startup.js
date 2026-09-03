@@ -12,7 +12,6 @@
 
 import { readConfig as parseConfig, expandHome } from './core/config.js'
 import { readTheme as parseTheme, themeCss, LEDGER } from './core/theme.js'
-import { plan } from './core/plugins.js'
 import * as ipc from './ipc.js'
 
 /** @typedef {import('./core/config.js').Config} Config */
@@ -88,29 +87,6 @@ export async function openVault(vault, home) {
     return { exists, notices: ['Nothing is watching the vault: an edit made elsewhere will not show until this page is reopened.'] }
   }
   return { exists, notices: [] }
-}
-
-/**
- * Starts the plugins the config enables (spec §7).
- *
- * A plugin that will not start stops nothing else: the app is a planner
- * first, and a plugin host only where that costs the planner nothing.
- *
- * @param {import('./core/plugins.js').Folder[]} folders  every plugin on disk
- * @param {Map<string, import('./core/config.js').PluginConfig>} configured
- * @returns {Promise<string[]>} notices
- */
-export async function startPlugins(folders, configured) {
-  const { start, notices } = plan(folders, configured)
-  const failures = []
-  for (const plugin of start) {
-    try {
-      await ipc.startPlugin(plugin.name, plugin.entry, plugin.slots, plugin.capabilities)
-    } catch (error) {
-      failures.push(`Could not start ${plugin.name}: ${message(error)}`)
-    }
-  }
-  return [...notices, ...failures]
 }
 
 /**

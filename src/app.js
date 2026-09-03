@@ -108,23 +108,19 @@ async function start() {
 
   // After the page is up, never before it. A plugin is somebody else's code
   // and the day does not wait on it (addendum §4).
-  const ask = () => {
-    const now = today()
-    return store.loadContributions(now, now)
-  }
-  void store.startPlugins().then(ask)
+  void store.syncPlugins()
 
-  // Every quarter of an hour, and after anything rings. Which is also how
-  // midnight is noticed: today's alarms have all gone by and tomorrow's have
-  // never been sent (spec §5.9).
+  // Every quarter of an hour, and after anything rings - which is also how
+  // midnight is noticed: today's alarms have gone and tomorrow's have not (spec §5.9).
   try {
-    await ipc.onScheduleRefresh(() => { draw() })
+    await ipc.onScheduleRefresh(() => { store.refreshPlugins(); draw() })
   } catch (error) {
     store.notice(`Reminders will stop after today: ${message(error)}`)
   }
 
   try {
-    await ipc.onPopoverShown(() => { void ask() })
+    // Opening the page is asking what today looks like, not what launch said.
+    await ipc.onPopoverShown(() => { store.refreshPlugins(); draw() })
   } catch (error) {
     // Not fatal: the day still shows what the plugins said at launch.
     store.notice(`Plugins will not refresh when the page opens: ${message(error)}`)
@@ -173,10 +169,11 @@ function draw() {
   // draw, and if this is today's page it is now a different one.
   showing.tick(now)
   const page = showing.page()
-  // Today's page only. Flipping back to Friday shows what you wrote that
-  // day, not what your calendar said (addendum §1).
+  // Today's page only, and asked again with a fresh key on every refresh
+  // (addendum §1, spec §1.4).
+  const key = `${now}:${now}:${store.pluginGeneration()}`
   const given = page === now
-    ? readContributions(store.contributions(), page)
+    ? readContributions(store.pluginAnswers('vault.contribute', key, { from: now, to: now }), page)
     : { events: [], notices: [] }
 
   ambient.update(now)

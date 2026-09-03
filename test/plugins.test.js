@@ -7,7 +7,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { plan, installed, isPluginName } from '../src/core/plugins.js'
+import { plan, installed, isPluginName, diff, signature } from '../src/core/plugins.js'
 
 /** @typedef {import('../src/core/config.js').PluginConfig} PluginConfig */
 
@@ -279,4 +279,62 @@ test('the pane is shown what a plugin asks to be shown', () => {
 test('an approved slot the manifest does not ask for is not shown as granted', () => {
   const [listed] = installed(folders(), configured({ approvedSlots: ['item.badge'] }))
   assert.deepEqual(listed?.approvedSlots, [])
+})
+
+/** @param {Partial<import('../src/core/plugins.js').Start>} [over] */
+function started(over) {
+  return {
+    name: over?.name ?? 'ticket-links',
+    entry: over?.entry ?? 'index.js',
+    slots: over?.slots ?? ['item.badge'],
+    capabilities: over?.capabilities ?? ['shell.open'],
+  }
+}
+
+test('the same plugin, written two ways, has one signature', () => {
+  // Order is not a difference. A config that lists two approvals the other way
+  // round would otherwise restart every plugin at every launch.
+  assert.equal(
+    signature(started({ slots: ['item.badge'], capabilities: ['shell.open', 'a.b'] })),
+    signature(started({ slots: ['item.badge'], capabilities: ['a.b', 'shell.open'] })),
+  )
+})
+
+test('anything different is a different signature', () => {
+  const base = signature(started())
+  assert.notEqual(base, signature(started({ entry: 'main.js' })))
+  assert.notEqual(base, signature(started({ slots: [] })))
+  assert.notEqual(base, signature(started({ capabilities: [] })))
+})
+
+test('a plan with something new starts it', () => {
+  const { stop, start } = diff(new Map(), [started()])
+  assert.deepEqual(stop, [])
+  assert.deepEqual(start.map((one) => one.name), ['ticket-links'])
+})
+
+test('a plugin no longer planned is stopped', () => {
+  const running = new Map([['ticket-links', signature(started())]])
+  const { stop, start } = diff(running, [])
+  assert.deepEqual(stop, ['ticket-links'])
+  assert.deepEqual(start, [])
+})
+
+test('a plugin running exactly as planned is left alone', () => {
+  const running = new Map([['ticket-links', signature(started())]])
+  const { stop, start } = diff(running, [started()])
+  assert.deepEqual(stop, [])
+  assert.deepEqual(start, [])
+})
+
+test('a plugin whose record changed is stopped and started again', () => {
+  const running = new Map([['ticket-links', signature(started())]])
+  const { stop, start } = diff(running, [started({ capabilities: [] })])
+  assert.deepEqual(stop, ['ticket-links'])
+  assert.deepEqual(start.map((one) => one.name), ['ticket-links'])
+})
+
+test('what is stopped comes back in a settled order', () => {
+  const running = new Map([['zulu', 'x'], ['alpha', 'x']])
+  assert.deepEqual(diff(running, []).stop, ['alpha', 'zulu'])
 })
