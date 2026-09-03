@@ -28,6 +28,18 @@ fn anything_else_is_not_a_prefix() {
 }
 
 #[test]
+fn a_prefix_carrying_a_query_or_a_fragment_is_not_a_prefix() {
+    // The pane shows the entry verbatim on its checkbox and `within` reads
+    // scheme, host, port and path segments only, so this one reads to a
+    // person as "the pull requests of gotab-inc/node" while approving every
+    // address on github.com. Refused here as well as in the frontend,
+    // because this side is the boundary.
+    assert!(parse_prefix("https://github.com/?a=/gotab-inc/node/pull/").is_none());
+    assert!(parse_prefix("https://github.com/#/gotab-inc/node/pull/").is_none());
+    assert!(parse_prefix("https://github.com/x/?").is_none());
+}
+
+#[test]
 fn a_url_under_the_prefix_is_opened() {
     let prefix = parse_prefix("https://github.com/gotab-inc/node/pull/").expect("prefix");
     assert!(within(&prefix, &url("https://github.com/gotab-inc/node/pull/4412")));

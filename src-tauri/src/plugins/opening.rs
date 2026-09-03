@@ -16,12 +16,21 @@ use super::Registry;
 ///
 /// `https:` or `http:`, no userinfo, and a trailing slash - without which
 /// `…/gotab` would approve `…/gotabbing-elsewhere`.
+///
+/// No query and no fragment either. `within` compares scheme, host, port and
+/// path segments, so `https://github.com/?a=/org/repo/pull/` would read on
+/// the pane's checkbox as one repository's pull requests and approve every
+/// address on the host. What is shown and what is enforced are the same
+/// string only if the part that is never compared cannot be written down.
 pub fn parse_prefix(entry: &str) -> Option<Url> {
     let url = Url::parse(entry).ok()?;
     if url.scheme() != "https" && url.scheme() != "http" {
         return None;
     }
     if !url.username().is_empty() || url.password().is_some() {
+        return None;
+    }
+    if url.query().is_some() || url.fragment().is_some() {
         return None;
     }
     if !url.path().ends_with('/') {

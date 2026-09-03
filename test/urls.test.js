@@ -29,6 +29,22 @@ test('a prefix carrying a username is refused', () => {
   assert.match(readPrefix('https://user:pw@github.com/x/').error ?? '', /user/)
 })
 
+test('a prefix carrying a query or a fragment is refused', () => {
+  // The pane shows the entry verbatim on its checkbox, and the comparison
+  // reads scheme, host, port and path segments only. So this one reads to a
+  // person as "the pull requests of gotab-inc/node" and would in fact approve
+  // every address on github.com. Refused, rather than shown narrower than it
+  // is, so the label and the enforced scope are the same string.
+  assert.match(readPrefix('https://github.com/?a=/gotab-inc/node/pull/').error ?? '', /query|fragment/)
+  assert.match(readPrefix('https://github.com/#/gotab-inc/node/pull/').error ?? '', /query|fragment/)
+  assert.match(readPrefix('https://github.com/x/?').error ?? '', /query|fragment/)
+})
+
+test('a query-carrying prefix approves nothing, not everything on the host', () => {
+  const wide = readPrefix('https://github.com/?a=/gotab-inc/node/pull/')
+  assert.equal(mayOpen('https://github.com/settings/tokens', [wide.prefix]), false)
+})
+
 test('a prefix that does not end in a slash is refused', () => {
   // Without it, `https://github.com/gotab` would approve
   // `https://github.com/gotabbing-elsewhere`.

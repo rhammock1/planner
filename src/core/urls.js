@@ -40,6 +40,20 @@ export function readPrefix(entry) {
   if (url.username !== '' || url.password !== '') {
     return bad(`${entry} carries a username, which is not allowed`)
   }
+  // A query or a fragment is shown on the tick and never compared: `mayOpen`
+  // reads scheme, host, port and path segments, so
+  // `https://github.com/?a=/org/repo/pull/` would sit on its checkbox
+  // reading as one repository's pull requests and approve the whole host.
+  // Refusing it is what keeps the pane's label and the enforced scope the
+  // same string.
+  // Compared against the whole href rather than against `search` and `hash`,
+  // which are both '' for a bare trailing `?` or `#` that `href` still keeps -
+  // and it is `href` that gets stored and shown. Rust's `parse_prefix` reads
+  // those as `Some("")` and refuses them, so this is also what keeps the two
+  // sides answering the same question.
+  if (url.href !== `${url.origin}${url.pathname}`) {
+    return bad(`${entry} carries a query or a fragment, which is not part of an approved folder of addresses`)
+  }
   if (!ENDS_IN_SLASH.test(url.pathname)) {
     return bad(`${entry} does not end in a slash, so it is not a folder of addresses`)
   }
