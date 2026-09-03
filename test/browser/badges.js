@@ -15,7 +15,7 @@ const found = document.querySelector('#stage')
 if (!(found instanceof HTMLElement)) throw new Error('no stage')
 const stage = found
 
-const PAGE = '# 2026-09-01\n\n- [ ] Review PR #4412\n- [ ] Nothing to say about this one\n'
+const PAGE = '# 2026-09-01\n\n- [ ] Review PR #4412 @9:00\n- [ ] Nothing to say about this one\n'
 
 /**
  * @param {string[]} clicked  filled with `${plugin} ${href}` on every onBadge call
@@ -83,6 +83,28 @@ check('a badge is an anchor, after the time and before the note', () => {
   const marksAt = children.indexOf(marks)
   const noteAt = children.indexOf(note)
   ok(timeAt < marksAt && marksAt < noteAt, `order is ${children.map((c) => c.className).join(', ')}`)
+})
+
+// DOM order is not screen order: a badge with no grid position of its own
+// can still land on a different row from the time it is meant to sit beside.
+// The fixture line above carries a time (`@9:00`) precisely so `.item-time`
+// is not `display:none` here - a hidden time drops out of the grid, and the
+// badge would happen to land next to the text regardless of whether its own
+// grid position is correct.
+check('the badge sits on the same row as the time, to its right of it', () => {
+  const { list, doc } = mount()
+  list.render(doc, new Map([[1, [{ plugin: 'ticket-links', label: '#4412', href: 'https://x/pull/4412' }]]]))
+
+  const row = lineSaying('Review PR #4412')
+  const time = row.querySelector('.item-time')
+  const badge = row.querySelector('.item-badge')
+  if (!(time instanceof HTMLElement) || !(badge instanceof HTMLElement)) throw new Error('no time or badge')
+
+  const timeBox = time.getBoundingClientRect()
+  const badgeBox = badge.getBoundingClientRect()
+  ok(!time.hidden, 'the fixture line has no time to test against')
+  equal(Math.round(timeBox.top), Math.round(badgeBox.top), `time is at ${timeBox.top}, badge at ${badgeBox.top} - different rows`)
+  ok(badgeBox.left >= timeBox.right, `badge at ${badgeBox.left} sits to the left of the time, which ends at ${timeBox.right}`)
 })
 
 check('a row with no badge has an empty, hidden container', () => {

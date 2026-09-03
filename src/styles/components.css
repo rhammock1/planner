@@ -181,7 +181,10 @@
 
 .item {
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) auto;
+  /* A 4th track for the badges, explicit rather than left to auto-placement:
+     with only 3 tracks, a badge with no position of its own overflowed the
+     row and wrapped under the checkbox instead of sitting beside the time. */
+  grid-template-columns: 16px minmax(0, 1fr) auto auto;
   gap: 0 10px;
   align-items: baseline;
   padding: 8px 16px;

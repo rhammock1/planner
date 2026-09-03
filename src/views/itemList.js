@@ -11,6 +11,7 @@
 
 import { patchList } from '../ui/keyedList.js'
 import { el, setText } from '../ui/dom.js'
+import { drawBadges, badgeClicked } from './itemBadges.js'
 
 /** @typedef {import('../core/model.js').Document} Document */
 /** @typedef {import('../core/model.js').Item} Item */
@@ -38,19 +39,10 @@ export function createItemList(handlers, options) {
 
   // Delegated, so a row patched in later needs no wiring of its own.
   element.addEventListener('click', (event) => {
+    if (badgeClicked(event, handlers.onBadge)) return
+
     const target = event.target
-    if (!(target instanceof HTMLElement)) return
-
-    const mark = target.closest('.item-badge')
-    if (mark instanceof HTMLElement) {
-      event.preventDefault()
-      const plugin = mark.dataset['plugin'] ?? ''
-      const href = mark.dataset['href'] ?? ''
-      if (plugin !== '' && href !== '') handlers.onBadge(plugin, href)
-      return
-    }
-
-    if (!target.classList.contains('item-check')) return
+    if (!(target instanceof HTMLElement) || !target.classList.contains('item-check')) return
     const index = indexOf(target)
     if (index !== null) handlers.onToggle(index)
   })
@@ -279,39 +271,6 @@ function updateRow(row, item, badges, caret) {
     setText(note, item.note ?? '')
     note.hidden = item.note === null
   }
-}
-
-/**
- * The markers after a line.
- *
- * Rebuilt whole rather than patched: there are at most a handful, none of them
- * holds a caret, and a keyed list for two anchors would be more machinery than
- * the thing it manages.
- *
- * @param {HTMLElement} into
- * @param {Badge[]} badges
- * @returns {void}
- */
-function drawBadges(into, badges) {
-  // A line with no marker has no gap: the container is not there at all,
-  // rather than there and empty with its own margin.
-  into.hidden = badges.length === 0
-  if (badges.length === 0) {
-    into.replaceChildren()
-    return
-  }
-
-  into.replaceChildren(...badges.map((badge) => {
-    // An anchor, not a styled span: it is a link, it should look like one to
-    // a screen reader, and Tab should stop on it.
-    const mark = el('a', 'item-badge', badge.label)
-    mark.setAttribute('href', '#')
-    mark.setAttribute('role', 'link')
-    mark.title = `${badge.plugin}: ${badge.href}`
-    mark.dataset['plugin'] = badge.plugin
-    mark.dataset['href'] = badge.href
-    return mark
-  }))
 }
 
 /**
