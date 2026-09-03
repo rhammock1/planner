@@ -212,6 +212,11 @@ hint  = "https://github.com/org/repo/pull/$1"
 | `default` | The value used until the person types one, matching `kind`. Optional; `url` above has none on purpose, since a default here would be the author's host, not yours. |
 | `hint` | A placeholder shown in an empty `text` or `count` field. Optional. |
 
+A setting with no `default` is **absent** from `planner.settings` until
+somebody sets one — not present and empty. Read it with `??`, the way
+`ticket-links` does with `String(planner.settings.url ?? '')`, or the first
+run on a fresh install throws.
+
 A key that will not do — no label, an unknown kind, a default of the wrong
 type — is dropped with a notice; the rest of the settings, and the plugin
 itself, still work.

@@ -40,7 +40,11 @@ planner.on('item.badge', ({ items }) => {
     return [{
       index: item.index,
       label: captured.startsWith('#') ? captured : `#${captured}`,
-      href: address.replace('$1', encodeURIComponent(captured)),
+      // Every `$1`, not the first: a template that names the placeholder
+      // twice would otherwise half-render into an address nobody meant.
+      // `encodeURIComponent` has already turned any `$` in the captured text
+      // into `%24`, so the replacement cannot introduce one of its own.
+      href: address.replaceAll('$1', encodeURIComponent(captured)),
     }]
   })
 })

@@ -98,8 +98,13 @@ declare const planner: {
    * This plugin's own settings, as `config.toml` holds them, keyed the way
    * `[settings.*]` in the manifest named them.
    *
+   * `Partial`, and that is the interesting half: a setting the manifest
+   * declared with no `default` and nobody has set is *absent*, not empty. So
+   * read one with `??` - `String(planner.settings.url ?? '')` - rather than
+   * reaching straight through it.
+   *
    * Never changes while the plugin is running: a change in the settings pane
    * restarts it.
    */
-  readonly settings: Readonly<Record<string, string | number | boolean>>
+  readonly settings: Readonly<Partial<Record<string, string | number | boolean>>>
 }
