@@ -90,3 +90,24 @@ PLANNER_HOME=/tmp/planner-home npm run app
       answered at once. The door does not sit on the main thread.
 - [ ] A folder in `~/.planner/plugins` named `Ticket Links` is listed in the
       settings pane with the reason and never starts.
+- [ ] With `ticket-links` installed, its sentence is unticked in the pane and
+      no marker appears. Tick it, and `#4412` on a line grows a marker without
+      a restart.
+- [ ] Clicking the marker opens the pull request in the browser. A line with
+      no ticket has no marker and no gap where one would be.
+- [ ] Unticking the address under `shell.open` leaves the marker on the page
+      and refuses the click with a notice.
+- [ ] Editing a line re-asks: the marker follows `#4412` to `#4413`, and
+      typing in the daily note re-asks nothing.
+- [ ] Toggling a plugin off in the pane: its webview is gone — the app's
+      `WebContent` count in Activity Monitor drops — and its lines leave the
+      page, without a restart. Toggling it on brings both back with no notice.
+- [ ] A manifest edited to add a slot shows the new sentence unticked, and the
+      plugin is not asked that question until it is ticked.
+- [ ] A plugin whose manifest declares `item.badge` and whose code registers
+      nothing gives one notice rather than two seconds of nothing.
+- [ ] A plugin put away for hanging shows the reason in the pane, and still
+      shows it after being switched off and on again.
+- [ ] Two plugins both answering `item.badge` put two markers on the line, in
+      name order, and one slow one does not delay the other's marker by two
+      seconds.

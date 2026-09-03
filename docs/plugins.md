@@ -10,21 +10,24 @@ this API exists to serve, and the reason it is small.
 ## A plugin is a folder
 
 ```
-~/.planner/plugins/macos-calendar/
+~/.planner/plugins/ticket-links/
   manifest.toml
   index.js
 ```
 
 ```toml
 # manifest.toml
-name = "macos-calendar"
-version = "0.1.0"
-description = "Shows the day's events under your list"
-entry = "index.js"
-slots = ["vault.contribute"]
+name        = "ticket-links"
+version     = "0.1.0"
+description = "Opens the ticket a line mentions"
+entry       = "index.js"
+slots       = ["item.badge"]
 
 [permissions]
-capabilities = ["macos.calendar.read"]
+capabilities = ["shell.open"]
+
+[permissions.open]
+urls = ["https://github.com/org/repo/pull/"]
 ```
 
 `entry` is the file the plugin starts at, relative to its own folder. A path
@@ -32,27 +35,34 @@ that climbs out of it is refused.
 
 ## Turning one on
 
+> **Upgrading.** `approved_slots` is new. A plugin installed before this
+> version has no line for it, which reads as "approved for nothing" — it will
+> run and be asked nothing until you tick its sentence in the ⌘, pane once.
+> That is deliberate: a permission nobody was ever asked about is not consent.
+
 Nothing runs because it was installed. `config.toml` decides:
 
 ```toml
-[plugins.macos-calendar]
-enabled            = true
-approved_capabilities = ["macos.calendar.read"]
+[plugins.ticket-links]
+enabled               = true
+approved_slots        = ["item.badge"]
+approved_capabilities = ["shell.open"]
+approved_open         = ["https://github.com/org/repo/pull/"]
 ```
 
-**The manifest is the ceiling.** A capability approved here that the manifest
-does not ask for is not granted, and says so on the page. A capability the
-manifest asks for that is not approved here is not granted either — the
-plugin still runs, and finds out when it asks.
+**The manifest is the ceiling.** A slot, a capability or an address approved
+here that the manifest does not ask for is not granted, and says so on the
+page. Anything the manifest asks for that is not approved here is not granted
+either — the plugin still runs, and finds out when it asks.
 
 A settings pane is coming; until it does, this file is the only way in.
 
 ## The API
 
 ```js
-// Supply lines for a range of days. The one slot there is.
-planner.onContribute(({ from, to }) => [
-  { date: '2026-09-01', time: '09:30', text: 'Standup' },
+// Answer a slot, named exactly as the manifest declares it.
+planner.on('item.badge', ({ items }) => [
+  { index: 3, label: '#4412', href: 'https://github.com/org/repo/pull/4412' },
 ])
 
 // Reach something native. Refused unless it was granted.
@@ -60,7 +70,62 @@ const events = await planner.capability('macos.calendar.read').events({ from, to
 ```
 
 `plugins/planner.d.ts` in the repo says the same thing in types, and the
-reference plugin is checked against it.
+reference plugins are checked against it.
+
+### `on(slot, handler)`
+
+```js
+planner.on('item.badge', ({ now, date, items }) => [
+  { index: 3, label: '#4412', href: 'https://github.com/org/repo/pull/4412' },
+])
+```
+
+A handler answers one slot, named exactly as `manifest.toml` declares it.
+`onContribute` is `vault.contribute` under the name it has always had, and
+still works.
+
+Every question carries `now` — `{date, time}`, local — so a plugin reads what
+"now" is from the question rather than holding a clock of its own. A hidden
+webview's timers are throttled and its idea of the time drifts.
+
+**Both files have to agree.** A slot the manifest declares that `config.toml`
+has not approved is never asked. A slot the plugin registers a handler for
+that the manifest does not declare is never asked either.
+
+### The slots
+
+| Slot | You are shown | You may answer with |
+|---|---|---|
+| `vault.contribute` | Nothing but the range of days. | `{date, time, text}[]` |
+| `item.badge` | `{date, items: [{index, text}]}` — every line the parser understood on the page being drawn, and where it sits. Not its note, not its tokens, not the daily note. | `{index, label, href}[]` |
+
+A badge's `label` is one line, cut at 16 characters. Its `index` must be one
+the question sent — the lines may have moved while you were thinking, and a
+marker against the wrong line is worse than no marker. One marker per line per
+plugin.
+
+`href` is opened by the app when somebody clicks the marker. Your plugin is
+not asked anything at that point and does not run at all.
+
+### `shell.open`
+
+```toml
+[permissions]
+capabilities = ["shell.open"]
+
+[permissions.open]
+urls = ["https://github.com/org/repo/pull/"]
+```
+
+Every address you may open, listed in the manifest and ticked in the pane one
+by one. A prefix must be `https:` or `http:`, carry no username, and end in a
+slash.
+
+A URL is the one way a plugin's output leaves the machine, so the check is
+strict: scheme, host and port must match a prefix exactly, and the path is
+compared segment by segment on the parsed URL. `https://github.com.evil.io/…`
+and `…/repo/pull/../../evil/` are both refused. So is a click on an address
+that is no longer approved — with a notice, and no strike against you.
 
 ### `onContribute`
 
@@ -133,8 +198,21 @@ anything else is listed in the settings pane with the reason and never started:
 the name becomes a URL host, a window label and a `config.toml` table header,
 and a header is written to that file verbatim.
 
+A plugin is asked only what both files agree on. `slots` in the manifest says
+what it can answer; `approved_slots` in `config.toml` says what it will be
+asked. A slot is not reach — it is what the plugin is *shown* — and it is
+ticked for exactly that reason: `item.badge` hands a plugin the text of every
+line on the page you are looking at, and the pane says so in a sentence next
+to the tick.
+
+Switching a plugin off in the pane stops it and closes its webview, without a
+restart. Changing anything else about it — a slot, a capability, an address —
+restarts it, so the code never runs with a configuration it did not start
+with. A plugin put away for the session stays put away through every toggle,
+and the pane says what it did.
+
 ## Not in v1
 
 `onRender`, `planner.storage`, `planner.vault.read`, `net.fetch`, `fs.read`,
-the `job` slot, and the `item.badge` and `page.section` slots. Each arrives
-when something needs it. A slot with no consumer is a guess about an API.
+the `job` slot, and the `page.section` slot. Each arrives when something
+needs it. A slot with no consumer is a guess about an API.

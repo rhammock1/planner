@@ -1,0 +1,11 @@
+name        = "ticket-links"
+version     = "0.1.0"
+description = "Opens the ticket a line mentions"
+entry       = "index.js"
+slots       = ["item.badge"]
+
+[permissions]
+capabilities = ["shell.open"]
+
+[permissions.open]
+urls = ["https://github.com/gotab-inc/node/pull/"]

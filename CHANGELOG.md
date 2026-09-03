@@ -11,6 +11,9 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Added
 
+-   Plugins can put a marker after a line, and open the address behind it (`item.badge`, `shell.open`). `ticket-links` is the reference plugin
+-   A plugin can be stopped, started and restarted from the settings pane without relaunching the app
+-   The settings pane asks about what a plugin is *shown*, one sentence per slot, and says why a plugin was put away
 -   A settings pane at `⌘,` (spec §3.6, §7). Every setting `config.toml` holds, plus the installed plugins with a switch each and one tick per capability they ask for — because a permission granted in a text editor months ago is one you will not remember granting. It writes the same file, comments and all, the moment a change is made
 -   `⌘F` finds a line anywhere in the vault, from either window (spec §5.7). Results are grouped by day, newest first, and clicking one goes to it — the day itself in the popover, the week it sits in from the detached window. It matches the line as it is written rather than as the page reads it, so `!2026-09-04` finds the deadline you typed; there is no search index, because a decade of pages is under 2MB and a second structure is a thing that can be wrong about what is on disk
 -   `⌘E` opens the day being shown in your own editor (spec §8). The vault is a folder of Markdown precisely so that anything this app gets wrong about a line can be put right by hand; `editor` was a setting nothing read. It falls back to `$VISUAL`, then `$EDITOR`, then whatever the system opens a `.md` with — and because the app is not a terminal, a terminal editor needs `editor` pointed at a script that opens one
@@ -57,6 +60,11 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 -   A keyed list patcher that leaves a row alone while the caret is in it
 -   `npm run serve` and a sample vault, so the frontend runs in a browser before the Tauri shell exists
 -   Project toolchain - `node --test`, TypeScript as a checker only, no build step, zero runtime dependencies
+
+### Changed
+
+-   `slots` in `manifest.toml` is now read, and approved in `config.toml` as `approved_slots`. **A plugin installed before this version is asked nothing until its slot is ticked once**
+-   `contribute` is gone as a command; every slot is asked through `ask_plugins`, which asks all of them at once and says who answered what
 
 ### Fixed
 
