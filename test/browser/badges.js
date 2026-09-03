@@ -107,6 +107,41 @@ check('the badge sits on the same row as the time, to its right of it', () => {
   ok(badgeBox.left >= timeBox.right, `badge at ${badgeBox.left} sits to the left of the time, which ends at ${timeBox.right}`)
 })
 
+// The other side of the rule above: with no time to sit beside, the marker
+// auto-places into the third track and must want no fourth. Checked because
+// the fourth track is now conditional on both being there, and a selector
+// that got that wrong would either wrap the marker under the checkbox or
+// leave a gap standing past it.
+check('a marker on a line with no time still sits after the text, and costs one track', () => {
+  const { list, doc } = mount()
+  list.render(doc, new Map([[2, [{ plugin: 'ticket-links', label: '#7', href: 'https://x/pull/7' }]]]))
+
+  const row = lineSaying('Nothing to say about this one')
+  const time = row.querySelector('.item-time')
+  const text = row.querySelector('.item-text')
+  const badge = row.querySelector('.item-badge')
+  if (!(time instanceof HTMLElement) || !(text instanceof HTMLElement) || !(badge instanceof HTMLElement)) {
+    throw new Error('no time, text or badge')
+  }
+  ok(time.hidden, 'the fixture line has a time, so this checks nothing')
+
+  const textBox = text.getBoundingClientRect()
+  const badgeBox = badge.getBoundingClientRect()
+  // Overlapping boxes rather than equal tops: the two are aligned on their
+  // baselines and the marker's own box is a few pixels taller than the text's.
+  ok(
+    badgeBox.top < textBox.bottom && badgeBox.bottom > textBox.top,
+    `the marker at ${badgeBox.top}-${badgeBox.bottom} wrapped off the text's row at ${textBox.top}-${textBox.bottom}`,
+  )
+  ok(badgeBox.left >= textBox.right, 'the marker sits to the left of the text')
+
+  const style = getComputedStyle(row)
+  const gap = parseFloat(style.columnGap)
+  const contentRight = row.getBoundingClientRect().right - parseFloat(style.paddingRight)
+  const spare = contentRight - badgeBox.right
+  ok(spare < gap, `${spare}px is left over past the marker - a fourth track nothing is in`)
+})
+
 check('a row with no badge has an empty, hidden container', () => {
   const { list, doc } = mount()
   list.render(doc)
@@ -117,6 +152,31 @@ check('a row with no badge has an empty, hidden container', () => {
   ok(marks.hidden, 'the container is not hidden')
   equal(marks.childElementCount, 0, 'the empty container still has children')
   equal(marks.getBoundingClientRect().width, 0, 'a hidden container took up width')
+})
+
+// The container being 0-wide is not the same as costing nothing. A track in
+// `grid-template-columns` stands on every row whether or not anything is
+// placed in it, and so does the gap before it - `display: none` removes the
+// element, not the track. So this measures the space left over to the right
+// of the text on a row that has neither a time nor a marker: one column gap,
+// which is the last one, and not two.
+check('a row with no marker is not narrowed by the column a marker would need', () => {
+  const { list, doc } = mount()
+  list.render(doc)
+
+  const row = lineSaying('Nothing to say about this one')
+  const text = row.querySelector('.item-text')
+  if (!(text instanceof HTMLElement)) throw new Error('no text')
+
+  const style = getComputedStyle(row)
+  const gap = parseFloat(style.columnGap)
+  const contentRight = row.getBoundingClientRect().right - parseFloat(style.paddingRight)
+  const spare = contentRight - text.getBoundingClientRect().right
+
+  ok(
+    Math.abs(spare - gap) < 1,
+    `${spare}px is left over past the text, which should be one ${gap}px gap - a track for a marker that is not there`,
+  )
 })
 
 check('a badge survives a patch while the text holds the caret', () => {

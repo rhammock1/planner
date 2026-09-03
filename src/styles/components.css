@@ -181,14 +181,27 @@
 
 .item {
   display: grid;
-  /* A 4th track for the badges, explicit rather than left to auto-placement:
-     with only 3 tracks, a badge with no position of its own overflowed the
-     row and wrapped under the checkbox instead of sitting beside the time. */
-  grid-template-columns: 16px minmax(0, 1fr) auto auto;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
   gap: 0 10px;
   align-items: baseline;
   padding: 8px 16px;
   border-bottom: 1px solid var(--edge-soft);
+}
+
+/* A 4th track for the badges, explicit rather than left to auto-placement:
+   with only 3 tracks, a badge with no position of its own overflowed the row
+   and wrapped under the checkbox instead of sitting beside the time.
+
+   Declared for the rows that actually need it, and no others. A track in
+   `grid-template-columns` stands on every row whether or not anything is
+   placed in it, and so does the 10px gap before it - `display: none` takes
+   the element out of the grid, not the column - so a 4th track written into
+   `.item` itself narrowed every line's text by a gap for a marker that was
+   not there. Two things after the text is the only case that needs two
+   tracks for them: a marker on a line with no time auto-places into the
+   third and wants no fourth. */
+.item:has(.item-time:not([hidden])):has(.item-badges:not([hidden])) {
+  grid-template-columns: 16px minmax(0, 1fr) auto auto;
 }
 
 .item:last-child { border-bottom: none; }
