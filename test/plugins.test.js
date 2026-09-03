@@ -240,13 +240,19 @@ slots = ["vault.contribute", "theme.tokens"]
 `
   const { start, notices } = plan(
     folders(manifest),
-    configured({ approvedSlots: ['vault.contribute', 'theme.tokens'] }),
+    // This manifest declares no permissions, so approvedCapabilities is
+    // dropped to [] here - otherwise the default capability in configured()
+    // would add its own, unrelated disagreement to notices.
+    configured({ approvedSlots: ['vault.contribute', 'theme.tokens'], approvedCapabilities: [] }),
   )
   assert.deepEqual(start[0]?.slots, ['vault.contribute'])
-  // One line for the manifest's own notice; nothing about the config
-  // approving something the manifest no longer asks for, because a slot this
-  // app has never heard of is not the person's mistake.
-  assert.ok(notices.some((line) => /theme\.tokens/.test(line)))
+  // Exactly one line for theme.tokens - the manifest's own notice. Nothing
+  // about the config approving something the manifest no longer asks for,
+  // because a slot this app has never heard of is not the person's mistake -
+  // and a second notice would directly contradict the first.
+  assert.deepEqual(notices, [
+    'macos-calendar: manifest.toml asks for the theme.tokens slot, which this planner does not offer',
+  ])
 })
 
 test('the pane is shown what a plugin asks to be shown', () => {

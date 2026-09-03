@@ -19,6 +19,7 @@
  */
 
 import { readManifest } from './manifest.js'
+import { isSlot } from './slots.js'
 
 /** @typedef {import('./config.js').PluginConfig} PluginConfig */
 
@@ -135,7 +136,12 @@ export function plan(folders, configured) {
     }
     for (const line of read.notices) notices.push(`${folder.name}: ${line}`)
 
-    disagreements(folder.name, 'slot', read.slots, settings.approvedSlots, notices)
+    // read.slots already dropped names this planner does not offer, with its
+    // own notice for each (above). settings.approvedSlots has not - so an
+    // unoffered name approved in the config is filtered out here too, or it
+    // would earn a second, contradictory notice: "does not ask for it" for a
+    // name the manifest just asked for, one line up.
+    disagreements(folder.name, 'slot', read.slots, settings.approvedSlots.filter(isSlot), notices)
     disagreements(folder.name, 'capability', read.capabilities, settings.approvedCapabilities, notices)
 
     start.push({
