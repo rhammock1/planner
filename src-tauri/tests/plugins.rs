@@ -82,29 +82,18 @@ fn asking_for_what_it_never_had_puts_it_away_eventually() {
 #[test]
 fn a_plugin_that_misses_its_deadline_is_not_asked_again() {
     let registry = granted();
-    assert_eq!(registry.running(), vec!["macos-calendar".to_string()]);
+    assert_eq!(registry.running_for("vault.contribute"), vec!["macos-calendar".to_string()]);
 
     registry.disable("macos-calendar", "did not answer within 2s");
 
-    assert!(registry.running().is_empty());
+    assert!(registry.running_for("vault.contribute").is_empty());
     assert!(!registry.permits("macos-calendar", "macos.calendar.read"));
 }
 
 #[test]
 fn a_plugin_nobody_started_is_not_running() {
-    assert!(Registry::default().running().is_empty());
+    assert!(Registry::default().running_for("vault.contribute").is_empty());
     assert!(Registry::default().disabled("macos-calendar"));
-}
-
-#[test]
-fn the_plugins_are_asked_in_a_settled_order() {
-    let registry = Registry::default();
-    for name in ["zeta", "alpha", "mu"] {
-        registry.grant(name, "index.js".into(), Vec::new(), Vec::new(), Vec::new(), serde_json::json!({}));
-    }
-    // Otherwise the section's lines would shuffle from launch to launch, for
-    // no reason the reader could see.
-    assert_eq!(registry.running(), vec!["alpha", "mu", "zeta"]);
 }
 
 mod answers {
@@ -494,7 +483,7 @@ mod slots {
 }
 
 mod asking {
-    use planner_lib::plugins::host::envelope;
+    use planner_lib::plugins::waiting::envelope;
     use serde_json::json;
 
     #[test]

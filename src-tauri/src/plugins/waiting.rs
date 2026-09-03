@@ -137,3 +137,26 @@ impl Started {
         self.woken.notify_all();
     }
 }
+
+/// The question put to a plugin: what the app asked, with the three things
+/// the host owns written over the top.
+///
+/// The id last and unconditionally, because an id a plugin could choose is an
+/// answer it could put in another plugin's mouth. It lives beside `Pending`
+/// rather than beside the `eval` that sends it because that is the other half
+/// of the same argument: `Pending::ask_of` is what makes the id the host's to
+/// give, `Pending::settle` is what checks the answer came back from the plugin
+/// it was addressed to, and this is what puts the id where a plugin cannot
+/// talk over it.
+pub fn envelope(id: u64, slot: &str, now: &Value, params: &Value) -> Value {
+    let mut asked = match params {
+        Value::Object(_) => params.clone(),
+        // Not an error: the app's own windows build these, and a slot whose
+        // question carries nothing beyond the time is a slot with no params.
+        _ => Value::Object(Default::default()),
+    };
+    asked["kind"] = Value::from(slot);
+    asked["now"] = now.clone();
+    asked["id"] = Value::from(id);
+    asked
+}

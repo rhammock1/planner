@@ -106,20 +106,6 @@ impl Registry {
             .unwrap_or_else(|| Value::Object(Default::default()))
     }
 
-    /// The plugins worth asking anything of: started, and not put away.
-    pub fn running(&self) -> Vec<String> {
-        let held = self.0.lock().expect("registry lock");
-        let mut names: Vec<String> = held
-            .iter()
-            .filter(|(_, grant)| !grant.disabled)
-            .map(|(name, _)| name.clone())
-            .collect();
-        // Stable order, so two runs contribute the same list in the same
-        // order and the section does not shuffle between launches.
-        names.sort();
-        names
-    }
-
     /// The plugins worth putting this question to: started, not put away, and
     /// granted the slot.
     ///

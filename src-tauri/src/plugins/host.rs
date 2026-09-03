@@ -23,7 +23,7 @@ use serde_json::Value;
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 
 use super::serving::literal;
-use super::waiting::{Pending, Started};
+use super::waiting::{envelope, Pending, Started};
 use super::{Registry, WINDOW_PREFIX};
 
 /// How long a plugin has to answer before it is assumed broken (spec §7.4).
@@ -66,7 +66,7 @@ pub fn start(
 
     let refused = name.to_string();
     let handle = app.clone();
-    WebviewWindowBuilder::new(app, &label, WebviewUrl::CustomProtocol(url))
+    let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::CustomProtocol(url))
         .visible(false)
         .on_navigation(move |url| {
             if super::navigable(&refused, url) {
@@ -81,8 +81,19 @@ pub fn start(
             false
         })
         .initialization_script_for_all_frames(NO_WEBRTC)
-        .build()
-        .map_err(|error| format!("could not start {name}: {error}"))?;
+        .build();
+
+    // The grant goes in before the build because the protocol handler reads
+    // it while the webview loads `plugin://<name>/index.html` - `entry_of`
+    // and `settings_of` are what the served page is written from. So a
+    // window that would not build has to have the grant taken back here:
+    // left standing, `may_open` and `running_for` both key off
+    // `running && !disabled` and would go on answering for a window that
+    // never existed.
+    if let Err(error) = built {
+        registry.stop(name);
+        return Err(format!("could not start {name}: {error}"));
+    }
 
     eprintln!("planner: plugin {name} started");
     Ok(())
@@ -217,25 +228,6 @@ pub fn ask(app: &AppHandle, name: &str, slot: &str, now: &Value, params: &Value)
             Err(format!("{name} was interrupted before it answered"))
         }
     }
-}
-
-/// The question put to a plugin: what the app asked, with the three things
-/// the host owns written over the top.
-///
-/// The id last and unconditionally, because an id a plugin could choose is an
-/// answer it could put in another plugin's mouth (`Pending::settle` checks the
-/// owner, and this is the other half of that).
-pub fn envelope(id: u64, slot: &str, now: &Value, params: &Value) -> Value {
-    let mut asked = match params {
-        Value::Object(_) => params.clone(),
-        // Not an error: the app's own windows build these, and a slot whose
-        // question carries nothing beyond the time is a slot with no params.
-        _ => Value::Object(Default::default()),
-    };
-    asked["kind"] = Value::from(slot);
-    asked["now"] = now.clone();
-    asked["id"] = Value::from(id);
-    asked
 }
 
 /// What every plugin had to say, keyed by which one said it.
