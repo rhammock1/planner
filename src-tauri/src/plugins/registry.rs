@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use serde::Serialize;
+use serde_json::Value;
 
 /// How many ungranted requests a plugin gets before it is put away.
 pub const STRIKES: u32 = 3;
@@ -29,6 +30,9 @@ struct Grant {
     /// The addresses this plugin may ask the app to open, agreed entry for
     /// entry between the manifest and the config.
     open: Vec<String>,
+    /// This plugin's own settings, checked against its manifest's schema and
+    /// settled by the frontend - the page it is served carries them.
+    settings: Value,
     /// What the plugin's page said it actually handles, from `ready`. `None`
     /// until it has said so.
     handles: Option<Vec<String>>,
@@ -62,6 +66,7 @@ impl Registry {
         slots: Vec<String>,
         capabilities: Vec<String>,
         open: Vec<String>,
+        settings: Value,
     ) {
         let mut held = self.0.lock().expect("registry lock");
         let kept = held
@@ -70,13 +75,35 @@ impl Registry {
         let (strikes, disabled, reason, handles) = kept.unwrap_or((0, false, None, None));
         held.insert(
             name.to_string(),
-            Grant { entry, slots, capabilities, open, handles, strikes, disabled, reason, running: true },
+            Grant {
+                entry,
+                slots,
+                capabilities,
+                open,
+                settings,
+                handles,
+                strikes,
+                disabled,
+                reason,
+                running: true,
+            },
         );
     }
 
     pub fn entry_of(&self, name: &str) -> Option<String> {
         let held = self.0.lock().expect("registry lock");
         held.get(name).map(|grant| grant.entry.clone())
+    }
+
+    /// A plugin's own settings, as the page it is served will carry them.
+    pub fn settings_of(&self, name: &str) -> Value {
+        let held = self.0.lock().expect("registry lock");
+        held.get(name)
+            .map(|grant| grant.settings.clone())
+            // An object, never null: the page writes it into
+            // `Object.freeze(...)`, and `Object.freeze(null)` is null, which a
+            // plugin reading `planner.settings.pattern` would throw on.
+            .unwrap_or_else(|| Value::Object(Default::default()))
     }
 
     /// The plugins worth asking anything of: started, and not put away.

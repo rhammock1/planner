@@ -93,4 +93,13 @@ declare const planner: {
    * capability and `config.toml` granted it.
    */
   capability(name: 'macos.calendar.read'): Planner.CalendarCapability
+
+  /**
+   * This plugin's own settings, as `config.toml` holds them, keyed the way
+   * `[settings.*]` in the manifest named them.
+   *
+   * Never changes while the plugin is running: a change in the settings pane
+   * restarts it.
+   */
+  readonly settings: Readonly<Record<string, string | number | boolean>>
 }

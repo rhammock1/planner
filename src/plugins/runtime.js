@@ -67,6 +67,18 @@
         events: (params) => send({ kind: 'capability', capability, method: 'events', params }),
       }
     },
+
+    /**
+     * This plugin's own settings, as `config.toml` holds them.
+     *
+     * A getter over what the page wrote, because `runtime.js` runs first and
+     * the value does not exist yet when this object is built. Frozen by the
+     * page, and it never changes under running code: a change in the pane
+     * restarts the plugin (spec §1.2).
+     */
+    get settings() {
+      return /** @type {any} */ (window).__planner?.settings ?? {}
+    },
   }
 
   /**
@@ -98,6 +110,10 @@
   global.planner = planner
   global.__planner = {
     request,
+    /** Overwritten by the page with what `config.toml` holds, before the
+     *  plugin's own entry is imported. Present here so the key exists even
+     *  for a plugin the page never wrote one for. */
+    settings: {},
     /**
      * The plugin's own code has run and its handlers are registered. Sent by
      * the page the host builds, after it imports the plugin's entry - never

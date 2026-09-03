@@ -17,6 +17,7 @@ fn granted() -> Registry {
         vec!["item.badge".into()],
         vec!["shell.open".into()],
         Vec::new(),
+        serde_json::json!({}),
     );
     registry
 }
@@ -33,7 +34,7 @@ fn a_stopped_plugin_is_asked_nothing() {
 fn starting_it_again_makes_it_askable_again() {
     let registry = granted();
     registry.stop("ticket-links");
-    registry.grant("ticket-links", "index.js".into(), vec!["item.badge".into()], Vec::new(), Vec::new());
+    registry.grant("ticket-links", "index.js".into(), vec!["item.badge".into()], Vec::new(), Vec::new(), serde_json::json!({}));
     assert_eq!(registry.running_for("item.badge"), vec!["ticket-links"]);
 }
 
@@ -44,7 +45,7 @@ fn a_stop_does_not_forgive_a_plugin_that_was_put_away() {
     let registry = granted();
     registry.disable("ticket-links", "did not answer within 2s");
     registry.stop("ticket-links");
-    registry.grant("ticket-links", "index.js".into(), vec!["item.badge".into()], Vec::new(), Vec::new());
+    registry.grant("ticket-links", "index.js".into(), vec!["item.badge".into()], Vec::new(), Vec::new(), serde_json::json!({}));
     assert!(registry.disabled("ticket-links"));
     assert!(registry.running_for("item.badge").is_empty());
 }
@@ -61,6 +62,7 @@ fn a_stopped_plugin_is_not_answered_for_what_it_may_open() {
         Vec::new(),
         Vec::new(),
         vec!["https://github.com/gotab-inc/node/pull/".into()],
+        serde_json::json!({}),
     );
     assert_eq!(
         registry.may_open("ticket-links"),
@@ -138,7 +140,7 @@ fn the_first_reason_is_the_true_one() {
 fn the_states_come_back_in_a_settled_order() {
     let registry = Registry::default();
     for name in ["zulu", "alpha"] {
-        registry.grant(name, "index.js".into(), Vec::new(), Vec::new(), Vec::new());
+        registry.grant(name, "index.js".into(), Vec::new(), Vec::new(), Vec::new(), serde_json::json!({}));
     }
     let names: Vec<String> = registry.states().into_iter().map(|state| state.name).collect();
     assert_eq!(names, vec!["alpha".to_string(), "zulu".to_string()]);

@@ -119,3 +119,15 @@ test('registering a slot twice replaces the handler rather than answering twice'
   assert.equal(sent.length, 1)
   assert.deepEqual(sent[0]?.message.value, ['second'])
 })
+
+test('a plugin reads its settings off the planner object', () => {
+  const { planner, host } = load()
+  // The page the host serves sets this before the plugin entry is imported.
+  host.settings = Object.freeze({ pattern: '#(\\d+)' })
+  assert.equal(planner.settings.pattern, '#(\\d+)')
+})
+
+test('a plugin whose settings were never written reads an empty object', () => {
+  const { planner } = load()
+  assert.deepEqual(planner.settings, {})
+})

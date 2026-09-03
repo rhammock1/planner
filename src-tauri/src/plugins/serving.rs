@@ -49,6 +49,26 @@ pub(super) fn literal(value: &Value) -> String {
         .replace('\u{2029}', "\\u2029")
 }
 
+/// A JSON value as a JavaScript expression that is safe *inside a script
+/// element*.
+///
+/// `literal` is right for `eval`, where the two line separators are the only
+/// characters JSON has and JavaScript does not. Inside HTML there is a third
+/// problem: the parser looks for `</script` in the text, so a setting
+/// containing one would end the page before `ready()` ran - and a plugin that
+/// never says ready is a plugin that hangs until its deadline every time it is
+/// asked anything.
+///
+/// `<`, `>` and `&` all become escapes rather than only the sequence that
+/// matters, because "only the sequence that matters" is the sentence at the
+/// front of every one of these bugs.
+pub fn in_html(value: &Value) -> String {
+    literal(value)
+        .replace('<', "\\u003c")
+        .replace('>', "\\u003e")
+        .replace('&', "\\u0026")
+}
+
 /// Answers a `plugin://` request.
 ///
 /// The policy on every response is what keeps a plugin on this machine: it
@@ -101,17 +121,25 @@ pub fn respond(app: &AppHandle, request: &Request<Vec<u8>>) -> Response<Vec<u8>>
 /// shipping its own `index.html` must not be able to skip it.
 fn serve(app: &AppHandle, name: &str, path: &str) -> Result<(Vec<u8>, &'static str), String> {
     if path.is_empty() || path == "index.html" {
-        let entry = app.state::<Registry>().entry_of(name).unwrap_or_default();
+        let registry = app.state::<Registry>();
+        let entry = registry.entry_of(name).unwrap_or_default();
+        let settings = registry.settings_of(name);
         // The entry is imported rather than loaded with `src`, so the ready
         // signal is a statement after it in the same module: module bodies
         // run in document order, and an import finishes before the line
         // below it. A second `<script>` would not do - a classic script
         // after a module runs before it, and would say ready too early.
+        //
+        // The settings go in their own classic script *before* the runtime's,
+        // so `planner.settings` is already there when the plugin's own code
+        // runs. Frozen, so a plugin cannot convince itself it changed one.
         let page = format!(
             "<!doctype html><meta charset=\"utf-8\">\n\
              <script>{RUNTIME}</script>\n\
+             <script>window.__planner.settings = Object.freeze({})</script>\n\
              <script type=\"module\">import {}; window.__planner.ready()</script>\n",
-            literal(&Value::from(format!("./{entry}")))
+            in_html(&settings),
+            in_html(&Value::from(format!("./{entry}")))
         );
         return Ok((page.into_bytes(), "text/html"));
     }
