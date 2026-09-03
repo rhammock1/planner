@@ -1,12 +1,16 @@
 // @ts-check
 
 /**
- * A plugin's settings, checked against the schema it declared.
+ * A plugin's settings, checked against the schema it declared - and the
+ * `[permissions.open]` entries that read one of them, since resolving those
+ * needs the same settled values.
  *
  * Split out of `plugins.js` because this is where the manifest-is-ceiling
  * rule gets applied a third time (spec §2.2), on top of slots and
  * capabilities, and `plugins.js` had no room left to say so at length.
  */
+
+import { resolvePrefix } from './urls.js'
 
 /** @typedef {import('./manifest.js').SettingsField} SettingsField */
 /** @typedef {import('./toml.js').TomlValue} TomlValue */
@@ -42,6 +46,34 @@ export function settled(name, schema, held, notices) {
     if (field.fallback !== null) settings.set(field.key, field.fallback)
   }
   return settings
+}
+
+/**
+ * The manifest's own `open` entries, resolved against the settled settings.
+ *
+ * A literal entry passes through unchanged; a `settings.<key>` entry is
+ * resolved here, where the settled values are known. `Installed.open` and
+ * `Start.open` (in `plugins.js`) both go through this, so the pane's tick and
+ * the address handed to Rust are the same string.
+ *
+ * @param {string} name
+ * @param {string[]} open
+ * @param {Map<string, TomlValue>} settings
+ * @param {string[]} notices
+ * @returns {string[]}
+ */
+export function resolveOpen(name, open, settings, notices) {
+  /** @type {string[]} */
+  const kept = []
+  for (const entry of open) {
+    const read = resolvePrefix(entry, /** @type {Map<string, string|number|boolean>} */ (settings))
+    if (read.error !== null) {
+      notices.push(`${name}: ${read.error}`)
+      continue
+    }
+    if (!kept.includes(read.prefix)) kept.push(read.prefix)
+  }
+  return kept
 }
 
 /**

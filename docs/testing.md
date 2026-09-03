@@ -113,8 +113,9 @@ PLANNER_HOME=/tmp/planner-home npm run app
       seconds.
 - [ ] Change `ticket-links`' Ticket URL in the pane: the plugin restarts and
       the next marker opens the new host. The old webview is gone.
-- [ ] Clear the Ticket URL: no prefix is approved, the marker still draws, and
-      the click is refused with a notice.
+- [ ] Clear the Ticket URL: no prefix is approved, the plugin answers with one
+      notice saying no ticket URL has been set, and no marker draws — the rest
+      of the page is unaffected.
 - [ ] Put `</script>` in a text setting: the plugin still loads and still
       answers. The page it is served is not ended by its own settings.
 - [ ] Type a pattern that is not a regular expression: one notice, and the

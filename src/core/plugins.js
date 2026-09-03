@@ -10,15 +10,17 @@
  *
  * **The manifest is the ceiling.** A slot, a capability or an address the
  * config approves that the manifest never asked for is not granted - the
- * plugin's own declaration is the smaller of the two. A slot is approved for
- * the same reason a capability is: it is not reach, it is what the plugin is
- * *shown*, and `item.badge` is shown every line on the page you are looking
- * at.
+ * plugin's own declaration is the smaller of the two, and enlarging it from
+ * outside would let a config hand a plugin something its author never wrote
+ * code to use.
+ *
+ * A slot is approved for the same reason a capability is. It is not reach; it
+ * is what the plugin is *shown*, and `item.badge` is shown every line on the
+ * page you are looking at.
  */
 
 import { readManifest } from './manifest.js'
-import { settled } from './pluginSettings.js'
-import { resolvePrefix } from './urls.js'
+import { settled, resolveOpen } from './pluginSettings.js'
 
 /** @typedef {import('./config.js').PluginConfig} PluginConfig */
 /** @typedef {import('./manifest.js').SettingsField} SettingsField */
@@ -151,10 +153,12 @@ export function plan(folders, configured) {
     }
     for (const line of read.notices) notices.push(`${folder.name}: ${line}`)
 
-    // A name in both read.unofferedSlots and settings.approvedSlots already
-    // earned its notice above ("does not offer") - dropped here so it does
-    // not also earn the contradicting "does not ask for it". A name the
-    // manifest never mentioned at all keeps its notice below.
+    // A name in both read.unofferedSlots and settings.approvedSlots was
+    // asked for by the manifest and already earned its notice above ("does
+    // not offer") - it is dropped here so it does not also earn the
+    // contradicting "does not ask for it". A name config.toml approves that
+    // the manifest never mentioned at all is not in unofferedSlots, so it
+    // keeps its notice below, same as a bogus capability would.
     const approvedSlots = settings.approvedSlots.filter((one) => !read.unofferedSlots.includes(one))
     disagreements(folder.name, 'slot', read.slots, approvedSlots, notices)
     disagreements(folder.name, 'capability', read.capabilities, settings.approvedCapabilities, notices)
@@ -233,33 +237,6 @@ export function diff(running, planned) {
   }
 
   return { stop, start }
-}
-
-/**
- * The manifest's own `open` entries, resolved against the settled settings.
- *
- * A literal entry passes through unchanged; a `settings.<key>` entry is
- * resolved here, where the settled values are known. `Installed.open` and
- * `Start.open` both go through this, so the pane's tick and the address
- * handed to Rust are the same string.
- * @param {string} name
- * @param {string[]} open
- * @param {Map<string, TomlValue>} settings
- * @param {string[]} notices
- * @returns {string[]}
- */
-function resolveOpen(name, open, settings, notices) {
-  /** @type {string[]} */
-  const kept = []
-  for (const entry of open) {
-    const read = resolvePrefix(entry, /** @type {Map<string, string|number|boolean>} */ (settings))
-    if (read.error !== null) {
-      notices.push(`${name}: ${read.error}`)
-      continue
-    }
-    if (!kept.includes(read.prefix)) kept.push(read.prefix)
-  }
-  return kept
 }
 
 /**
