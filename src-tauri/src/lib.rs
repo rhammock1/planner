@@ -202,7 +202,7 @@ pub fn run() {
         plugins::door::plugin_message,
         plugins::list_plugins,
         plugins::start_plugin,
-        plugins::contribute
+        plugins::ask_plugins
     ]);
 
     tauri::Builder::default()

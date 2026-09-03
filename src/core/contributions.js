@@ -21,15 +21,17 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/
 
 /**
- * The events a plugin contributed to one day.
+ * The events the plugins contributed to one day.
  *
- * @param {unknown[]} items  whatever the plugins returned
+ * @param {{plugin: string, value: unknown}[]} answers  what each plugin said
  * @param {string} page  `YYYY-MM-DD`
  * @returns {{events: Event[], notices: string[]}}
  */
-export function readContributions(items, page) {
+export function readContributions(answers, page) {
   /** @type {Event[]} */
   const events = []
+  /** @type {string[]} */
+  const notices = []
   let dropped = 0
 
   // The same holiday subscribed twice is one holiday. Two identical lines say
@@ -37,24 +39,32 @@ export function readContributions(items, page) {
   // says - so a duplicate would be two rows claiming the same key.
   const seen = new Set()
 
-  for (const item of items) {
-    const event = readOne(item, page)
-    if (event === 'elsewhere') continue
-    if (event === null) {
-      dropped += 1
+  for (const answer of answers) {
+    if (!Array.isArray(answer.value)) {
+      // Named, because with several plugins answering "a plugin" is not
+      // enough to go and look at anything.
+      notices.push(`${answer.plugin} returned something that is not a list`)
       continue
     }
-    const key = `${event.time ?? ''}:${event.text}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    events.push(event)
+    for (const item of answer.value) {
+      const event = readOne(item, page)
+      if (event === 'elsewhere') continue
+      if (event === null) {
+        dropped += 1
+        continue
+      }
+      const key = `${event.time ?? ''}:${event.text}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      events.push(event)
+    }
   }
 
   // Counted, not listed. One malformed item is worth saying; forty of them
   // would be forty lines of notice over a list of three tasks.
-  const notices = dropped === 0
-    ? []
-    : [`A plugin sent ${dropped} ${dropped === 1 ? 'line' : 'lines'} this app could not read`]
+  if (dropped > 0) {
+    notices.push(`A plugin sent ${dropped} ${dropped === 1 ? 'line' : 'lines'} this app could not read`)
+  }
 
   return { events: sorted(events), notices }
 }

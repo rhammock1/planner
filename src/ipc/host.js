@@ -38,7 +38,7 @@
  * @property {(handler: (page: string) => void) => void|Promise<void>} onVaultChanged
  * @property {() => Promise<{name: string, manifest: string}[]>} listPlugins
  * @property {(name: string, entry: string, slots: string[], capabilities: string[]) => Promise<void>} startPlugin
- * @property {(from: string, to: string) => Promise<Contributions>} contribute
+ * @property {(slot: string, now: Now, params: Record<string, unknown>) => Promise<Answers>} askPlugins
  * @property {(handler: () => void) => void|Promise<void>} onPopoverShown
  */
 
@@ -58,13 +58,19 @@
  */
 
 /**
- * What the plugins had to add, and anything that went wrong asking.
+ * The day and the time a question was asked, as every question carries it.
  *
- * `items` is not this app's data and has not been checked: whatever a plugin
+ * @typedef {{date: string, time: string}} Now
+ */
+
+/**
+ * What each plugin said, and anything that went wrong asking.
+ *
+ * `value` is not this app's data and has not been checked: whatever a plugin
  * returned, in whatever shape it returned it. It is given a shape on the way
  * to the page, not here.
  *
- * @typedef {{items: unknown[], notices: string[]}} Contributions
+ * @typedef {{answers: {plugin: string, value: unknown}[], notices: string[]}} Answers
  */
 
 /** @type {Promise<Host>|null} */
@@ -111,7 +117,7 @@ function tauriHost() {
     listPlugins: () => invoke('list_plugins'),
     startPlugin: (name, entry, slots, capabilities) =>
       invoke('start_plugin', { name, entry, slots, capabilities }),
-    contribute: (from, to) => invoke('contribute', { from, to }),
+    askPlugins: (slot, now, params) => invoke('ask_plugins', { slot, now, params }),
     onPopoverShown: (handler) => tauri.event.listen('popover:shown', () => handler()),
     readTheme: (name) => invoke('read_theme', { name }),
     readVault: () => invoke('read_vault'),

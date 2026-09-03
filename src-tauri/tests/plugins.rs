@@ -484,3 +484,45 @@ mod slots {
         assert!(registry.running_for("vault.contribute").iter().all(|one| one != "ticket-links"));
     }
 }
+
+mod asking {
+    use planner_lib::plugins::host::envelope;
+    use serde_json::json;
+
+    #[test]
+    fn a_question_names_its_slot_and_carries_the_time() {
+        let asked = envelope(
+            11,
+            "item.badge",
+            &json!({"date": "2026-09-02", "time": "16:20"}),
+            &json!({"date": "2026-09-02", "items": []}),
+        );
+        assert_eq!(asked["id"], 11);
+        assert_eq!(asked["kind"], "item.badge");
+        assert_eq!(asked["now"]["time"], "16:20");
+        assert_eq!(asked["date"], "2026-09-02");
+    }
+
+    #[test]
+    fn params_cannot_forge_the_id_the_kind_or_the_time() {
+        // `params` reaches here from the app's own window, but the three keys
+        // the host owns are written last on purpose: an id a plugin could
+        // choose is an answer it could put in somebody else's mouth.
+        let asked = envelope(
+            2,
+            "vault.contribute",
+            &json!({"date": "2026-09-02", "time": "09:00"}),
+            &json!({"id": 999, "kind": "capability", "now": "nonsense"}),
+        );
+        assert_eq!(asked["id"], 2);
+        assert_eq!(asked["kind"], "vault.contribute");
+        assert_eq!(asked["now"]["date"], "2026-09-02");
+    }
+
+    #[test]
+    fn params_that_are_not_a_table_are_simply_left_out() {
+        let asked = envelope(1, "item.badge", &json!({"date": "d", "time": "t"}), &json!([1, 2]));
+        assert_eq!(asked["kind"], "item.badge");
+        assert!(asked.get("0").is_none());
+    }
+}

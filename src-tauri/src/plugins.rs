@@ -28,8 +28,8 @@ pub use door::Message;
 pub use registry::{Registry, STRIKES};
 
 use serde::Serialize;
-use serde_json::{json, Value};
-use tauri::{AppHandle, Manager, Url};
+use serde_json::Value;
+use tauri::{AppHandle, Url};
 
 /// The prefix a plugin window's label carries. Nothing else may use it: the
 /// label is what the gate below reads, so a window that borrows the prefix
@@ -122,45 +122,16 @@ pub fn start_plugin(
     host::start(&app, &name, &entry, slots, capabilities)
 }
 
-/// What the plugins have to add to a range of days, and anything that went
-/// wrong finding out.
-#[derive(Default, Serialize)]
-pub struct Contributions {
-    /// Whatever the plugins returned, unexamined. The frontend checks the
-    /// shape of each one before it reaches a page - this is not our data.
-    items: Vec<Value>,
-    /// One line each, for the day page's notice band. A plugin that fails
-    /// says so on screen rather than only in a log nobody is reading (§8).
-    notices: Vec<String>,
-}
-
-/// Asks every running plugin what it has for these days.
+/// Asks every plugin granted a slot what it has to say, and hands back what
+/// each of them said under its own name.
 ///
-/// Blocking work, kept off the thread that draws: the page renders without
-/// contributions and gets them when they arrive, or does not get them.
+/// `now` is the app's, not Rust's: this project has one clock and it is in
+/// JavaScript, for the same reason it has one TOML reader. Rust has no
+/// timezone-aware clock and is not getting one.
+///
+/// Any of the app's own windows may ask. A plugin window cannot reach this at
+/// all - the gate holds it to the door.
 #[tauri::command]
-pub async fn contribute(app: AppHandle, from: String, to: String) -> Contributions {
-    let task = tauri::async_runtime::spawn_blocking(move || {
-        let request = json!({ "kind": "contribute", "from": from, "to": to });
-        let mut gathered = Contributions::default();
-
-        for name in app.state::<Registry>().running() {
-            match host::ask(&app, &name, &request) {
-                Ok(Value::Array(items)) => gathered.items.extend(items),
-                Ok(_) => gathered
-                    .notices
-                    .push(format!("{name} returned something that is not a list")),
-                Err(error) => gathered.notices.push(error),
-            }
-        }
-        gathered
-    });
-
-    match task.await {
-        Ok(gathered) => gathered,
-        Err(error) => Contributions {
-            items: Vec::new(),
-            notices: vec![format!("could not ask the plugins: {error}")],
-        },
-    }
+pub async fn ask_plugins(app: AppHandle, slot: String, now: Value, params: Value) -> host::Answers {
+    host::ask_all(&app, &slot, &now, &params).await
 }

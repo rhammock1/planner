@@ -84,15 +84,8 @@ export function sampleHost() {
     onPopoverShown: () => {},
     startPlugin: async () => {},
 
-    // Stood in for, rather than left empty, so the section under the list can
-    // be looked at without a calendar or a Tauri shell.
-    contribute: async (from) => ({
-      items: [
-        { date: from, time: '09:30', text: 'Standup' },
-        { date: from, time: '14:00', text: '1:1 with Priya' },
-      ],
-      notices: [],
-    }),
+    // No plugin host in a browser: nothing running to ask.
+    askPlugins: async () => ({ answers: [], notices: [] }),
   }
 }
 

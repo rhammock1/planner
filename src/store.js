@@ -19,6 +19,7 @@ import { DEFAULTS, DEFAULT_CONFIG_TEXT, updateConfig, updatePlugin } from './cor
 import { createWriteQueue } from './writeQueue.js'
 import * as ipc from './ipc.js'
 import * as startup from './startup.js'
+import { today, nowTime } from './clock.js'
 
 /** @typedef {import('./core/vaultIndex.js').VaultIndex} VaultIndex */
 /** @typedef {import('./core/model.js').Document} Document */
@@ -32,7 +33,7 @@ import * as startup from './startup.js'
  * @property {() => boolean} vaultExists
  * @property {() => Promise<void>} startPlugins
  * @property {(from: string, to: string) => Promise<void>} loadContributions
- * @property {() => unknown[]} contributions
+ * @property {() => {plugin: string, value: unknown}[]} contributions
  * @property {() => VaultIndex} vault
  * @property {() => import('./core/config.js').Config} config
  * @property {() => string[]} notices
@@ -76,7 +77,7 @@ export function createStore() {
   let changed = () => {}
   /** Whatever the plugins last returned. Not this app's data; checked on the
    *  way to a page, not here. */
-  /** @type {unknown[]} */
+  /** @type {{plugin: string, value: unknown}[]} */
   let contributions = []
 
   /**
@@ -184,8 +185,8 @@ export function createStore() {
    */
   async function loadContributions(from, to) {
     try {
-      const given = await ipc.contribute(from, to)
-      contributions = given.items
+      const given = await ipc.askPlugins('vault.contribute', nowOf(), { from, to })
+      contributions = given.answers
       pluginNotices = given.notices
     } catch (error) {
       contributions = []
@@ -250,4 +251,9 @@ export function createStore() {
  */
 function message(error) {
   return error instanceof Error ? error.message : String(error)
+}
+
+/** The day and the time, as every question to a plugin carries them. */
+function nowOf() {
+  return { date: today(), time: nowTime() }
 }

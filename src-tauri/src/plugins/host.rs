@@ -18,6 +18,7 @@
 use std::sync::mpsc::RecvTimeoutError;
 use std::time::{Duration, Instant};
 
+use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 
@@ -122,7 +123,7 @@ fn close(app: &AppHandle, name: &str) {
 ///
 /// Blocking, and called from a blocking task - never from the thread drawing
 /// the page.
-pub fn ask(app: &AppHandle, name: &str, request: &Value) -> Result<Value, String> {
+pub fn ask(app: &AppHandle, name: &str, slot: &str, now: &Value, params: &Value) -> Result<Value, String> {
     let label = format!("{WINDOW_PREFIX}{name}");
     let window = app
         .get_webview_window(&label)
@@ -137,10 +138,7 @@ pub fn ask(app: &AppHandle, name: &str, request: &Value) -> Result<Value, String
     }
 
     let (id, answer) = app.state::<Pending>().ask_of(name);
-
-    let mut envelope = request.clone();
-    envelope["id"] = Value::from(id);
-    let script = format!("window.__planner.request({})", literal(&envelope));
+    let script = format!("window.__planner.request({})", literal(&envelope(id, slot, now, params)));
 
     if let Err(error) = window.eval(&script) {
         app.state::<Pending>().forget(id);
@@ -166,4 +164,78 @@ pub fn ask(app: &AppHandle, name: &str, request: &Value) -> Result<Value, String
             Err(format!("{name} was interrupted before it answered"))
         }
     }
+}
+
+/// The question put to a plugin: what the app asked, with the three things
+/// the host owns written over the top.
+///
+/// The id last and unconditionally, because an id a plugin could choose is an
+/// answer it could put in another plugin's mouth (`Pending::settle` checks the
+/// owner, and this is the other half of that).
+pub fn envelope(id: u64, slot: &str, now: &Value, params: &Value) -> Value {
+    let mut asked = match params {
+        Value::Object(_) => params.clone(),
+        // Not an error: the app's own windows build these, and a slot whose
+        // question carries nothing beyond the time is a slot with no params.
+        _ => Value::Object(Default::default()),
+    };
+    asked["kind"] = Value::from(slot);
+    asked["now"] = now.clone();
+    asked["id"] = Value::from(id);
+    asked
+}
+
+/// What every plugin had to say, keyed by which one said it.
+///
+/// Keyed, not merged: the key is what lets the page put a heading over each
+/// plugin's lines, group results by provider, and refuse a claim two plugins
+/// both made (spec §1.3).
+#[derive(Default, Serialize)]
+pub struct Answers {
+    answers: Vec<Answer>,
+    /// One line each, for the day page's notice band.
+    notices: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct Answer {
+    plugin: String,
+    /// Whatever the plugin returned, unexamined. The frontend checks the
+    /// shape of it before it reaches a page - this is not our data.
+    value: Value,
+}
+
+/// Asks every plugin granted this slot, all at once.
+///
+/// Concurrent, and that is the point: one deadline for the whole round rather
+/// than one per plugin. Every task is spawned before any is awaited, so a
+/// plugin that takes the full two seconds does not add two seconds to the one
+/// after it.
+pub async fn ask_all(app: &AppHandle, slot: &str, now: &Value, params: &Value) -> Answers {
+    let mut flying = Vec::new();
+    for name in app.state::<Registry>().running_for(slot) {
+        let handle = app.clone();
+        let asked = name.clone();
+        let now = now.clone();
+        let params = params.clone();
+        let slot = slot.to_string();
+        flying.push((
+            name,
+            tauri::async_runtime::spawn_blocking(move || {
+                ask(&handle, &asked, &slot, &now, &params)
+            }),
+        ));
+    }
+
+    let mut gathered = Answers::default();
+    for (name, task) in flying {
+        match task.await {
+            Ok(Ok(value)) => gathered.answers.push(Answer { plugin: name, value }),
+            Ok(Err(error)) => gathered.notices.push(error),
+            // The blocking pool itself failed, which is not the plugin's
+            // fault and is worth a different sentence.
+            Err(error) => gathered.notices.push(format!("could not ask {name}: {error}")),
+        }
+    }
+    gathered
 }

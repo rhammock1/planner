@@ -14,7 +14,7 @@ const DAY = '2026-09-01'
 
 /** @param {unknown[]} items */
 function read(items) {
-  return readContributions(items, DAY)
+  return readContributions([{ plugin: 'macos-calendar', value: items }], DAY)
 }
 
 test('a well-formed event comes through', () => {
@@ -140,4 +140,14 @@ test('every line the page draws has a key of its own', () => {
   ])
   const keys = events.map((one) => `${one.time ?? ''}:${one.text}`)
   assert.equal(new Set(keys).size, keys.length, 'two lines share a key')
+})
+
+test('a plugin that answers with something other than a list is named', () => {
+  const { events, notices } = readContributions(
+    [{ plugin: 'macos-calendar', value: 'no' }, { plugin: 'ticket-links', value: [] }],
+    '2026-09-02',
+  )
+  assert.deepEqual(events, [])
+  assert.equal(notices.length, 1)
+  assert.match(notices[0] ?? '', /macos-calendar/)
 })

@@ -26,5 +26,6 @@ export * from './ipc/shell.js'
 /** @typedef {import('./ipc/host.js').Host} Host */
 /** @typedef {import('./ipc/host.js').PageFile} PageFile */
 /** @typedef {import('./ipc/host.js').Alarm} Alarm */
-/** @typedef {import('./ipc/host.js').Contributions} Contributions */
+/** @typedef {import('./ipc/host.js').Now} Now */
+/** @typedef {import('./ipc/host.js').Answers} Answers */
 /** @typedef {import('./ipc/host.js').VaultStatus} VaultStatus */

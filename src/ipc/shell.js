@@ -12,7 +12,6 @@
 import { getHost } from './host.js'
 
 /** @typedef {import('./host.js').Alarm} Alarm */
-/** @typedef {import('./host.js').Contributions} Contributions */
 
 /**
  * @param {string} name
@@ -157,18 +156,19 @@ export async function startPlugin(name, entry, slots, capabilities) {
 }
 
 /**
- * Asks every running plugin what it has for these days.
+ * Asks every plugin granted this slot, all at once.
  *
  * Slow by nature - it waits on somebody else's code - so nothing renders
- * behind it. The page is drawn without contributions and again when they
+ * behind it. The page is drawn without the answers and again when they
  * arrive, or never again if they do not.
  *
- * @param {string} from `YYYY-MM-DD`
- * @param {string} to
- * @returns {Promise<Contributions>}
+ * @param {string} slot
+ * @param {import('./host.js').Now} now
+ * @param {Record<string, unknown>} params
+ * @returns {Promise<import('./host.js').Answers>}
  */
-export async function contribute(from, to) {
-  return (await getHost()).contribute(from, to)
+export async function askPlugins(slot, now, params) {
+  return (await getHost()).askPlugins(slot, now, params)
 }
 
 /**
