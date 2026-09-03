@@ -27,7 +27,7 @@ slots       = ["item.badge"]
 capabilities = ["shell.open"]
 
 [permissions.open]
-urls = ["https://github.com/org/repo/pull/"]
+urls = ["https://github.com/gotab-inc/node/pull/"]
 ```
 
 `entry` is the file the plugin starts at, relative to its own folder. A path
@@ -47,7 +47,7 @@ Nothing runs because it was installed. `config.toml` decides:
 enabled               = true
 approved_slots        = ["item.badge"]
 approved_capabilities = ["shell.open"]
-approved_open         = ["https://github.com/org/repo/pull/"]
+approved_open         = ["https://github.com/gotab-inc/node/pull/"]
 ```
 
 **The manifest is the ceiling.** A slot, a capability or an address approved
