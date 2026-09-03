@@ -1,20 +1,24 @@
 // @ts-check
 
 /**
- * Which plugins to start, and with what (spec §7, addendum §2).
+ * Which plugins to start, and with what (spec §7, §1.1).
  *
  * Two files have an opinion and they are not the same opinion. The manifest
  * says what a plugin wants; `config.toml` says what it may have. This module
  * settles the two, and every disagreement comes back as a line for the page
  * rather than a silence.
  *
- * **The manifest is the ceiling.** A capability the config approves that the
- * manifest never asked for is not granted - the plugin's own declaration is
- * the smaller of the two, and enlarging it from outside would let a config
- * hand a plugin something its author never wrote code to use.
+ * **The manifest is the ceiling.** A slot or a capability the config approves
+ * that the manifest never asked for is not granted - the plugin's own
+ * declaration is the smaller of the two, and enlarging it from outside would
+ * let a config hand a plugin something its author never wrote code to use.
+ *
+ * A slot is approved for the same reason a capability is. It is not reach; it
+ * is what the plugin is *shown*, and `item.badge` is shown every line on the
+ * page you are looking at.
  */
 
-import { parseToml } from './toml.js'
+import { readManifest } from './manifest.js'
 
 /** @typedef {import('./config.js').PluginConfig} PluginConfig */
 
@@ -22,18 +26,20 @@ import { parseToml } from './toml.js'
  * @typedef {object} Start
  * @property {string} name
  * @property {string} entry  the file the plugin begins at
+ * @property {string[]} slots  granted: declared and approved
  * @property {string[]} capabilities  granted: asked for and approved
  */
 
 /** @typedef {{name: string, manifest: string}} Folder */
 
 /**
- * A plugin as the settings pane needs to show it: what it is, whether it is
- * switched on, what it asks for and what it has been allowed.
+ * A plugin as the settings pane needs to show it.
  *
  * @typedef {object} Installed
  * @property {string} name
  * @property {boolean} enabled
+ * @property {string[]} slots  slots the manifest declares
+ * @property {string[]} approvedSlots  of those, the ones config.toml allows
  * @property {string[]} asked  capabilities the manifest asks for
  * @property {string[]} approved  of those, the ones config.toml has allowed
  * @property {string|null} problem  why it cannot run, when it cannot
@@ -65,11 +71,6 @@ export function isPluginName(name) {
 /**
  * Every plugin folder on disk, settled against the config (spec §7).
  *
- * `approved` is the intersection rather than what the config says, for the
- * same reason `plan` grants the intersection: the manifest is the ceiling, so
- * a pane that showed a capability ticked which the plugin never asked for
- * would be showing a permission that does not exist.
- *
  * @param {Folder[]} folders
  * @param {Map<string, PluginConfig>} configured
  * @returns {Installed[]}
@@ -77,27 +78,27 @@ export function isPluginName(name) {
 export function installed(folders, configured) {
   return folders.map((folder) => {
     const settings = configured.get(folder.name)
+    const enabled = settings?.enabled === true
+
     // Before the manifest is read: a folder that cannot be a plugin has not
     // earned a reading of anything else it says.
     if (!isPluginName(folder.name)) {
       return {
         name: folder.name,
-        enabled: settings?.enabled === true,
-        asked: [],
-        approved: [],
+        enabled,
+        slots: [], approvedSlots: [], asked: [], approved: [],
         problem: BAD_NAME,
       }
     }
 
-    const read = readManifest(folder)
-    const asked = read.capabilities
-    const allowed = settings?.approvedCapabilities ?? []
-
+    const read = readManifest(folder.manifest)
     return {
       name: folder.name,
-      enabled: settings?.enabled === true,
-      asked,
-      approved: asked.filter((capability) => allowed.includes(capability)),
+      enabled,
+      slots: read.slots,
+      approvedSlots: both(read.slots, settings?.approvedSlots),
+      asked: read.capabilities,
+      approved: both(read.capabilities, settings?.approvedCapabilities),
       problem: read.error,
     }
   })
@@ -127,69 +128,60 @@ export function plan(folders, configured) {
       continue
     }
 
-    const read = readManifest(folder)
+    const read = readManifest(folder.manifest)
     if (read.error !== null) {
       notices.push(`${folder.name}: ${read.error}`)
       continue
     }
+    for (const line of read.notices) notices.push(`${folder.name}: ${line}`)
 
-    const asked = read.capabilities
-    const approved = settings.approvedCapabilities
-    const granted = asked.filter((capability) => approved.includes(capability))
+    disagreements(folder.name, 'slot', read.slots, settings.approvedSlots, notices)
+    disagreements(folder.name, 'capability', read.capabilities, settings.approvedCapabilities, notices)
 
-    for (const capability of asked) {
-      if (!approved.includes(capability)) {
-        notices.push(`${folder.name} asks for ${capability}, which config.toml has not approved`)
-      }
-    }
-    for (const capability of approved) {
-      if (!asked.includes(capability)) {
-        notices.push(`config.toml approves ${capability} for ${folder.name}, which does not ask for it`)
-      }
-    }
-
-    start.push({ name: folder.name, entry: read.entry, capabilities: granted })
+    start.push({
+      name: folder.name,
+      entry: read.entry,
+      slots: both(read.slots, settings.approvedSlots),
+      capabilities: both(read.capabilities, settings.approvedCapabilities),
+    })
   }
 
   return { start, notices }
 }
 
 /**
- * @param {Folder} folder
- * @returns {{entry: string, capabilities: string[], error: null}|{entry: string, capabilities: string[], error: string}}
+ * The intersection, in the manifest's order: the manifest is the ceiling, so
+ * what it does not ask for cannot be granted however the config is written.
+ *
+ * @param {string[]} asked
+ * @param {string[]|undefined} approved
+ * @returns {string[]}
  */
-function readManifest(folder) {
-  const bad = (/** @type {string} */ error) => ({ entry: '', capabilities: [], error })
+function both(asked, approved) {
+  const allowed = approved ?? []
+  return asked.filter((one) => allowed.includes(one))
+}
 
-  let table
-  try {
-    table = parseToml(folder.manifest)
-  } catch (error) {
-    return bad(`manifest.toml could not be read (${error instanceof Error ? error.message : error})`)
+/**
+ * One line for each side of a disagreement, so the page says what is missing
+ * rather than the plugin quietly doing less than it says it does.
+ *
+ * @param {string} name
+ * @param {string} kind  `slot` or `capability`
+ * @param {string[]} asked
+ * @param {string[]} approved
+ * @param {string[]} notices
+ * @returns {void}
+ */
+function disagreements(name, kind, asked, approved, notices) {
+  for (const one of asked) {
+    if (!approved.includes(one)) {
+      notices.push(`${name} asks for the ${one} ${kind}, which config.toml has not approved`)
+    }
   }
-
-  const entry = table['entry']
-  if (typeof entry !== 'string' || entry === '') {
-    return bad('manifest.toml does not say which file to start at')
+  for (const one of approved) {
+    if (!asked.includes(one)) {
+      notices.push(`config.toml approves the ${one} ${kind} for ${name}, which does not ask for it`)
+    }
   }
-  // A plugin is served out of its own folder and starts at a file inside it.
-  // Rust refuses a path that climbs out; refusing it here as well means the
-  // reason reaches the page rather than a log.
-  if (entry.startsWith('/') || entry.split('/').includes('..')) {
-    return bad(`manifest.toml starts at ${entry}, which is outside the plugin's folder`)
-  }
-
-  const permissions = table['permissions']
-  if (permissions === undefined) return { entry, capabilities: [], error: null }
-  if (typeof permissions !== 'object' || Array.isArray(permissions)) {
-    return bad('manifest.toml has a permissions key that is not a table')
-  }
-
-  const wanted = /** @type {Record<string, unknown>} */ (permissions)['capabilities']
-  if (wanted === undefined) return { entry, capabilities: [], error: null }
-  if (!Array.isArray(wanted) || wanted.some((one) => typeof one !== 'string')) {
-    return bad('manifest.toml lists permissions.capabilities as something other than a list of names')
-  }
-
-  return { entry, capabilities: /** @type {string[]} */ (wanted), error: null }
 }

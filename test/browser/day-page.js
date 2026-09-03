@@ -327,6 +327,8 @@ check('the settings pane lists a plugin and what it asks for', () => {
   dayPage.settings().render(SETTINGS_CONFIG, [{
     name: 'macos-calendar',
     enabled: true,
+    slots: [],
+    approvedSlots: [],
     asked: ['macos.calendar.read'],
     approved: ['macos.calendar.read'],
     problem: null,

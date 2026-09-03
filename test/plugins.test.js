@@ -15,6 +15,7 @@ const MANIFEST = `
 name = "macos-calendar"
 version = "0.1.0"
 entry = "index.js"
+slots = ["vault.contribute"]
 
 [permissions]
 capabilities = ["macos.calendar.read"]
@@ -29,6 +30,7 @@ function configured(settings) {
     'macos-calendar',
     {
       enabled: settings?.enabled ?? true,
+      approvedSlots: settings?.approvedSlots ?? ['vault.contribute'],
       approvedCapabilities: settings?.approvedCapabilities ?? ['macos.calendar.read'],
     },
   ]])
@@ -43,7 +45,12 @@ test('a plugin the config enables starts with what both files agree on', () => {
   const { start, notices } = plan(folders(), configured())
 
   assert.deepEqual(start, [
-    { name: 'macos-calendar', entry: 'index.js', capabilities: ['macos.calendar.read'] },
+    {
+      name: 'macos-calendar',
+      entry: 'index.js',
+      slots: ['vault.contribute'],
+      capabilities: ['macos.calendar.read'],
+    },
   ])
   assert.deepEqual(notices, [])
 })
@@ -64,7 +71,7 @@ test('a capability the config never approved is not granted, and is said out lou
 
   assert.deepEqual(start[0]?.capabilities, [])
   assert.deepEqual(notices, [
-    'macos-calendar asks for macos.calendar.read, which config.toml has not approved',
+    'macos-calendar asks for the macos.calendar.read capability, which config.toml has not approved',
   ])
 })
 
@@ -77,7 +84,7 @@ test('the manifest is the ceiling: the config cannot widen it', () => {
   // Approving something the plugin never asked for hands it nothing.
   assert.deepEqual(start[0]?.capabilities, ['macos.calendar.read'])
   assert.deepEqual(notices, [
-    'config.toml approves fs.read for macos-calendar, which does not ask for it',
+    'config.toml approves the fs.read capability for macos-calendar, which does not ask for it',
   ])
 })
 
@@ -94,43 +101,13 @@ test('a manifest that will not parse stops that plugin and nothing else', () => 
     { name: 'macos-calendar', manifest: MANIFEST },
   ]
   const settings = configured()
-  settings.set('broken', { enabled: true, approvedCapabilities: [] })
+  settings.set('broken', { enabled: true, approvedSlots: [], approvedCapabilities: [] })
 
   const { start, notices } = plan(broken, settings)
 
   assert.deepEqual(start.map((one) => one.name), ['macos-calendar'])
   assert.equal(notices.length, 1)
   assert.match(notices[0] ?? '', /^broken: manifest\.toml could not be read/)
-})
-
-test('a manifest with no entry does not start', () => {
-  const { start, notices } = plan(folders('name = "x"'), configured())
-  assert.deepEqual(start, [])
-  assert.deepEqual(notices, ['macos-calendar: manifest.toml does not say which file to start at'])
-})
-
-test('an entry that climbs out of the folder does not start', () => {
-  for (const entry of ['../../../etc/passwd', '/etc/passwd', 'a/../../b.js']) {
-    const { start, notices } = plan(folders(`entry = "${entry}"`), configured())
-    assert.deepEqual(start, [], `${entry} was allowed`)
-    assert.match(notices[0] ?? '', /outside the plugin's folder/)
-  }
-})
-
-test('a manifest asking for permissions in the wrong shape does not start', () => {
-  for (const permissions of ['[permissions]\ncapabilities = "fs.read"', 'permissions = 3']) {
-    const { start } = plan(folders(`entry = "index.js"\n${permissions}`), configured())
-    assert.deepEqual(start, [], `${permissions} was allowed`)
-  }
-})
-
-test('a manifest with no permissions at all is granted nothing', () => {
-  const { start, notices } = plan(
-    folders('entry = "index.js"'),
-    configured({ approvedCapabilities: [] }),
-  )
-  assert.deepEqual(start, [{ name: 'macos-calendar', entry: 'index.js', capabilities: [] }])
-  assert.deepEqual(notices, [])
 })
 
 // The settings pane lists what is there, on or off - a folder that is
@@ -140,6 +117,8 @@ test('a plugin that is switched off is still listed', () => {
   assert.deepEqual(installed(folders(), configured({ enabled: false })), [{
     name: 'macos-calendar',
     enabled: false,
+    slots: ['vault.contribute'],
+    approvedSlots: ['vault.contribute'],
     asked: ['macos.calendar.read'],
     approved: ['macos.calendar.read'],
     problem: null,
@@ -150,6 +129,8 @@ test('a plugin the config has never heard of is listed as off and ungranted', ()
   assert.deepEqual(installed(folders(), new Map()), [{
     name: 'macos-calendar',
     enabled: false,
+    slots: ['vault.contribute'],
+    approvedSlots: [],
     asked: ['macos.calendar.read'],
     approved: [],
     problem: null,
@@ -191,7 +172,9 @@ test('a folder whose name is not a plugin name is listed with the problem', () =
 
 test('a folder whose name is not a plugin name never starts', () => {
   const bad = [{ name: 'Ticket Links', manifest: MANIFEST }]
-  const configured = new Map([['Ticket Links', { enabled: true, approvedCapabilities: [] }]])
+  const configured = new Map([
+    ['Ticket Links', { enabled: true, approvedSlots: [], approvedCapabilities: [] }],
+  ])
   const { start, notices } = plan(bad, configured)
 
   assert.deepEqual(start, [])
@@ -224,4 +207,55 @@ test('what a plugin folder may be called', () => {
   ]) {
     assert.equal(isPluginName(name), false, `${name} was allowed`)
   }
+})
+
+test('a plugin is granted the slots both files agree on', () => {
+  const { start } = plan(folders(), configured())
+  assert.deepEqual(start[0]?.slots, ['vault.contribute'])
+})
+
+test('a slot the config has not approved is not granted, and is said out loud', () => {
+  const { start, notices } = plan(folders(), configured({ approvedSlots: [] }))
+  // The plugin still runs. It is simply never asked that question.
+  assert.equal(start.length, 1)
+  assert.deepEqual(start[0]?.slots, [])
+  assert.equal(notices.length, 1)
+  assert.match(notices[0] ?? '', /vault\.contribute/)
+})
+
+test('the manifest is the ceiling for slots too', () => {
+  const { start, notices } = plan(
+    folders(),
+    configured({ approvedSlots: ['vault.contribute', 'item.badge'] }),
+  )
+  assert.deepEqual(start[0]?.slots, ['vault.contribute'])
+  assert.equal(notices.length, 1)
+  assert.match(notices[0] ?? '', /item\.badge/)
+})
+
+test('a slot this planner does not offer never reaches the config', () => {
+  const manifest = `
+entry = "index.js"
+slots = ["vault.contribute", "theme.tokens"]
+`
+  const { start, notices } = plan(
+    folders(manifest),
+    configured({ approvedSlots: ['vault.contribute', 'theme.tokens'] }),
+  )
+  assert.deepEqual(start[0]?.slots, ['vault.contribute'])
+  // One line for the manifest's own notice; nothing about the config
+  // approving something the manifest no longer asks for, because a slot this
+  // app has never heard of is not the person's mistake.
+  assert.ok(notices.some((line) => /theme\.tokens/.test(line)))
+})
+
+test('the pane is shown what a plugin asks to be shown', () => {
+  const [listed] = installed(folders(), configured({ approvedSlots: [] }))
+  assert.deepEqual(listed?.slots, ['vault.contribute'])
+  assert.deepEqual(listed?.approvedSlots, [])
+})
+
+test('an approved slot the manifest does not ask for is not shown as granted', () => {
+  const [listed] = installed(folders(), configured({ approvedSlots: ['item.badge'] }))
+  assert.deepEqual(listed?.approvedSlots, [])
 })

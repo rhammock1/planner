@@ -155,7 +155,9 @@ function pluginRow(plugin, handlers) {
   if (plugin.problem !== null && box instanceof HTMLInputElement) box.disabled = true
   box.addEventListener('change', () => {
     if (box instanceof HTMLInputElement) {
-      handlers.onPlugin(plugin.name, { enabled: box.checked, approvedCapabilities: plugin.approved })
+      handlers.onPlugin(plugin.name, {
+        enabled: box.checked, approvedSlots: plugin.approvedSlots, approvedCapabilities: plugin.approved,
+      })
     }
   })
   line.append(box, el('span', 'setting-label', plugin.name))
@@ -178,7 +180,9 @@ function pluginRow(plugin, handlers) {
       const approved = box.checked
         ? [...plugin.approved, capability]
         : plugin.approved.filter((one) => one !== capability)
-      handlers.onPlugin(plugin.name, { enabled: plugin.enabled, approvedCapabilities: approved })
+      handlers.onPlugin(plugin.name, {
+        enabled: plugin.enabled, approvedSlots: plugin.approvedSlots, approvedCapabilities: approved,
+      })
     })
     allow.append(box, el('span', 'capability-name', capability))
     block.append(allow)

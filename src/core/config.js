@@ -20,6 +20,7 @@ import { isPluginName } from './plugins.js'
 /**
  * @typedef {object} PluginConfig
  * @property {boolean} enabled
+ * @property {string[]} approvedSlots
  * @property {string[]} approvedCapabilities
  */
 
@@ -151,6 +152,7 @@ export function updatePlugin(text, name, settings) {
 
   return updateToml(text, [
     { path: ['plugins', name, 'enabled'], value: settings.enabled },
+    { path: ['plugins', name, 'approved_slots'], value: settings.approvedSlots },
     { path: ['plugins', name, 'approved_capabilities'], value: settings.approvedCapabilities },
   ])
 }
@@ -199,7 +201,9 @@ function readPlugins(table, notices) {
     if (enabled === null) notices.push(`config.toml: plugins.${name}.enabled is not a boolean; treating it as disabled`)
     plugins.set(name, {
       enabled: enabled === null ? false : Boolean(enabled),
-      approvedCapabilities: readCapabilities(name, entry['approved_capabilities'], notices),
+      approvedSlots: readNames(name, 'approved_slots', entry['approved_slots'], notices),
+      approvedCapabilities:
+        readNames(name, 'approved_capabilities', entry['approved_capabilities'], notices),
     })
   }
   return plugins
@@ -207,14 +211,15 @@ function readPlugins(table, notices) {
 
 /**
  * @param {string} name
+ * @param {string} key
  * @param {TomlValue|TomlTable|undefined} raw
  * @param {string[]} notices
  * @returns {string[]}
  */
-function readCapabilities(name, raw, notices) {
+function readNames(name, key, raw, notices) {
   if (raw === undefined) return []
   if (!Array.isArray(raw)) {
-    notices.push(`config.toml: plugins.${name}.approved_capabilities is not a list; treating it as empty`)
+    notices.push(`config.toml: plugins.${name}.${key} is not a list; treating it as empty`)
     return []
   }
   return [...raw]

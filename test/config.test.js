@@ -69,10 +69,10 @@ describe('reading', () => {
     ].join(''))
     assert.deepEqual([...config.plugins.keys()], ['macos-calendar', 'macos-reminders'])
     assert.deepEqual(config.plugins.get('macos-calendar'), {
-      enabled: true, approvedCapabilities: ['macos.calendar.read'],
+      enabled: true, approvedSlots: [], approvedCapabilities: ['macos.calendar.read'],
     })
     assert.deepEqual(config.plugins.get('macos-reminders'), {
-      enabled: false, approvedCapabilities: [],
+      enabled: false, approvedSlots: [], approvedCapabilities: [],
     })
   })
 
@@ -123,7 +123,7 @@ describe('a file the app cannot use', () => {
       'approved_capabilities = ["macos.calendar.read"]\n',
     ].join(''))
     assert.deepEqual(config.plugins.get('macos-calendar'), {
-      enabled: false, approvedCapabilities: ['macos.calendar.read'],
+      enabled: false, approvedSlots: [], approvedCapabilities: ['macos.calendar.read'],
     })
     assert.equal(notices.length, 1)
     assert.match(notices[0] ?? '', /macos-calendar/)
@@ -185,23 +185,29 @@ describe('switching a plugin on and off', () => {
   test('a plugin the file has never mentioned gets a section of its own', () => {
     const written = updatePlugin(DEFAULT_CONFIG_TEXT, 'macos-calendar', {
       enabled: true,
+      approvedSlots: [],
       approvedCapabilities: ['macos.calendar.read'],
     })
     const settings = readConfig(written).config.plugins.get('macos-calendar')
-    assert.deepEqual(settings, { enabled: true, approvedCapabilities: ['macos.calendar.read'] })
+    assert.deepEqual(settings, {
+      enabled: true, approvedSlots: [], approvedCapabilities: ['macos.calendar.read'],
+    })
   })
 
   test('switching one off leaves what it was approved for alone', () => {
     const on = updatePlugin(DEFAULT_CONFIG_TEXT, 'macos-calendar', {
       enabled: true,
+      approvedSlots: [],
       approvedCapabilities: ['macos.calendar.read'],
     })
     const off = updatePlugin(on, 'macos-calendar', {
       enabled: false,
+      approvedSlots: [],
       approvedCapabilities: ['macos.calendar.read'],
     })
     assert.deepEqual(readConfig(off).config.plugins.get('macos-calendar'), {
       enabled: false,
+      approvedSlots: [],
       approvedCapabilities: ['macos.calendar.read'],
     })
   })
@@ -209,11 +215,15 @@ describe('switching a plugin on and off', () => {
   test('taking a capability away leaves the plugin switched on', () => {
     const on = updatePlugin(DEFAULT_CONFIG_TEXT, 'macos-calendar', {
       enabled: true,
+      approvedSlots: [],
       approvedCapabilities: ['macos.calendar.read'],
     })
-    const none = updatePlugin(on, 'macos-calendar', { enabled: true, approvedCapabilities: [] })
+    const none = updatePlugin(on, 'macos-calendar', {
+      enabled: true, approvedSlots: [], approvedCapabilities: [],
+    })
     assert.deepEqual(readConfig(none).config.plugins.get('macos-calendar'), {
       enabled: true,
+      approvedSlots: [],
       approvedCapabilities: [],
     })
   })
@@ -221,6 +231,7 @@ describe('switching a plugin on and off', () => {
   test('the rest of the file is untouched', () => {
     const written = updatePlugin(DEFAULT_CONFIG_TEXT, 'macos-calendar', {
       enabled: true,
+      approvedSlots: [],
       approvedCapabilities: [],
     })
     assert.ok(written.includes('# planner - settings.'), 'the header comment was lost')
@@ -228,12 +239,59 @@ describe('switching a plugin on and off', () => {
   })
 
   test('two plugins keep their own sections', () => {
-    let text = updatePlugin(DEFAULT_CONFIG_TEXT, 'macos-calendar', { enabled: true, approvedCapabilities: ['a'] })
-    text = updatePlugin(text, 'macos-reminders', { enabled: false, approvedCapabilities: ['b'] })
+    let text = updatePlugin(DEFAULT_CONFIG_TEXT, 'macos-calendar', {
+      enabled: true, approvedSlots: [], approvedCapabilities: ['a'],
+    })
+    text = updatePlugin(text, 'macos-reminders', {
+      enabled: false, approvedSlots: [], approvedCapabilities: ['b'],
+    })
     const plugins = readConfig(text).config.plugins
-    assert.deepEqual(plugins.get('macos-calendar'), { enabled: true, approvedCapabilities: ['a'] })
-    assert.deepEqual(plugins.get('macos-reminders'), { enabled: false, approvedCapabilities: ['b'] })
+    assert.deepEqual(plugins.get('macos-calendar'), {
+      enabled: true, approvedSlots: [], approvedCapabilities: ['a'],
+    })
+    assert.deepEqual(plugins.get('macos-reminders'), {
+      enabled: false, approvedSlots: [], approvedCapabilities: ['b'],
+    })
   })
+})
+
+test('a plugin section says which slots it approves', () => {
+  const { config } = readConfig(`
+[plugins.ticket-links]
+enabled = true
+approved_slots = ["item.badge"]
+approved_capabilities = ["shell.open"]
+`)
+  const plugin = config.plugins.get('ticket-links')
+  assert.deepEqual(plugin?.approvedSlots, ['item.badge'])
+  assert.deepEqual(plugin?.approvedCapabilities, ['shell.open'])
+})
+
+test('a plugin section with no approved_slots approves none', () => {
+  // What an upgrade looks like: the key has never been written. The plugin
+  // runs and is asked nothing until somebody ticks the sentence.
+  const { config } = readConfig('[plugins.ticket-links]\nenabled = true\n')
+  assert.deepEqual(config.plugins.get('ticket-links')?.approvedSlots, [])
+})
+
+test('approved_slots in the wrong shape is empty, and says so', () => {
+  const { config, notices } = readConfig(`
+[plugins.ticket-links]
+enabled = true
+approved_slots = "item.badge"
+`)
+  assert.deepEqual(config.plugins.get('ticket-links')?.approvedSlots, [])
+  assert.ok(notices.some((line) => /approved_slots/.test(line)))
+})
+
+test('writing a plugin writes both lists', () => {
+  const written = updatePlugin('', 'ticket-links', {
+    enabled: true,
+    approvedSlots: ['item.badge'],
+    approvedCapabilities: ['shell.open'],
+  })
+  assert.match(written, /approved_slots\s*=\s*\["item\.badge"\]/)
+  assert.match(written, /approved_capabilities\s*=\s*\["shell\.open"\]/)
 })
 
 describe('expandHome', () => {
@@ -255,6 +313,7 @@ test('a plugin whose folder cannot be a plugin name is never written to the conf
   // verbatim, so this would open a table belonging to somebody else.
   const after = updatePlugin(before, 'x]\n[plugins.other', {
     enabled: true,
+    approvedSlots: [],
     approvedCapabilities: [],
   })
 

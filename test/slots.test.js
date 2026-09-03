@@ -1,0 +1,36 @@
+// @ts-check
+
+/**
+ * Which slots exist, and what the pane says about each one.
+ */
+
+import test from 'node:test'
+import assert from 'node:assert/strict'
+
+import { SLOTS, isSlot, sentenceFor } from '../src/core/slots.js'
+
+test('the slots that exist are the ones with a consumer', () => {
+  // A slot with no consumer is a guess about an API (spec §0). Adding a name
+  // here without the plugin that needs it is the mistake this test catches.
+  assert.deepEqual(SLOTS.map((slot) => slot.name), ['vault.contribute', 'item.badge'])
+})
+
+test('every slot has a sentence a person could tick', () => {
+  for (const slot of SLOTS) {
+    assert.ok(slot.sentence.length > 0, `${slot.name} has no sentence`)
+    assert.ok(slot.sentence.endsWith('.'), `${slot.name}'s sentence is not a sentence`)
+  }
+})
+
+test('a slot this app does not offer is not a slot', () => {
+  assert.equal(isSlot('vault.contribute'), true)
+  assert.equal(isSlot('item.badge'), true)
+  assert.equal(isSlot('theme.tokens'), false)
+  assert.equal(isSlot(''), false)
+})
+
+test('an unknown slot still gets a sentence, because the pane has to draw it', () => {
+  const said = sentenceFor('vault.write')
+  assert.match(said, /vault\.write/)
+  assert.match(said, /does not offer/)
+})
