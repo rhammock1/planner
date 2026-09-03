@@ -40,6 +40,7 @@
  * @property {(name: string, entry: string, slots: string[], capabilities: string[]) => Promise<void>} startPlugin
  * @property {(name: string) => Promise<void>} stopPlugin
  * @property {(slot: string, now: Now, params: Record<string, unknown>) => Promise<Answers>} askPlugins
+ * @property {() => Promise<PluginState[]>} pluginStates
  * @property {(handler: () => void) => void|Promise<void>} onPopoverShown
  */
 
@@ -62,6 +63,12 @@
  * The day and the time a question was asked, as every question carries it.
  *
  * @typedef {{date: string, time: string}} Now
+ */
+
+/**
+ * What a plugin is doing, from the session rather than from either file.
+ *
+ * @typedef {{name: string, running: boolean, disabled: boolean, reason: string|null}} PluginState
  */
 
 /**
@@ -120,6 +127,7 @@ function tauriHost() {
       invoke('start_plugin', { name, entry, slots, capabilities }),
     stopPlugin: (name) => invoke('stop_plugin', { name }),
     askPlugins: (slot, now, params) => invoke('ask_plugins', { slot, now, params }),
+    pluginStates: () => invoke('plugin_states'),
     onPopoverShown: (handler) => tauri.event.listen('popover:shown', () => handler()),
     readTheme: (name) => invoke('read_theme', { name }),
     readVault: () => invoke('read_vault'),

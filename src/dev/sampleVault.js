@@ -87,6 +87,9 @@ export function sampleHost() {
 
     // No plugin host in a browser: nothing running to ask.
     askPlugins: async () => ({ answers: [], notices: [] }),
+
+    // No plugin host in a browser: nothing to report on.
+    pluginStates: async () => [],
   }
 }
 

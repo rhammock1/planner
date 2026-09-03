@@ -78,3 +78,44 @@ fn a_restarted_plugin_has_to_say_ready_again() {
     // Nothing is asked of it until its new page has finished loading.
     assert!(!started.wait("ticket-links", Instant::now() + Duration::from_millis(20)));
 }
+
+#[test]
+fn the_pane_is_told_what_a_plugin_did() {
+    let registry = granted();
+    registry.disable("ticket-links", "did not answer within 2s");
+
+    let states = registry.states();
+    let one = states.iter().find(|state| state.name == "ticket-links").expect("not listed");
+    assert!(one.disabled);
+    assert_eq!(one.reason.as_deref(), Some("did not answer within 2s"));
+}
+
+#[test]
+fn a_plugin_that_is_simply_running_has_nothing_to_explain() {
+    let states = granted().states();
+    let one = states.first().expect("not listed");
+    assert!(!one.disabled);
+    assert!(one.running);
+    assert_eq!(one.reason, None);
+}
+
+#[test]
+fn the_first_reason_is_the_true_one() {
+    // A plugin already put away for hanging, then refused a capability, was
+    // not put away for asking.
+    let registry = granted();
+    registry.disable("ticket-links", "did not answer within 2s");
+    registry.disable("ticket-links", "asked three times for something it was not granted");
+    let states = registry.states();
+    assert_eq!(states[0].reason.as_deref(), Some("did not answer within 2s"));
+}
+
+#[test]
+fn the_states_come_back_in_a_settled_order() {
+    let registry = Registry::default();
+    for name in ["zulu", "alpha"] {
+        registry.grant(name, "index.js".into(), Vec::new(), Vec::new());
+    }
+    let names: Vec<String> = registry.states().into_iter().map(|state| state.name).collect();
+    assert_eq!(names, vec!["alpha".to_string(), "zulu".to_string()]);
+}

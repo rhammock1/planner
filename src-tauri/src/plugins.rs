@@ -29,7 +29,7 @@ pub use registry::{Registry, STRIKES};
 
 use serde::Serialize;
 use serde_json::Value;
-use tauri::{AppHandle, Url};
+use tauri::{AppHandle, Manager, Url};
 
 /// The prefix a plugin window's label carries. Nothing else may use it: the
 /// label is what the gate below reads, so a window that borrows the prefix
@@ -145,4 +145,13 @@ pub async fn stop_plugin(app: AppHandle, name: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || host::stop(&app, &name))
         .await
         .map_err(|error| format!("could not stop the plugin: {error}"))?
+}
+
+/// What each plugin this session has started is doing, and why it stopped.
+///
+/// Read by the ⌘, pane. Not a plugin's to call: the gate holds a plugin
+/// window to the door.
+#[tauri::command]
+pub fn plugin_states(app: AppHandle) -> Vec<registry::PluginState> {
+    app.state::<Registry>().states()
 }

@@ -185,6 +185,15 @@ export async function askPlugins(slot, now, params) {
 }
 
 /**
+ * What each plugin this session has started is doing, and why it stopped.
+ *
+ * @returns {Promise<import('./host.js').PluginState[]>}
+ */
+export async function pluginStates() {
+  return (await getHost()).pluginStates()
+}
+
+/**
  * Fires when the menu bar icon opens the popover.
  *
  * Opening it is asking what today looks like, which makes it the moment to

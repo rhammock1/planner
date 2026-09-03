@@ -8,6 +8,8 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+use serde::Serialize;
+
 /// How many ungranted requests a plugin gets before it is put away.
 pub const STRIKES: u32 = 3;
 
@@ -172,4 +174,34 @@ impl Registry {
             grant.handles = None;
         }
     }
+
+    /// Every plugin this session has started, whether or not it still is.
+    pub fn states(&self) -> Vec<PluginState> {
+        let held = self.0.lock().expect("registry lock");
+        let mut states: Vec<PluginState> = held
+            .iter()
+            .map(|(name, grant)| PluginState {
+                name: name.clone(),
+                running: grant.running && !grant.disabled,
+                disabled: grant.disabled,
+                reason: grant.reason.clone(),
+            })
+            .collect();
+        states.sort_by(|left, right| left.name.cmp(&right.name));
+        states
+    }
+}
+
+/// What the pane needs to know about a plugin that is not in either file.
+///
+/// The reason is the interesting part. A judgement about how somebody's code
+/// behaved should not be cleared by a person who does not know what it did,
+/// so the switch does not clear it - which makes telling them what it was the
+/// only decent thing left to do (spec §1.2).
+#[derive(Serialize)]
+pub struct PluginState {
+    pub name: String,
+    pub running: bool,
+    pub disabled: bool,
+    pub reason: Option<String>,
 }
