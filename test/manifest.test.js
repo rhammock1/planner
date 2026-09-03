@@ -123,3 +123,60 @@ test('urls in the wrong shape are a fault', () => {
 test('a manifest that opens nothing has no prefixes', () => {
   assert.deepEqual(readManifest('entry = "i.js"').open, [])
 })
+
+test('a manifest declares its own settings, in the order the pane shows them', () => {
+  const read = readManifest(`
+entry = "index.js"
+
+[settings.pattern]
+label   = "Ticket pattern"
+kind    = "text"
+default = "#(\\\\d+)"
+
+[settings.url]
+label = "Ticket URL"
+kind  = "text"
+hint  = "https://github.com/org/repo/pull/$1"
+`)
+  assert.equal(read.error, null)
+  assert.deepEqual(read.settings.map((one) => one.key), ['pattern', 'url'])
+  assert.equal(read.settings[0]?.label, 'Ticket pattern')
+  assert.equal(read.settings[0]?.kind, 'text')
+  assert.equal(read.settings[0]?.fallback, '#(\\d+)')
+  assert.equal(read.settings[1]?.hint, 'https://github.com/org/repo/pull/$1')
+  assert.equal(read.settings[1]?.fallback, null)
+})
+
+test('the three kinds, and no others', () => {
+  for (const kind of ['text', 'count', 'switch']) {
+    const read = readManifest(`entry = "i.js"\n[settings.a]\nlabel = "A"\nkind = "${kind}"`)
+    assert.equal(read.settings[0]?.kind, kind)
+  }
+  const read = readManifest('entry = "i.js"\n[settings.a]\nlabel = "A"\nkind = "path"')
+  assert.deepEqual(read.settings, [])
+  assert.match(read.notices[0] ?? '', /path/)
+})
+
+test('a default has to match its kind', () => {
+  const read = readManifest('entry = "i.js"\n[settings.a]\nlabel = "A"\nkind = "count"\ndefault = "seven"')
+  assert.deepEqual(read.settings, [])
+  assert.match(read.notices[0] ?? '', /default/)
+})
+
+test('a settings key that could not be a config key is refused', () => {
+  // `tomlEdit` writes keys verbatim, and a dotted one would be read back as a
+  // path into somebody else's table (spec §1.1).
+  const read = readManifest('entry = "i.js"\n[settings.a.b]\nlabel = "A"\nkind = "text"')
+  assert.deepEqual(read.settings, [])
+  assert.ok(read.notices.length > 0)
+})
+
+test('a settings key with no label is not a row anybody could read', () => {
+  const read = readManifest('entry = "i.js"\n[settings.a]\nkind = "text"')
+  assert.deepEqual(read.settings, [])
+  assert.match(read.notices[0] ?? '', /label/)
+})
+
+test('a manifest with no settings has none', () => {
+  assert.deepEqual(readManifest('entry = "i.js"').settings, [])
+})
