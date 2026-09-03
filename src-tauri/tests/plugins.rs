@@ -180,7 +180,7 @@ mod answers {
 
 /// What a plugin can reach on the disk: its own folder, and nothing else.
 mod files {
-    use planner_lib::plugins::host::within;
+    use planner_lib::plugins::serving::within;
     use std::fs;
     use std::path::PathBuf;
 

@@ -218,7 +218,7 @@ pub fn run() {
         // Every plugin's page and code is served from here, out of its own
         // folder and nowhere else (see `plugins::host::respond`).
         .register_uri_scheme_protocol("plugin", |context, request| {
-            plugins::host::respond(context.app_handle(), &request)
+            plugins::serving::respond(context.app_handle(), &request)
         })
         .invoke_handler(move |invoke: tauri::ipc::Invoke<tauri::Wry>| {
             let label = invoke.message.webview_ref().label();

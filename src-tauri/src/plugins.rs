@@ -21,6 +21,7 @@
 pub mod door;
 pub mod host;
 pub mod registry;
+pub mod serving;
 pub mod waiting;
 
 pub use door::Message;
