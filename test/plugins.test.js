@@ -456,6 +456,61 @@ test('a setting the manifest never declared is not handed to the plugin', () => 
   assert.equal(start[0]?.settings.has('pattren'), false)
 })
 
+const SETTINGS_URL = `
+entry = "index.js"
+[permissions.open]
+urls = ["settings.url"]
+
+[settings.url]
+label = "Ticket URL"
+kind  = "text"
+`
+
+test('an address named by a setting with no value resolves to no prefix, and one notice', () => {
+  const { start, notices } = plan(
+    folders(SETTINGS_URL),
+    configured({ approvedSlots: [], approvedCapabilities: [] }),
+  )
+  assert.deepEqual(start[0]?.open, [])
+  assert.equal(notices.length, 1)
+  assert.match(notices[0] ?? '', /url has not been set/)
+})
+
+test('an address named by a setting with a value resolves to the cut prefix', () => {
+  const config = configured({
+    approvedSlots: [],
+    approvedCapabilities: [],
+    approvedOpen: ['https://git.example/org/repo/pull/'],
+  })
+  const macosCalendar = config.get('macos-calendar')
+  assert.ok(macosCalendar)
+  macosCalendar.settings = new Map([['url', 'https://git.example/org/repo/pull/$1']])
+
+  const { start, notices } = plan(folders(SETTINGS_URL), config)
+  assert.deepEqual(start[0]?.open, ['https://git.example/org/repo/pull/'])
+  assert.deepEqual(notices, [])
+})
+
+test('changing the setting an address depends on changes the signature, so the plugin restarts', () => {
+  const config = configured({
+    approvedSlots: [],
+    approvedCapabilities: [],
+    approvedOpen: ['https://git.example/org/repo/pull/', 'https://other.example/x/'],
+  })
+  const macosCalendar = config.get('macos-calendar')
+  assert.ok(macosCalendar)
+
+  macosCalendar.settings = new Map([['url', 'https://git.example/org/repo/pull/$1']])
+  const before = plan(folders(SETTINGS_URL), config).start[0]
+  assert.ok(before)
+
+  macosCalendar.settings = new Map([['url', 'https://other.example/x/$1']])
+  const after = plan(folders(SETTINGS_URL), config).start[0]
+  assert.ok(after)
+
+  assert.notEqual(signature(before), signature(after))
+})
+
 test('changing a setting changes the signature, so the plugin restarts', () => {
   const config = configured()
   const first = plan(folders(SCHEMA), config).start[0]

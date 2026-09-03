@@ -154,6 +154,11 @@ function readCapabilities(permissions) {
  * approved and a manifest that asks for something impossible says so once
  * instead of failing silently every time a marker is pressed.
  *
+ * An entry of the form `settings.<key>` cannot be checked here at all - this
+ * reader has no settings values, only the schema - so it is kept verbatim,
+ * with only its key checked against the same rule a settings key obeys.
+ * `plan()` resolves it once the config's settings have been settled.
+ *
  * @param {unknown} permissions
  * @param {string[]} notices
  * @returns {string[]|string} a string is an error
@@ -177,6 +182,15 @@ function readOpen(permissions, notices) {
   /** @type {string[]} */
   const kept = []
   for (const entry of /** @type {string[]} */ (urls)) {
+    if (entry.startsWith('settings.')) {
+      const key = entry.slice('settings.'.length)
+      if (!IDENTIFIER.test(key)) {
+        notices.push(`manifest.toml asks to open ${entry}, whose setting name is not one config.toml could hold`)
+        continue
+      }
+      if (!kept.includes(entry)) kept.push(entry)
+      continue
+    }
     const read = readPrefix(entry)
     if (read.error !== null) {
       notices.push(`manifest.toml asks to open ${read.error}`)

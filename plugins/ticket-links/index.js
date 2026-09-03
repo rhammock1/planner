@@ -1,34 +1,58 @@
 // @ts-check
 
 /**
- * ticket-links — turns `#4412` on a line into a marker that opens the pull
- * request.
+ * ticket-links — turns a ticket mention on a line into a marker that opens
+ * it.
  *
  * Written against the public API and nothing else. It is shown the text of
  * every line on the page being drawn and answers with a marker for the ones
  * that mention a ticket; it never calls anything when the marker is clicked,
  * because the click belongs to the app.
  *
- * The pattern and the address are constants here. Both become settings you can
- * type into the ⌘, pane in the next version, at which point this file reads
- * `planner.settings` instead.
+ * The pattern and the URL are settings rather than constants: a person whose
+ * tickets are not on the author's host can still use this plugin, because the
+ * address is theirs, typed into the pane, and typing it is the approval
+ * (spec §2.1).
  */
 
-/** The ticket a line mentions. Anchored to a word boundary so `x#1` is not one. */
-const PATTERN = /(?:^|\s)#(\d+)\b/
+/**
+ * The pattern, as the person wrote it.
+ *
+ * Built once rather than per line. A pattern that will not compile is the
+ * person's typo, and it costs a notice on the page rather than an exception
+ * for every line on it.
+ *
+ * The expression itself runs in this plugin's own webview under this plugin's
+ * own two-second deadline, so a pathological one costs this plugin its
+ * session and nothing else.
+ */
+const pattern = compile(String(planner.settings.pattern ?? ''))
+const address = String(planner.settings.url ?? '')
 
-/** Where a ticket lives. `$1` is the number the pattern found. */
-const ADDRESS = 'https://github.com/gotab-inc/node/pull/$1'
+planner.on('item.badge', ({ items }) => {
+  if (pattern === null) throw new Error('the ticket pattern is not a regular expression')
+  if (address === '') throw new Error('no ticket URL has been set')
 
-planner.on('item.badge', ({ items }) =>
-  items.flatMap((item) => {
-    const found = PATTERN.exec(item.text)
-    const number = found?.[1]
-    if (number === undefined) return []
+  return items.flatMap((item) => {
+    const found = pattern.exec(item.text)
+    const captured = found?.[1] ?? found?.[0]
+    if (captured === undefined) return []
     return [{
       index: item.index,
-      label: `#${number}`,
-      href: ADDRESS.replace('$1', encodeURIComponent(number)),
+      label: captured.startsWith('#') ? captured : `#${captured}`,
+      href: address.replace('$1', encodeURIComponent(captured)),
     }]
-  }),
-)
+  })
+})
+
+/**
+ * @param {string} source
+ * @returns {RegExp|null}
+ */
+function compile(source) {
+  try {
+    return source === '' ? null : new RegExp(source)
+  } catch {
+    return null
+  }
+}

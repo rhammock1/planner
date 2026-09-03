@@ -7,7 +7,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { readPrefix, mayOpen } from '../src/core/urls.js'
+import { readPrefix, mayOpen, resolvePrefix } from '../src/core/urls.js'
 
 test('a prefix is an http URL ending in a slash', () => {
   assert.equal(readPrefix('https://github.com/gotab-inc/node/pull/').error, null)
@@ -74,4 +74,35 @@ test('with no prefixes, nothing opens', () => {
 test('a href that is not a URL opens nothing', () => {
   assert.equal(mayOpen('javascript:alert(1)', PREFIXES), false)
   assert.equal(mayOpen('', PREFIXES), false)
+})
+
+test('a literal entry resolves to itself', () => {
+  const held = new Map()
+  assert.equal(resolvePrefix('https://x.example/t/', held).prefix, 'https://x.example/t/')
+})
+
+test('an entry naming a setting resolves to what the person typed', () => {
+  const held = new Map([['url', 'https://git.example/org/repo/pull/$1']])
+  // Cut at its first `$`: the setting is a template, and everything from the
+  // first placeholder on is the part that varies.
+  assert.equal(
+    resolvePrefix('settings.url', held).prefix,
+    'https://git.example/org/repo/pull/',
+  )
+})
+
+test('an unset setting is no prefix at all, and opens nothing', () => {
+  const { prefix, error } = resolvePrefix('settings.url', new Map())
+  assert.equal(prefix, '')
+  assert.match(error ?? '', /not been set/)
+})
+
+test('a setting whose value is not an address is refused like any other', () => {
+  const held = new Map([['url', 'file:///etc/$1']])
+  assert.match(resolvePrefix('settings.url', held).error ?? '', /https/)
+})
+
+test('a setting whose value has no placeholder is used whole', () => {
+  const held = new Map([['url', 'https://x.example/t/']])
+  assert.equal(resolvePrefix('settings.url', held).prefix, 'https://x.example/t/')
 })

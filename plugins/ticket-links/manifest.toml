@@ -1,5 +1,5 @@
 name        = "ticket-links"
-version     = "0.1.0"
+version     = "0.2.0"
 description = "Opens the ticket a line mentions"
 entry       = "index.js"
 slots       = ["item.badge"]
@@ -8,4 +8,14 @@ slots       = ["item.badge"]
 capabilities = ["shell.open"]
 
 [permissions.open]
-urls = ["https://github.com/gotab-inc/node/pull/"]
+urls = ["settings.url"]
+
+[settings.pattern]
+label   = "Ticket pattern"
+kind    = "text"
+default = "#(\\d+)"
+
+[settings.url]
+label   = "Ticket URL"
+kind    = "text"
+hint    = "https://github.com/org/repo/pull/$1"

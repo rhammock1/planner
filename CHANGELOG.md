@@ -11,6 +11,8 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Added
 
+-   Plugins can declare their own settings, and the ⌘, pane draws a row for each. Changing one restarts the plugin
+-   `shell.open` prefixes can come from a setting, so the address a plugin opens is the one you typed rather than the one its author did
 -   Plugins can put a marker after a line, and open the address behind it (`item.badge`, `shell.open`). `ticket-links` is the reference plugin
 -   A plugin can be stopped, started and restarted from the settings pane without relaunching the app
 -   The settings pane asks about what a plugin is *shown*, one sentence per slot, and says why a plugin was put away

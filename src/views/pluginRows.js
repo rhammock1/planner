@@ -126,6 +126,13 @@ function pluginRow(plugin, states, handlers) {
     block.append(el('div', 'plugin-note', 'Asks for nothing.'))
   }
 
+  // One row per settings key, rendered from the manifest's schema by the same
+  // shapes the app's own settings use - given a value and an onChange rather
+  // than the app's Config (spec §1.5).
+  for (const field of plugin.schema) {
+    block.append(settingRow(plugin, field, handlers))
+  }
+
   const state = states.get(plugin.name)
   if (state?.disabled === true) {
     // A judgement about somebody's code should not be cleared by a person who
@@ -135,6 +142,66 @@ function pluginRow(plugin, states, handlers) {
   }
 
   return block
+}
+
+/**
+ * @param {Installed} plugin
+ * @param {import('../core/manifest.js').SettingsField} field
+ * @param {SettingsHandlers} handlers
+ * @returns {HTMLElement}
+ */
+function settingRow(plugin, field, handlers) {
+  const line = el('label', `setting setting-${field.kind}`)
+  const held = plugin.settings.get(field.key)
+
+  /** @param {string|number|boolean} value */
+  const write = (value) => handlers.onPlugin(plugin.name, {
+    enabled: plugin.enabled,
+    approvedSlots: plugin.approvedSlots,
+    approvedCapabilities: plugin.approved,
+    approvedOpen: plugin.approvedOpen,
+    settings: new Map([...plugin.settings, [field.key, value]]),
+  })
+
+  if (field.kind === 'switch') {
+    const box = el('input', 'setting-box')
+    box.setAttribute('type', 'checkbox')
+    if (box instanceof HTMLInputElement) box.checked = held === true
+    box.addEventListener('change', () => {
+      if (box instanceof HTMLInputElement) write(box.checked)
+    })
+    line.append(box, el('span', 'setting-label', field.label))
+    return line
+  }
+
+  line.append(el('span', 'setting-label', field.label))
+  const input = el('input', 'setting-field')
+  input.setAttribute('type', field.kind === 'count' ? 'number' : 'text')
+  if (field.kind === 'count') input.setAttribute('min', '0')
+  if (field.hint !== null) input.setAttribute('placeholder', field.hint)
+  if (input instanceof HTMLInputElement) input.value = held === undefined ? '' : String(held)
+
+  // `change`, not `input`: every one of these writes config.toml and restarts
+  // the plugin, and doing that per keystroke would restart it eight times
+  // while a word is typed.
+  input.addEventListener('change', () => {
+    if (!(input instanceof HTMLInputElement)) return
+    if (field.kind !== 'count') {
+      write(input.value)
+      return
+    }
+    const count = Number(input.value)
+    // Put back rather than written: a value the reader would refuse anyway is
+    // a notice nobody asked for.
+    if (!Number.isInteger(count) || count < 0) {
+      input.value = held === undefined ? '' : String(held)
+      return
+    }
+    write(count)
+  })
+
+  line.append(input)
+  return line
 }
 
 /**

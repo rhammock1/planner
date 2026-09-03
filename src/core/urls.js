@@ -47,6 +47,35 @@ export function readPrefix(entry) {
 }
 
 /**
+ * One entry of `[permissions.open].urls`, which is either a literal address or
+ * the name of one of the plugin's own settings.
+ *
+ * A setting-derived prefix is the setting's value cut at its first `$`: the
+ * setting is a template — `https://github.com/org/repo/pull/$1` — and the part
+ * before the first placeholder is the fixed part that can be approved. With no
+ * value there is no prefix and nothing opens.
+ *
+ * This is what lets a person whose tickets are not on the author's host use
+ * the plugin at all: the URL is theirs, typed into the pane, and typing it is
+ * the approval (spec §2.1).
+ *
+ * @param {string} entry
+ * @param {Map<string, string|number|boolean>} settings
+ * @returns {{prefix: string, error: string|null}}
+ */
+export function resolvePrefix(entry, settings) {
+  if (!entry.startsWith('settings.')) return readPrefix(entry)
+
+  const key = entry.slice('settings.'.length)
+  const value = settings.get(key)
+  if (typeof value !== 'string' || value === '') {
+    return { prefix: '', error: `${key} has not been set, so nothing can be opened` }
+  }
+  const [fixed] = value.split('$')
+  return readPrefix(fixed ?? '')
+}
+
+/**
  * Whether a URL falls under any of the approved prefixes.
  *
  * @param {string} href  whatever the plugin sent

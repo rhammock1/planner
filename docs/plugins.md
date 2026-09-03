@@ -18,7 +18,7 @@ this API exists to serve, and the reason it is small.
 ```toml
 # manifest.toml
 name        = "ticket-links"
-version     = "0.1.0"
+version     = "0.2.0"
 description = "Opens the ticket a line mentions"
 entry       = "index.js"
 slots       = ["item.badge"]
@@ -27,7 +27,12 @@ slots       = ["item.badge"]
 capabilities = ["shell.open"]
 
 [permissions.open]
-urls = ["https://github.com/gotab-inc/node/pull/"]
+urls = ["settings.url"]
+
+[settings.url]
+label = "Ticket URL"
+kind  = "text"
+hint  = "https://github.com/org/repo/pull/$1"
 ```
 
 `entry` is the file the plugin starts at, relative to its own folder. A path
@@ -48,6 +53,9 @@ enabled               = true
 approved_slots        = ["item.badge"]
 approved_capabilities = ["shell.open"]
 approved_open         = ["https://github.com/gotab-inc/node/pull/"]
+
+[plugins.ticket-links.settings]
+url = "https://github.com/gotab-inc/node/pull/$1"
 ```
 
 **The manifest is the ceiling.** A slot, a capability or an address approved
@@ -55,7 +63,8 @@ here that the manifest does not ask for is not granted, and says so on the
 page. Anything the manifest asks for that is not approved here is not granted
 either — the plugin still runs, and finds out when it asks.
 
-A settings pane is coming; until it does, this file is the only way in.
+Every field above has a row in the ⌘, pane; hand-editing this file works too,
+and both write and read the same keys.
 
 ## The API
 
@@ -127,6 +136,23 @@ compared segment by segment on the parsed URL. `https://github.com.evil.io/…`
 and `…/repo/pull/../../evil/` are both refused. So is a click on an address
 that is no longer approved — with a notice, and no strike against you.
 
+An entry may also name one of your own settings, as `settings.<key>` instead
+of a literal address:
+
+```toml
+[permissions.open]
+urls = ["settings.url"]
+```
+
+The prefix is that setting's value, cut at its first `$`: a template such as
+`https://github.com/org/repo/pull/$1` resolves to
+`https://github.com/org/repo/pull/` — everything before the first placeholder.
+A value with no placeholder is used whole. With no value set, there is no
+prefix, nothing is offered to tick, and a click is refused with a notice
+rather than falling back to anything wider. This is what lets a person whose
+tickets live on a different host use the plugin at all: the address is theirs,
+typed into the pane, and typing it is the approval.
+
 ### `onContribute`
 
 Called with `{from, to}`, each `YYYY-MM-DD` local, inclusive. Return — or
@@ -161,6 +187,46 @@ allowed it.
 `events` may be asked about at most 62 days at a time. A wider range is
 refused with an error rather than trimmed, because a plugin that asked for a
 decade should find out that it did.
+
+### Settings
+
+A plugin can declare its own settings, and the ⌘, pane draws a row for each
+one, right below the plugin's ticks:
+
+```toml
+[settings.pattern]
+label   = "Ticket pattern"
+kind    = "text"
+default = "#(\\d+)"
+
+[settings.url]
+label = "Ticket URL"
+kind  = "text"
+hint  = "https://github.com/org/repo/pull/$1"
+```
+
+| Field | |
+|---|---|
+| `label` | What the pane shows next to the row. Required. |
+| `kind` | `text`, `count` or `switch` — the only three. Required. |
+| `default` | The value used until the person types one, matching `kind`. Optional; `url` above has none on purpose, since a default here would be the author's host, not yours. |
+| `hint` | A placeholder shown in an empty `text` or `count` field. Optional. |
+
+A key that will not do — no label, an unknown kind, a default of the wrong
+type — is dropped with a notice; the rest of the settings, and the plugin
+itself, still work.
+
+Your own values live under `[plugins.<name>.settings]` in `config.toml`, one
+key per setting, written by the pane the moment a row changes. The plugin
+reads them back as `planner.settings`, a frozen object keyed the same way —
+never a `Map`, and never anything the plugin wrote itself. Its value is
+embedded into the page with the same HTML-safe encoding as everything else a
+plugin is served, so a setting containing `</script>` cannot end the page
+early.
+
+**Changing a setting restarts the plugin**, the same as changing a slot, a
+capability or an address does — the code never runs with a settings value it
+did not start with.
 
 ## What is stopping you
 

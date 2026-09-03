@@ -111,3 +111,11 @@ PLANNER_HOME=/tmp/planner-home npm run app
 - [ ] Two plugins both answering `item.badge` put two markers on the line, in
       name order, and one slow one does not delay the other's marker by two
       seconds.
+- [ ] Change `ticket-links`' Ticket URL in the pane: the plugin restarts and
+      the next marker opens the new host. The old webview is gone.
+- [ ] Clear the Ticket URL: no prefix is approved, the marker still draws, and
+      the click is refused with a notice.
+- [ ] Put `</script>` in a text setting: the plugin still loads and still
+      answers. The page it is served is not ended by its own settings.
+- [ ] Type a pattern that is not a regular expression: one notice, and the
+      rest of the page is unaffected.

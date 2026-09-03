@@ -8,18 +8,17 @@
  * settles the two, and every disagreement comes back as a line for the page
  * rather than a silence.
  *
- * **The manifest is the ceiling.** A slot or a capability the config approves
- * that the manifest never asked for is not granted - the plugin's own
- * declaration is the smaller of the two, and enlarging it from outside would
- * let a config hand a plugin something its author never wrote code to use.
- *
- * A slot is approved for the same reason a capability is. It is not reach; it
- * is what the plugin is *shown*, and `item.badge` is shown every line on the
- * page you are looking at.
+ * **The manifest is the ceiling.** A slot, a capability or an address the
+ * config approves that the manifest never asked for is not granted - the
+ * plugin's own declaration is the smaller of the two. A slot is approved for
+ * the same reason a capability is: it is not reach, it is what the plugin is
+ * *shown*, and `item.badge` is shown every line on the page you are looking
+ * at.
  */
 
 import { readManifest } from './manifest.js'
 import { settled } from './pluginSettings.js'
+import { resolvePrefix } from './urls.js'
 
 /** @typedef {import('./config.js').PluginConfig} PluginConfig */
 /** @typedef {import('./manifest.js').SettingsField} SettingsField */
@@ -59,9 +58,8 @@ import { settled } from './pluginSettings.js'
  *
  * The name becomes a URL host, a window label and a `config.toml` table
  * header, and `tomlEdit` writes headers verbatim - a folder called
- * `x]\n[plugins.other` would write another plugin's config (spec §0.2). So
- * the name is checked before anything else about the folder is believed,
- * including its manifest.
+ * `x]\n[plugins.other` would write another plugin's config (spec §0.2), so
+ * the name is checked before anything else about the folder is believed.
  */
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/
 
@@ -79,7 +77,6 @@ export function isPluginName(name) {
 
 /**
  * Every plugin folder on disk, settled against the config (spec §7).
- *
  * @param {Folder[]} folders
  * @param {Map<string, PluginConfig>} configured
  * @returns {Installed[]}
@@ -103,6 +100,10 @@ export function installed(folders, configured) {
     }
 
     const read = readManifest(folder.manifest)
+    const settings = settled(folder.name, read.settings, configEntry?.settings ?? new Map(), [])
+    // An unset settings-derived entry resolves to nothing, so it is simply
+    // not offered rather than shown as the literal `settings.<key>` string.
+    const open = resolveOpen(folder.name, read.open, settings, [])
     return {
       name: folder.name,
       enabled,
@@ -110,11 +111,11 @@ export function installed(folders, configured) {
       approvedSlots: both(read.slots, configEntry?.approvedSlots),
       asked: read.capabilities,
       approved: both(read.capabilities, configEntry?.approvedCapabilities),
-      open: read.open,
-      approvedOpen: both(read.open, configEntry?.approvedOpen),
+      open,
+      approvedOpen: both(open, configEntry?.approvedOpen),
       problem: read.error,
       schema: read.settings,
-      settings: settled(folder.name, read.settings, configEntry?.settings ?? new Map(), []),
+      settings,
     }
   })
 }
@@ -150,24 +151,27 @@ export function plan(folders, configured) {
     }
     for (const line of read.notices) notices.push(`${folder.name}: ${line}`)
 
-    // A name in both read.unofferedSlots and settings.approvedSlots was
-    // asked for by the manifest and already earned its notice above ("does
-    // not offer") - it is dropped here so it does not also earn the
-    // contradicting "does not ask for it". A name config.toml approves that
-    // the manifest never mentioned at all is not in unofferedSlots, so it
-    // keeps its notice below, same as a bogus capability would.
+    // A name in both read.unofferedSlots and settings.approvedSlots already
+    // earned its notice above ("does not offer") - dropped here so it does
+    // not also earn the contradicting "does not ask for it". A name the
+    // manifest never mentioned at all keeps its notice below.
     const approvedSlots = settings.approvedSlots.filter((one) => !read.unofferedSlots.includes(one))
     disagreements(folder.name, 'slot', read.slots, approvedSlots, notices)
     disagreements(folder.name, 'capability', read.capabilities, settings.approvedCapabilities, notices)
-    disagreements(folder.name, 'address', read.open, settings.approvedOpen, notices)
+
+    // Resolved here, not by the manifest reader: a `settings.` entry can only
+    // be checked once the settings it depends on are known.
+    const pluginSettings = settled(folder.name, read.settings, settings.settings, notices)
+    const resolvedOpen = resolveOpen(folder.name, read.open, pluginSettings, notices)
+    disagreements(folder.name, 'address', resolvedOpen, settings.approvedOpen, notices)
 
     start.push({
       name: folder.name,
       entry: read.entry,
       slots: both(read.slots, settings.approvedSlots),
       capabilities: both(read.capabilities, settings.approvedCapabilities),
-      open: both(read.open, settings.approvedOpen),
-      settings: settled(folder.name, read.settings, settings.settings, notices),
+      open: both(resolvedOpen, settings.approvedOpen),
+      settings: pluginSettings,
     })
   }
 
@@ -180,7 +184,6 @@ export function plan(folders, configured) {
  * Sorted and written out by hand rather than handed to `JSON.stringify`,
  * which writes a `Map` as `{}` - settings live in one (§2.2), so a plugin
  * whose settings changed would otherwise look identical to itself (spec §1.2).
- *
  * @param {Start} start
  * @returns {string}
  */
@@ -200,7 +203,6 @@ export function signature(start) {
  *
  * A restart is the only way anything about a plugin changes: a page that
  * reloads is simpler than one that has to be right while its inputs move.
- *
  * @param {Map<string, string>} running  name -> the signature it was started with
  * @param {Start[]} planned
  * @returns {{stop: string[], start: Start[]}}
@@ -234,9 +236,35 @@ export function diff(running, planned) {
 }
 
 /**
+ * The manifest's own `open` entries, resolved against the settled settings.
+ *
+ * A literal entry passes through unchanged; a `settings.<key>` entry is
+ * resolved here, where the settled values are known. `Installed.open` and
+ * `Start.open` both go through this, so the pane's tick and the address
+ * handed to Rust are the same string.
+ * @param {string} name
+ * @param {string[]} open
+ * @param {Map<string, TomlValue>} settings
+ * @param {string[]} notices
+ * @returns {string[]}
+ */
+function resolveOpen(name, open, settings, notices) {
+  /** @type {string[]} */
+  const kept = []
+  for (const entry of open) {
+    const read = resolvePrefix(entry, /** @type {Map<string, string|number|boolean>} */ (settings))
+    if (read.error !== null) {
+      notices.push(`${name}: ${read.error}`)
+      continue
+    }
+    if (!kept.includes(read.prefix)) kept.push(read.prefix)
+  }
+  return kept
+}
+
+/**
  * The intersection, in the manifest's order: the manifest is the ceiling, so
  * what it does not ask for cannot be granted however the config is written.
- *
  * @param {string[]} asked
  * @param {string[]|undefined} approved
  * @returns {string[]}
@@ -249,7 +277,6 @@ function both(asked, approved) {
 /**
  * One line for each side of a disagreement, so the page says what is missing
  * rather than the plugin quietly doing less than it says it does.
- *
  * @param {string} name
  * @param {string} kind  `slot` or `capability`
  * @param {string[]} asked
