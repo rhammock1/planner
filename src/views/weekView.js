@@ -35,9 +35,10 @@ const ITEM = 'application/x-planner-item'
  * @param {(pageOf: () => string) => import('../pageEdits.js').PageEdits} editsFor
  * @param {(anchor: string) => void} onAnchor
  * @param {(from: string, index: number, to: string) => void} onMove
+ * @param {(plugin: string, href: string) => void} onBadge
  * @returns {{element: HTMLElement, render: (state: SpreadState) => void}}
  */
-export function createWeekView(editsFor, onAnchor, onMove) {
+export function createWeekView(editsFor, onAnchor, onMove, onBadge) {
   /** The seven days on screen. Empty until the first render. */
   /** @type {string[]} */
   let days = []
@@ -55,7 +56,7 @@ export function createWeekView(editsFor, onAnchor, onMove) {
   const head = el('div', 'view-head')
   head.append(title, nav)
 
-  const columns = [0, 1, 2, 3, 4, 5, 6].map((slot) => createColumn(slot, () => days[slot] ?? '', editsFor))
+  const columns = [0, 1, 2, 3, 4, 5, 6].map((slot) => createColumn(slot, () => days[slot] ?? '', editsFor, onBadge))
 
   /**
    * @param {EventTarget|null} target
@@ -175,16 +176,17 @@ export function createWeekView(editsFor, onAnchor, onMove) {
  * @param {number} slot 0 for Monday through 6 for Sunday
  * @param {() => string} pageOf
  * @param {(pageOf: () => string) => import('../pageEdits.js').PageEdits} editsFor
+ * @param {(plugin: string, href: string) => void} onBadge
  * @returns {{element: HTMLElement, render: (state: SpreadState) => void}}
  */
-function createColumn(slot, pageOf, editsFor) {
+function createColumn(slot, pageOf, editsFor, onBadge) {
   const edits = editsFor(pageOf)
   const name = el('span', 'day-name')
   const number = el('span', 'day-number')
   const head = el('div', 'day-head')
   head.append(name, number)
 
-  const items = createItemList(edits, { draggable: true, editable: false })
+  const items = createItemList({ ...edits, onBadge }, { draggable: true, editable: false })
   const add = createAddRow(edits.onAdd, '')
 
   const element = el('div', 'day-column')
@@ -206,7 +208,7 @@ function createColumn(slot, pageOf, editsFor) {
       element.dataset['page'] = page
 
       const doc = state.vault.get(page) ?? null
-      items.render(doc)
+      items.render(doc, state.badges?.get(page))
       element.dataset['open'] = String(openCount(doc))
     },
   }

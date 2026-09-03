@@ -16,6 +16,7 @@ import { parse } from './core/parse.js'
 import { serialize } from './core/serialize.js'
 import { buildIndex, getPage, withPage } from './core/vaultIndex.js'
 import { DEFAULTS, DEFAULT_CONFIG_TEXT, updateConfig, updatePlugin } from './core/config.js'
+import { installed } from './core/plugins.js'
 import { createWriteQueue } from './writeQueue.js'
 import { createAsking } from './plugins/asking.js'
 import * as ipc from './ipc.js'
@@ -37,6 +38,7 @@ import { today, nowTime } from './clock.js'
  * @property {() => void} refreshPlugins
  * @property {() => number} pluginGeneration
  * @property {() => import('./ipc/host.js').PluginState[]} pluginStates
+ * @property {(name: string) => string[]} approvedOpen  addresses a plugin may open, from the pane
  * @property {() => VaultIndex} vault
  * @property {() => import('./core/config.js').Config} config
  * @property {() => string[]} notices
@@ -205,6 +207,13 @@ export function createStore() {
     refreshPlugins: plugins.refresh,
     pluginGeneration: plugins.generation,
     pluginStates: plugins.states,
+
+    // The same list the pane ticks, computed from the two files rather than
+    // from whatever a window happens to have started a plugin with - so the
+    // spread, which asks plugins but starts none (spec §1.3), gets the same
+    // answer as the popover.
+    approvedOpen: (name) =>
+      installed(folders, config.plugins).find((one) => one.name === name)?.approvedOpen ?? [],
 
     vault: () => vault,
     config: () => config,

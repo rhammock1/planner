@@ -12,6 +12,9 @@
 import { today } from './clock.js'
 import { moveItem } from './core/move.js'
 import { search } from './core/search.js'
+import { linesOf, badgeKey, readBadges } from './core/badges.js'
+import { mayOpen } from './core/urls.js'
+import { weekOf } from './core/calendar.js'
 import { SOMEDAY } from './core/vaultIndex.js'
 import { createStore } from './store.js'
 import { createPageEdits } from './pageEdits.js'
@@ -44,6 +47,7 @@ async function start() {
       draw()
     },
     onMove: (from, index, to) => { void move(from, index, to) },
+    onBadge: (plugin, href) => { void openBadge(plugin, href) },
     onAnchor: (next) => {
       // '' is how a view says "back to now" without holding a clock itself.
       anchor = next === '' ? today() : next
@@ -124,13 +128,53 @@ async function move(from, index, to) {
   }
 }
 
+/**
+ * Opens what a marker points at (spec §2.1). The same check `app.js` makes,
+ * against this window's own store: each webview asks plugins independently
+ * (spec §1.3), so each checks the approval independently too.
+ *
+ * @param {string} plugin
+ * @param {string} href
+ * @returns {Promise<void>}
+ */
+async function openBadge(plugin, href) {
+  const approved = store.approvedOpen(plugin)
+  if (!mayOpen(href, approved)) {
+    store.notice(`${plugin} tried to open ${href}, which is not one of the addresses you approved.`)
+    return
+  }
+  try {
+    await ipc.openUrl(plugin, href)
+  } catch (error) {
+    store.notice(`Could not open that: ${message(error)}`)
+  }
+}
+
 function draw() {
+  // What the plugins have to say about the week's lines, per day. Asked for
+  // the week even when another view is on screen: cheap, cache-only reads,
+  // and the tab can then switch to the week without a round trip.
+  /** @type {Map<string, Map<number, import('./core/badges.js').Badge[]>>} */
+  const badges = new Map()
+  /** @type {string[]} */
+  const badgeNotices = []
+  for (const day of weekOf(anchor)) {
+    const lines = linesOf(store.page(day))
+    const marked = readBadges(
+      store.pluginAnswers('item.badge', badgeKey(day, lines), { date: day, items: lines }),
+      lines,
+    )
+    badges.set(day, marked.badges)
+    badgeNotices.push(...marked.notices)
+  }
+
   spreadPage.render({
     view,
     today: today(),
     anchor,
     vault: store.vault(),
-    notices: store.notices(),
+    badges,
+    notices: [...store.notices(), ...badgeNotices],
   })
 }
 

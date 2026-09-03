@@ -13,6 +13,8 @@
 import { horizon } from './core/horizon.js'
 import { unfinished, carryForward } from './core/carry.js'
 import { readContributions } from './core/contributions.js'
+import { linesOf, badgeKey, readBadges } from './core/badges.js'
+import { mayOpen } from './core/urls.js'
 import { search } from './core/search.js'
 import { installed } from './core/plugins.js'
 import { today } from './clock.js'
@@ -46,6 +48,7 @@ async function start() {
       draw()
     },
     onCarry: (decisions) => { void carry(decisions) },
+    onBadge: (plugin, href) => { void openBadge(plugin, href) },
     onPin: (next) => { void pin(next) },
     onOpenSpread: (view) => { void openSpread(view) },
     onSearch: (query) => search(store.vault(), query),
@@ -149,6 +152,30 @@ async function pin(next) {
 }
 
 /**
+ * Opens what a marker points at (spec §2.1).
+ *
+ * Checked here so a refusal is immediate and says why; checked again in Rust,
+ * which is the boundary. Not a strike either way: the approval may have
+ * changed since the plugin answered.
+ *
+ * @param {string} plugin
+ * @param {string} href
+ * @returns {Promise<void>}
+ */
+async function openBadge(plugin, href) {
+  const approved = store.approvedOpen(plugin)
+  if (!mayOpen(href, approved)) {
+    store.notice(`${plugin} tried to open ${href}, which is not one of the addresses you approved.`)
+    return
+  }
+  try {
+    await ipc.openUrl(plugin, href)
+  } catch (error) {
+    store.notice(`Could not open that: ${message(error)}`)
+  }
+}
+
+/**
  * Opens the detached window on one of its views (spec §5.6). The popover only
  * ever shows a day; everything wider than one lives in the other window.
  *
@@ -176,6 +203,15 @@ function draw() {
     ? readContributions(store.pluginAnswers('vault.contribute', key, { from: now, to: now }), page)
     : { events: [], notices: [] }
 
+  // What the plugins have to say about the lines on this page. Draw-on-miss:
+  // the page is drawn with whatever the cache holds and drawn again if an
+  // answer lands (spec §1.4).
+  const lines = linesOf(store.page(page))
+  const marked = readBadges(
+    store.pluginAnswers('item.badge', badgeKey(page, lines), { date: page, items: lines }),
+    lines,
+  )
+
   ambient.update(now)
 
   // Drawn whenever the day is, so a setting changed here and a setting
@@ -191,12 +227,13 @@ function draw() {
     // is reading, not triage, so the band stays out of the way there.
     carry: page === now ? unfinished(store.vault(), now, store.config().carryForwardScanDays) : [],
     events: given.events,
+    badges: marked.badges,
     // The one thing a notice ever needs pressing for: the app will not put a
     // vault somewhere nobody asked for (spec §8).
     actions: store.vaultExists() ? [] : [{ label: 'Choose a folder…', run: () => { void pickVault() } }],
     // Worked out on the way to the page rather than kept, so redrawing the
     // same contributions does not say the same thing twice.
-    notices: [...store.notices(), ...given.notices],
+    notices: [...store.notices(), ...given.notices, ...marked.notices],
   })
 }
 

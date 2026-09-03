@@ -78,6 +78,7 @@ function showAt(anchor, view, count = 0, days = [], lines = '') {
     onView: (next) => { viewed.push(next) },
     onAnchor: (next) => { anchored.push(next) },
     onMove: (from, index, to) => { moved.push(`${from}:${index} -> ${to}`) },
+    onBadge: () => {},
     onSearch: () => ({ groups: [], found: 0 }),
     onJump: () => {},
   })

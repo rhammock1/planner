@@ -15,17 +15,18 @@ import { el, setText } from '../ui/dom.js'
 /** @typedef {import('../core/model.js').Document} Document */
 /** @typedef {import('../core/model.js').Item} Item */
 /** @typedef {import('../core/model.js').Node} Node */
+/** @typedef {import('../core/badges.js').Badge} Badge */
 /** @typedef {{kind: string, index: number, node: Node}} Row */
 
 /**
- * @param {{onToggle: (index: number) => void, onEdit: (index: number, text: string) => Promise<boolean>, onNote: (index: number, note: string) => Promise<boolean>, onStrike: (index: number) => void, onRemove: (index: number) => Promise<boolean>}} handlers
+ * @param {{onToggle: (index: number) => void, onEdit: (index: number, text: string) => Promise<boolean>, onNote: (index: number, note: string) => Promise<boolean>, onStrike: (index: number) => void, onRemove: (index: number) => Promise<boolean>, onBadge: (plugin: string, href: string) => void}} handlers
  * @param {{draggable?: boolean, editable?: boolean}} [options]
  *   `draggable`: rows can be picked up and dropped on another day. Only where
  *   there is somewhere to drop them.
  *   `editable`: the line's text and note are written in place. On by default;
  *   off is what makes a row draggable at all, because a contenteditable
  *   region takes the press to place a caret and no drag ever begins.
- * @returns {{element: HTMLElement, render: (doc: Document|null) => void}}
+ * @returns {{element: HTMLElement, render: (doc: Document|null, badges?: Map<number, Badge[]>) => void}}
  */
 export function createItemList(handlers, options) {
   const element = el('ul', 'items')
@@ -38,7 +39,18 @@ export function createItemList(handlers, options) {
   // Delegated, so a row patched in later needs no wiring of its own.
   element.addEventListener('click', (event) => {
     const target = event.target
-    if (!(target instanceof HTMLElement) || !target.classList.contains('item-check')) return
+    if (!(target instanceof HTMLElement)) return
+
+    const mark = target.closest('.item-badge')
+    if (mark instanceof HTMLElement) {
+      event.preventDefault()
+      const plugin = mark.dataset['plugin'] ?? ''
+      const href = mark.dataset['href'] ?? ''
+      if (plugin !== '' && href !== '') handlers.onBadge(plugin, href)
+      return
+    }
+
+    if (!target.classList.contains('item-check')) return
     const index = indexOf(target)
     if (index !== null) handlers.onToggle(index)
   })
@@ -139,7 +151,7 @@ export function createItemList(handlers, options) {
 
   return {
     element,
-    render: (doc) => {
+    render: (doc, badges) => {
       patchList(element, rowsOf(doc), {
         keyOf: (row) => `${row.kind}:${row.index}`,
         create: (row) => (
@@ -149,7 +161,7 @@ export function createItemList(handlers, options) {
         ),
         update: (row, data, caret) => {
           if (data.node.kind === 'opaque') setText(row, data.node.raw)
-          else updateRow(row, data.node, caret)
+          else updateRow(row, data.node, badges?.get(data.index) ?? [], caret)
         },
       })
     },
@@ -184,7 +196,10 @@ function createRow(draggable, editable) {
     }
   }
 
-  row.append(check, text, el('span', 'item-time'), note)
+  const badges = el('span', 'item-badges')
+  badges.hidden = true
+
+  row.append(check, text, el('span', 'item-time'), badges, note)
   return row
 }
 
@@ -238,12 +253,14 @@ export function indexOf(within) {
 /**
  * @param {HTMLElement} row
  * @param {Item} item
+ * @param {Badge[]} badges
  * @param {HTMLElement|null} caret  the line being typed into, if any
  * @returns {void}
  */
-function updateRow(row, item, caret) {
-  const [check, text, time, note] = row.children
-  if (!(text instanceof HTMLElement) || !(time instanceof HTMLElement) || !(note instanceof HTMLElement)) return
+function updateRow(row, item, badges, caret) {
+  const [check, text, time, marks, note] = row.children
+  if (!(text instanceof HTMLElement) || !(time instanceof HTMLElement)) return
+  if (!(marks instanceof HTMLElement) || !(note instanceof HTMLElement)) return
 
   // Always. A line struck out under the caret has to show it: the same
   // keystroke pressed again takes the line off the page.
@@ -254,12 +271,47 @@ function updateRow(row, item, caret) {
 
   if (text !== caret) setText(text, item.text)
 
+  drawBadges(marks, badges)
+
   // An empty note that is being typed into must not be hidden out from under
   // the caret: it was opened with Shift+Enter and has nothing in it yet.
   if (note !== caret) {
     setText(note, item.note ?? '')
     note.hidden = item.note === null
   }
+}
+
+/**
+ * The markers after a line.
+ *
+ * Rebuilt whole rather than patched: there are at most a handful, none of them
+ * holds a caret, and a keyed list for two anchors would be more machinery than
+ * the thing it manages.
+ *
+ * @param {HTMLElement} into
+ * @param {Badge[]} badges
+ * @returns {void}
+ */
+function drawBadges(into, badges) {
+  // A line with no marker has no gap: the container is not there at all,
+  // rather than there and empty with its own margin.
+  into.hidden = badges.length === 0
+  if (badges.length === 0) {
+    into.replaceChildren()
+    return
+  }
+
+  into.replaceChildren(...badges.map((badge) => {
+    // An anchor, not a styled span: it is a link, it should look like one to
+    // a screen reader, and Tab should stop on it.
+    const mark = el('a', 'item-badge', badge.label)
+    mark.setAttribute('href', '#')
+    mark.setAttribute('role', 'link')
+    mark.title = `${badge.plugin}: ${badge.href}`
+    mark.dataset['plugin'] = badge.plugin
+    mark.dataset['href'] = badge.href
+    return mark
+  }))
 }
 
 /**

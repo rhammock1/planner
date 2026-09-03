@@ -18,10 +18,11 @@ import { createAddRow } from './addRow.js'
 
 /**
  * @param {import('../pageEdits.js').PageEdits} edits
+ * @param {(plugin: string, href: string) => void} onBadge
  * @returns {{element: HTMLElement, render: (state: SpreadState) => void}}
  */
-export function createBackPage(edits) {
-  const items = createItemList(edits)
+export function createBackPage(edits, onBadge) {
+  const items = createItemList({ ...edits, onBadge })
   const add = createAddRow(edits.onAdd, 'Something for one day')
 
   const count = el('span', 'count')
@@ -37,7 +38,7 @@ export function createBackPage(edits) {
     element,
     render: (state) => {
       const doc = state.vault.get(SOMEDAY) ?? null
-      items.render(doc)
+      items.render(doc, state.badges?.get(SOMEDAY))
       const open = openCount(doc)
       setText(count, open === 0 ? 'nothing here' : `${open} waiting`)
     },

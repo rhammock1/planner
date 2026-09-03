@@ -220,6 +220,19 @@
   white-space: nowrap;
 }
 
+.item-badges { display: inline-flex; gap: 0.4em; margin-left: 0.5em; }
+.item-badges[hidden] { display: none; }
+
+/* Dim, never alert: a marker is a footnote, and --alert is what the page uses
+   to say something is wrong. */
+.item-badge {
+  color: var(--dim);
+  text-decoration: none;
+  font-size: 0.85em;
+  cursor: pointer;
+}
+.item-badge:hover, .item-badge:focus-visible { text-decoration: underline; }
+
 .item-note {
   grid-column: 2 / -1;
   font-family: var(--font-meta);

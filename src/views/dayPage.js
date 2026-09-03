@@ -35,6 +35,7 @@ import { createSettingsPanel } from './settingsPanel.js'
  * @property {import('../core/horizon.js').HorizonEntry[]} horizon
  * @property {import('../core/carry.js').CarryGroup[]} carry  empty unless today
  * @property {import('../core/contributions.js').Event[]} events  from plugins; today only
+ * @property {Map<number, import('../core/badges.js').Badge[]>} [badges]  markers, keyed by line index
  * @property {string[]} notices
  * @property {Action[]} actions  offered under the notices; usually none
  */
@@ -47,6 +48,7 @@ import { createSettingsPanel } from './settingsPanel.js'
  * @property {(index: number, note: string) => Promise<boolean>} onNote
  * @property {(index: number) => void} onStrike
  * @property {(index: number) => Promise<boolean>} onRemove
+ * @property {(plugin: string, href: string) => void} onBadge
  * @property {(note: string) => Promise<boolean>} onDailyNote
  * @property {(line: string) => Promise<boolean>} onAdd  false if it was not saved
  * @property {(decisions: import('../core/carry.js').CarryDecision[]) => void} onCarry
@@ -257,7 +259,7 @@ export function render(state) {
   page.notices.render(state.notices, state.actions)
   page.carry.render(state.carry, state.today)
   page.horizon.render(state.horizon)
-  page.items.render(state.doc)
+  page.items.render(state.doc, state.badges)
   page.given.render(state.events)
   renderNote(page.note, state.doc)
 

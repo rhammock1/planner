@@ -47,6 +47,7 @@ function mount(text = PAGE) {
       list.render(doc)
     },
     onRemove: async () => true,
+    onBadge: () => {},
   })
   stage.append(list.element)
   list.render(doc)

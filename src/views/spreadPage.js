@@ -27,6 +27,7 @@ import { createSearchPanel } from './searchPanel.js'
  * @property {string} today `YYYY-MM-DD`
  * @property {string} anchor  a date in the week, or month, being looked at
  * @property {VaultIndex} vault
+ * @property {Map<string, Map<number, import('../core/badges.js').Badge[]>>} [badges]  markers, by page
  * @property {string[]} notices
  */
 
@@ -37,6 +38,7 @@ import { createSearchPanel } from './searchPanel.js'
  * @property {(anchor: string) => void} onAnchor  '' means today
  * @property {(from: string, index: number, to: string) => void} onMove  a line
  *   dragged from one page onto another
+ * @property {(plugin: string, href: string) => void} onBadge
  * @property {(query: string) => {groups: import('../core/search.js').Group[], found: number}} onSearch
  * @property {(hit: import('../core/search.js').Hit) => void} onJump
  */
@@ -59,9 +61,9 @@ let currentState = null
 export function mount(root, handlers) {
   /** @type {Map<string, View>} */
   const views = new Map([
-    ['week', createWeekView(handlers.editsFor, handlers.onAnchor, handlers.onMove)],
+    ['week', createWeekView(handlers.editsFor, handlers.onAnchor, handlers.onMove, handlers.onBadge)],
     ['month', createMonthView(handlers.onAnchor, handlers.onView)],
-    ['someday', createBackPage(handlers.editsFor(() => SOMEDAY))],
+    ['someday', createBackPage(handlers.editsFor(() => SOMEDAY), handlers.onBadge)],
   ])
 
   /** @type {Map<string, HTMLElement>} */
