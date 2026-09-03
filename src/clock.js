@@ -20,6 +20,21 @@ export function today() {
 }
 
 /**
+ * The time on the wall behind you, `HH:MM`, 24-hour.
+ *
+ * Every question put to a plugin carries this (spec §1.1), so that a plugin
+ * needing to know what "now" is reads it from the question rather than
+ * holding a clock of its own - a hidden webview's timers are throttled and
+ * its idea of the time drifts.
+ *
+ * @returns {string} `HH:MM`
+ */
+export function nowTime() {
+  const now = new Date()
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+}
+
+/**
  * The instant a `HH:MM` on a given day falls at, on the clock on the wall.
  *
  * Local, deliberately, and the one place in this app that is. Everything else

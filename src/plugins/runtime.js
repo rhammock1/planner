@@ -18,6 +18,15 @@
   const handlers = new Map()
 
   /**
+   * The name the host used to send for what is now `vault.contribute`.
+   *
+   * `docs/plugins.md` is a contract, so a plugin that registered under the old
+   * name still answers the question. One entry, and it does not grow: a slot
+   * introduced from here on has one name.
+   */
+  const ALSO_KNOWN_AS = new Map([['contribute', 'vault.contribute']])
+
+  /**
    * @param {object} message
    * @returns {Promise<any>}
    */
@@ -29,11 +38,22 @@
 
   const planner = {
     /**
-     * Supply items for a range of days. The one slot in v1.
+     * Answer a question the app puts to this plugin. The name is the slot,
+     * exactly as `manifest.toml` declares it.
+     * @param {string} slot
+     * @param {(message: any) => unknown} handler
+     */
+    on(slot, handler) {
+      handlers.set(slot, handler)
+    },
+
+    /**
+     * Supply items for a range of days. The first slot there was, and the
+     * name `docs/plugins.md` has always used for it.
      * @param {(range: {from: string, to: string}) => unknown} handler
      */
     onContribute(handler) {
-      handlers.set('contribute', handler)
+      handlers.set('vault.contribute', handler)
     },
 
     /**
@@ -60,7 +80,7 @@
    * @returns {Promise<void>}
    */
   async function request(message) {
-    const handler = handlers.get(message.kind)
+    const handler = handlers.get(message.kind) ?? handlers.get(ALSO_KNOWN_AS.get(message.kind) ?? '')
     if (handler === undefined) {
       await send({ kind: 'failed', id: message.id, error: `nothing answers ${message.kind}` })
       return
@@ -82,8 +102,12 @@
      * The plugin's own code has run and its handlers are registered. Sent by
      * the page the host builds, after it imports the plugin's entry - never
      * by the plugin, which has no way of knowing it has finished loading.
+     *
+     * It carries what actually registered, so the host can say when a
+     * manifest declares a slot nothing answers - which otherwise looks
+     * exactly like a plugin that ignored the question (spec §1.1).
      * @returns {Promise<void>}
      */
-    ready: () => send({ kind: 'ready' }),
+    ready: () => send({ kind: 'ready', slots: [...handlers.keys()].sort() }),
   }
 })()

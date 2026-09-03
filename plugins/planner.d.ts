@@ -36,12 +36,55 @@ declare namespace Planner {
   interface CalendarCapability {
     events(range: Range): Promise<CalendarEvent[]>
   }
+
+  /** What every question carries: the day and the time it was asked. */
+  interface Now {
+    /** `YYYY-MM-DD`, local. */
+    date: string
+    /** `HH:MM`, local, 24-hour. */
+    time: string
+  }
+
+  /** The question behind `onContribute`. */
+  interface ContributeQuestion extends Range {
+    now: Now
+  }
+
+  /** A line the app drew, and where it sits on the page. */
+  interface Line {
+    index: number
+    text: string
+  }
+
+  /** The question behind the `item.badge` slot. */
+  interface BadgeQuestion {
+    now: Now
+    /** The page being drawn, `YYYY-MM-DD`. */
+    date: string
+    items: Line[]
+  }
+
+  /** A marker after a line. */
+  interface Badge {
+    /** The `index` of the line this belongs to, from the question. */
+    index: number
+    /** One line, cut at 16 characters. */
+    label: string
+    /** Opened by the app when it is clicked, if the config approves it. */
+    href: string
+  }
 }
 
 declare const planner: {
-  /** Supply items for a range of days. The one slot in v1. */
+  /** Answer a question, by the slot's own name. */
+  on(slot: 'vault.contribute', handler: (question: Planner.ContributeQuestion) =>
+    Planner.Contribution[] | Promise<Planner.Contribution[]>): void
+  on(slot: 'item.badge', handler: (question: Planner.BadgeQuestion) =>
+    Planner.Badge[] | Promise<Planner.Badge[]>): void
+
+  /** `vault.contribute` under the name it has always had. */
   onContribute(
-    handler: (range: Planner.Range) =>
+    handler: (question: Planner.ContributeQuestion) =>
       Planner.Contribution[] | Promise<Planner.Contribution[]>,
   ): void
 
