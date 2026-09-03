@@ -14,9 +14,11 @@
 
 import { el } from '../ui/dom.js'
 import { FIELDS } from './settingsFields.js'
+import { createPluginRows } from './pluginRows.js'
 
 /** @typedef {import('../core/config.js').Config} Config */
 /** @typedef {import('../core/plugins.js').Installed} Installed */
+/** @typedef {import('../plugins/asking.js').PluginState} PluginState */
 
 /**
  * @typedef {object} SettingsHandlers
@@ -27,7 +29,7 @@ import { FIELDS } from './settingsFields.js'
 
 /**
  * @param {SettingsHandlers} handlers
- * @returns {{element: HTMLElement, open: () => void, close: () => void, isOpen: () => boolean, render: (config: Config, plugins: Installed[]) => void}}
+ * @returns {{element: HTMLElement, open: () => void, close: () => void, isOpen: () => boolean, render: (config: Config, plugins: Installed[], states?: Map<string, PluginState>) => void}}
  */
 export function createSettingsPanel(handlers) {
   const head = el('div', 'settings-head', 'Settings')
@@ -55,12 +57,12 @@ export function createSettingsPanel(handlers) {
     isOpen: () => !element.hidden,
     open: () => { element.hidden = false },
     close: () => { element.hidden = true },
-    render: (config, plugins) => {
+    render: (config, plugins, states = new Map()) => {
       // Rebuilt whole. It is a short form, it is only on screen while it is
       // being read, and a half-patched form is worse than a redrawn one.
       body.replaceChildren(
         ...FIELDS.map((field) => row(field, config, handlers)),
-        ...pluginRows(plugins, handlers),
+        ...createPluginRows(plugins, states, handlers),
       )
     },
   }
@@ -121,83 +123,4 @@ function row(field, config, handlers) {
     line.append(pick)
   }
   return line
-}
-
-/**
- * @param {Installed[]} plugins
- * @param {SettingsHandlers} handlers
- * @returns {HTMLElement[]}
- */
-function pluginRows(plugins, handlers) {
-  const heading = el('div', 'settings-heading', 'Plugins')
-  if (plugins.length === 0) {
-    const empty = el('div', 'settings-empty', 'Nothing in ~/.planner/plugins yet.')
-    return [heading, empty]
-  }
-  return [heading, ...plugins.map((plugin) => pluginRow(plugin, handlers))]
-}
-
-/**
- * @param {Installed} plugin
- * @param {SettingsHandlers} handlers
- * @returns {HTMLElement}
- */
-function pluginRow(plugin, handlers) {
-  const block = el('div', 'plugin')
-
-  const line = el('label', 'setting setting-switch')
-  const box = el('input', 'setting-box')
-  box.setAttribute('type', 'checkbox')
-  if (box instanceof HTMLInputElement) box.checked = plugin.enabled
-  // A folder with a problem cannot run, so a switch beside it would be a
-  // switch that does nothing - or worse, for a bad name, one that writes a
-  // table header into config.toml (spec §0.2).
-  if (plugin.problem !== null && box instanceof HTMLInputElement) box.disabled = true
-  box.addEventListener('change', () => {
-    if (box instanceof HTMLInputElement) {
-      handlers.onPlugin(plugin.name, {
-        enabled: box.checked,
-        approvedSlots: plugin.approvedSlots,
-        approvedCapabilities: plugin.approved,
-        approvedOpen: plugin.approvedOpen,
-      })
-    }
-  })
-  line.append(box, el('span', 'setting-label', plugin.name))
-  block.append(line)
-
-  if (plugin.problem !== null) {
-    block.append(el('div', 'plugin-problem', plugin.problem))
-    return block
-  }
-
-  // What it asks for, one line each, so granting is a decision per capability
-  // rather than a single yes to a list you did not read (spec §7.4).
-  for (const capability of plugin.asked) {
-    const allow = el('label', 'capability')
-    const box = el('input', 'setting-box')
-    box.setAttribute('type', 'checkbox')
-    if (box instanceof HTMLInputElement) box.checked = plugin.approved.includes(capability)
-    box.addEventListener('change', () => {
-      if (!(box instanceof HTMLInputElement)) return
-      const approved = box.checked
-        ? [...plugin.approved, capability]
-        : plugin.approved.filter((one) => one !== capability)
-      handlers.onPlugin(plugin.name, {
-        enabled: plugin.enabled,
-        approvedSlots: plugin.approvedSlots,
-        approvedCapabilities: approved,
-        approvedOpen: plugin.approvedOpen,
-      })
-    })
-    allow.append(box, el('span', 'capability-name', capability))
-    block.append(allow)
-  }
-
-  // Worth saying out loud: a plugin that asks for nothing is not a plugin
-  // that was refused everything.
-  if (plugin.asked.length === 0) {
-    block.append(el('div', 'plugin-note', 'Asks for nothing.'))
-  }
-  return block
 }

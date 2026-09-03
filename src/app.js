@@ -216,7 +216,11 @@ function draw() {
 
   // Drawn whenever the day is, so a setting changed here and a setting
   // changed in a text editor both show up the same way.
-  dayPage.settings().render(store.config(), installed(store.folders(), store.config().plugins))
+  dayPage.settings().render(
+    store.config(),
+    installed(store.folders(), store.config().plugins),
+    new Map(store.pluginStates().map((state) => [state.name, state])),
+  )
 
   dayPage.render({
     today: now,

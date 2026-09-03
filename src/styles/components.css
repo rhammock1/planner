@@ -763,7 +763,7 @@
 
 /* Indented under the plugin they belong to, so what is being granted and to
    whom reads as one thing (spec §7.4). */
-.capability {
+.capability, .slot, .address {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -772,3 +772,6 @@
   font-size: 11px;
   color: var(--dim);
 }
+
+/* A sentence, not a capability name: it runs longer than the row is wide. */
+.slot-name { overflow-wrap: anywhere; }
