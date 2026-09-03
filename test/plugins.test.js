@@ -255,6 +255,21 @@ slots = ["vault.contribute", "theme.tokens"]
   ])
 })
 
+test('a slot the manifest never mentions is still a config mistake worth a notice', () => {
+  // Unlike the case above, nothing here already told the person about
+  // theme.tokens - the manifest never brought it up at all - so this is the
+  // one notice that has to carry it, not a redundant second line.
+  const manifest = 'entry = "index.js"'
+  const { start, notices } = plan(
+    folders(manifest),
+    configured({ approvedSlots: ['theme.tokens'], approvedCapabilities: [] }),
+  )
+  assert.deepEqual(start[0]?.slots, [])
+  assert.deepEqual(notices, [
+    'config.toml approves the theme.tokens slot for macos-calendar, which does not ask for it',
+  ])
+})
+
 test('the pane is shown what a plugin asks to be shown', () => {
   const [listed] = installed(folders(), configured({ approvedSlots: [] }))
   assert.deepEqual(listed?.slots, ['vault.contribute'])

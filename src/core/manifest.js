@@ -20,6 +20,9 @@ import { isSlot } from './slots.js'
  * @typedef {object} Manifest
  * @property {string} entry  the file the plugin begins at
  * @property {string[]} slots  declared, and offered by this version
+ * @property {string[]} unofferedSlots  declared, but not offered by this
+ *   version - config.toml approving one of these too is not a second
+ *   complaint, since this file already made the first one
  * @property {string[]} capabilities  declared; the config decides the rest
  * @property {string|null} error  why it cannot run, when it cannot
  * @property {string[]} notices  what was left out, and why
@@ -31,7 +34,9 @@ import { isSlot } from './slots.js'
  */
 export function readManifest(text) {
   /** @param {string} error @returns {Manifest} */
-  const bad = (error) => ({ entry: '', slots: [], capabilities: [], error, notices: [] })
+  const bad = (error) => (
+    { entry: '', slots: [], unofferedSlots: [], capabilities: [], error, notices: [] }
+  )
 
   let table
   try {
@@ -53,14 +58,16 @@ export function readManifest(text) {
 
   /** @type {string[]} */
   const notices = []
+  /** @type {string[]} */
+  const unofferedSlots = []
 
-  const slots = readSlots(table['slots'], notices)
+  const slots = readSlots(table['slots'], notices, unofferedSlots)
   if (typeof slots === 'string') return bad(slots)
 
   const capabilities = readCapabilities(table['permissions'])
   if (typeof capabilities === 'string') return bad(capabilities)
 
-  return { entry, slots, capabilities, error: null, notices }
+  return { entry, slots, unofferedSlots, capabilities, error: null, notices }
 }
 
 /**
@@ -68,13 +75,17 @@ export function readManifest(text) {
  *
  * A slot from a later version of the planner is dropped with a line rather
  * than refused: a plugin that also does something this app understands should
- * do that much.
+ * do that much. Its name is also collected in `unofferedSlots`, so a caller
+ * can tell "the manifest asked for this and it was dropped" apart from "the
+ * manifest never asked for this at all" - config.toml can be wrong about
+ * either, but only one of them already has a notice.
  *
  * @param {unknown} raw
  * @param {string[]} notices
+ * @param {string[]} unofferedSlots
  * @returns {string[]|string} a string is an error
  */
-function readSlots(raw, notices) {
+function readSlots(raw, notices, unofferedSlots) {
   if (raw === undefined) return []
   if (!Array.isArray(raw) || raw.some((one) => typeof one !== 'string')) {
     return 'manifest.toml lists slots as something other than a list of names'
@@ -85,6 +96,7 @@ function readSlots(raw, notices) {
   for (const name of /** @type {string[]} */ (raw)) {
     if (!isSlot(name)) {
       notices.push(`manifest.toml asks for the ${name} slot, which this planner does not offer`)
+      if (!unofferedSlots.includes(name)) unofferedSlots.push(name)
       continue
     }
     // Declared twice is declared once. The list becomes a tick per slot in

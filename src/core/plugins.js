@@ -19,7 +19,6 @@
  */
 
 import { readManifest } from './manifest.js'
-import { isSlot } from './slots.js'
 
 /** @typedef {import('./config.js').PluginConfig} PluginConfig */
 
@@ -136,12 +135,14 @@ export function plan(folders, configured) {
     }
     for (const line of read.notices) notices.push(`${folder.name}: ${line}`)
 
-    // read.slots already dropped names this planner does not offer, with its
-    // own notice for each (above). settings.approvedSlots has not - so an
-    // unoffered name approved in the config is filtered out here too, or it
-    // would earn a second, contradictory notice: "does not ask for it" for a
-    // name the manifest just asked for, one line up.
-    disagreements(folder.name, 'slot', read.slots, settings.approvedSlots.filter(isSlot), notices)
+    // A name in both read.unofferedSlots and settings.approvedSlots was
+    // asked for by the manifest and already earned its notice above ("does
+    // not offer") - it is dropped here so it does not also earn the
+    // contradicting "does not ask for it". A name config.toml approves that
+    // the manifest never mentioned at all is not in unofferedSlots, so it
+    // keeps its notice below, same as a bogus capability would.
+    const approvedSlots = settings.approvedSlots.filter((one) => !read.unofferedSlots.includes(one))
+    disagreements(folder.name, 'slot', read.slots, approvedSlots, notices)
     disagreements(folder.name, 'capability', read.capabilities, settings.approvedCapabilities, notices)
 
     start.push({
