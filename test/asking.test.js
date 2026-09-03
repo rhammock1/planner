@@ -55,6 +55,13 @@ function configured(approvedSlots) {
 
 const FOLDERS = [{ name: 'ticket-links', manifest: MANIFEST }]
 
+/** Waits out every microtask a settled promise chain set off, not just a
+ *  fixed count of them - `run`'s second draw is a hop further than a plain
+ *  `await Promise.resolve()` reaches. @returns {Promise<void>} */
+function flush() {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 test('a sync starts what the config enables', async () => {
   const stub = host()
   const asking = createAsking(stub.deps)
@@ -184,4 +191,66 @@ test('what went wrong asking is a notice, and is replaced rather than piled up',
   // Still one line. Asked again every time the popover opens, a notice that
   // accumulated would leave a page that was all notice.
   assert.deepEqual(asking.notices(), ['ticket-links did not answer within 2s'])
+})
+
+test('a landed answer draws at once, then again once plugin states are fresh', async () => {
+  const stub = host()
+  /** @type {{name: string, running: boolean, disabled: boolean, reason: string|null}[]} */
+  let live = []
+  const asking = createAsking({ ...stub.deps, pluginStates: async () => live })
+
+  asking.answers('item.badge', 'k1', {})
+  // The plugin missed its deadline answering, which is exactly the kind of
+  // thing the redraw after this one has to catch up on.
+  live = [{ name: 'ticket-links', running: false, disabled: true, reason: 'missed its deadline' }]
+  stub.asked[0]?.settle([{ plugin: 'ticket-links', value: [] }])
+  await flush()
+
+  assert.equal(stub.drawn(), 2)
+  assert.deepEqual(asking.states(), live)
+})
+
+test('a stop that is refused is not paired with a start, and is retried next sync', async () => {
+  const stub = host()
+  let refuse = false
+  const asking = createAsking({
+    ...stub.deps,
+    stopPlugin: async (name) => {
+      if (refuse) throw new Error('the window would not close')
+      stub.stopped.push(name)
+    },
+  })
+  await asking.sync(FOLDERS, configured())
+  assert.equal(stub.started.length, 1)
+
+  // The approval changes, so this plugin needs restarting - and its stop
+  // will not go.
+  refuse = true
+  await asking.sync(FOLDERS, configured([]))
+  assert.deepEqual(stub.stopped, [])
+  // No start under the name the old window still holds (spec: gate the retry
+  // on the rejected stopPlugin promise, not on plugin_states().running).
+  assert.equal(stub.started.length, 1)
+
+  // The window closes this time, so the same stop - not a fresh diff -
+  // finally goes through, and only then does the restart happen.
+  refuse = false
+  await asking.sync(FOLDERS, configured([]))
+  assert.deepEqual(stub.stopped, ['ticket-links'])
+  assert.equal(stub.started.length, 2)
+  assert.deepEqual(stub.started[1]?.slots, [])
+})
+
+test('two overlapping syncs start each plugin once, not twice', async () => {
+  const stub = host()
+  const asking = createAsking(stub.deps)
+
+  // Neither is awaited before the other starts: the boot sync and a
+  // settings-pane save landing while it is still running.
+  const first = asking.sync(FOLDERS, configured())
+  const second = asking.sync(FOLDERS, configured())
+  await Promise.all([first, second])
+
+  assert.equal(stub.started.length, 1)
+  assert.deepEqual(stub.stopped, [])
 })

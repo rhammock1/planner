@@ -67,15 +67,39 @@ export function createAsking(deps) {
   let states = []
   /** Moves when the world may have changed under a plugin's feet. */
   let generation = 0
+  /** The last sync queued, so an overlapping call runs after it rather than
+   *  racing it against the same pre-mutation `running` - the hazard
+   *  `createWriteQueue` (writeQueue.js) exists for, here applied to plugins
+   *  instead of pages. @type {Promise<void>} */
+  let tail = Promise.resolve()
 
   /**
    * Brings what is running into line with what the two files say (spec §1.2).
+   *
+   * Queued rather than run at once: the popover calls this at boot and again
+   * from the settings pane, and two calls diffing the same snapshot of
+   * `running` could both decide to start the same plugin - one of the two
+   * `start_plugin` calls is refused, with a notice for a plugin that in fact
+   * started fine.
    *
    * @param {Folder[]} folders
    * @param {Map<string, PluginConfig>} configured
    * @returns {Promise<string[]>} notices
    */
-  async function sync(folders, configured) {
+  function sync(folders, configured) {
+    const result = tail.then(() => settle(folders, configured))
+    // Carries on after a failure: one sync that threw must not wedge every
+    // sync queued behind it.
+    tail = result.then(() => undefined, () => undefined)
+    return result
+  }
+
+  /**
+   * @param {Folder[]} folders
+   * @param {Map<string, PluginConfig>} configured
+   * @returns {Promise<string[]>} notices
+   */
+  async function settle(folders, configured) {
     const planned = plan(folders, configured)
     const change = diff(running, planned.start)
     /** @type {string[]} */
@@ -161,11 +185,13 @@ export function createAsking(deps) {
     } finally {
       flying.delete(at)
     }
-    // The redraw does not wait on this: it is the answer that was worth
-    // waiting for, and a plugin that has meanwhile been put away shows up on
-    // the draw after this one rather than holding this one up.
+    // The redraw does not wait on plugin states: it is the answer that was
+    // worth waiting for. States are read afterward and, if a plugin has
+    // meanwhile been put away, said again - a second, cheap redraw rather
+    // than one page that never learns the state it drew was stale.
     deps.onChanged()
-    void readStates()
+    await readStates()
+    deps.onChanged()
   }
 
   /**
