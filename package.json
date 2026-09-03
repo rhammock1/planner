@@ -8,7 +8,8 @@
     "test": "node --test test/*.test.js",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.web.json --noEmit",
     "serve": "node tools/serve.js",
-    "app": "cd src-tauri && cargo run"
+    "rebuild": "tools/rebuild",
+    "app": "PATH=\"$HOME/.cargo/bin:$PATH\" CARGO_TARGET_DIR=\"$HOME/.cache/planner-target\" cargo run --manifest-path src-tauri/Cargo.toml"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

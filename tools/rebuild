@@ -1,0 +1,85 @@
+#!/bin/bash
+
+##  Planner rebuild script
+##  Robert Hammock <smokeybear> (rhamm1027@gmail.com) 2026
+##  Last Updated: 2026-09-03
+##
+##  Checks the JavaScript and builds the app, then says what to run.
+##
+##  There is no separate frontend build step: tauri.conf.json sets
+##  "frontendDist": "../src" with no devUrl, so src/ is embedded into the
+##  binary when cargo builds it. A JavaScript change and a Rust change are
+##  therefore the same rebuild - this script is what makes that one command.
+##
+##  Two environment facts this script exists to carry:
+##    - Rust was installed with --no-modify-path, so ~/.cargo/bin is not on a
+##      normal shell's PATH.
+##    - cargo cannot use the default target directory under ~/Desktop: macOS
+##      stamps com.apple.provenance on files there and refuses to hard-link
+##      one. The build goes to ~/.cache/planner-target instead, which is why
+##      src-tauri/target/ is stale and must not be run.
+
+set -euo pipefail
+
+TARGET="$HOME/.cache/planner-target"
+BINARY="$TARGET/debug/planner"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+
+check=yes
+release=no
+
+for argument in "$@"; do
+  case "$argument" in
+    -q|--quick)   check=no ;;
+    -r|--release) release=yes ;;
+    -h|--help)
+      echo "Usage: tools/rebuild [-q|--quick] [-r|--release]"
+      echo
+      echo "  -q, --quick    skip the test suites, just build"
+      echo "  -r, --release  build the release profile instead of debug"
+      exit 0
+      ;;
+    *)
+      echo "rebuild: unknown option $argument" >&2
+      echo "Try: tools/rebuild --help" >&2
+      exit 1
+      ;;
+  esac
+done
+
+export PATH="$HOME/.cargo/bin:$PATH"
+export CARGO_TARGET_DIR="$TARGET"
+
+cd "$ROOT"
+
+if [ "$check" = yes ]; then
+  echo "==> node --test"
+  npm test --silent
+
+  echo "==> tsc"
+  npm run typecheck --silent
+
+  echo "==> cargo test"
+  cargo test --manifest-path src-tauri/Cargo.toml
+fi
+
+if [ "$release" = yes ]; then
+  echo "==> cargo build --release"
+  cargo build --release --manifest-path src-tauri/Cargo.toml
+  BINARY="$TARGET/release/planner"
+else
+  echo "==> cargo build"
+  cargo build --manifest-path src-tauri/Cargo.toml
+fi
+
+echo
+echo "Built: $BINARY"
+echo "       $(date -r "$BINARY" '+%Y-%m-%d %H:%M')"
+echo
+echo "Run it:  $BINARY"
+if [ -L "$HOME/scripts/bin/planner" ]; then
+  echo "     or: planner"
+fi
+echo
+echo "It is a menu bar app - look for the icon in the status bar, not for a"
+echo "window. The 13 checks in docs/testing.md are still yours to walk by hand."
