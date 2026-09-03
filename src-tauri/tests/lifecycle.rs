@@ -50,6 +50,29 @@ fn a_stop_does_not_forgive_a_plugin_that_was_put_away() {
 }
 
 #[test]
+fn a_stopped_plugin_is_not_answered_for_what_it_may_open() {
+    // Switching a plugin off is withdrawing consent, not just closing its
+    // webview - the last grant must not go on answering `open_url` until
+    // something happens to overwrite it.
+    let registry = Registry::default();
+    registry.grant(
+        "ticket-links",
+        "index.js".into(),
+        Vec::new(),
+        Vec::new(),
+        vec!["https://github.com/gotab-inc/node/pull/".into()],
+    );
+    assert_eq!(
+        registry.may_open("ticket-links"),
+        vec!["https://github.com/gotab-inc/node/pull/"],
+        "a running plugin was refused what it was granted",
+    );
+
+    registry.stop("ticket-links");
+    assert!(registry.may_open("ticket-links").is_empty(), "a stopped plugin was still answered");
+}
+
+#[test]
 fn a_stop_settles_every_question_that_plugin_was_holding() {
     let pending = Pending::default();
     let (_, mine) = pending.ask_of("ticket-links");

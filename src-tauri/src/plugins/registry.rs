@@ -146,11 +146,17 @@ impl Registry {
     }
 
     /// What a plugin may ask the app to open. Empty for a plugin that was
-    /// never started, and for one put away.
+    /// never started, for one put away, and for one that has been stopped.
+    ///
+    /// `running` as well as `!disabled` - unlike `permits`, which gates a
+    /// live plugin's own capability calls. This one gates a click in the
+    /// app's own UI on a badge that may be stale, so switching a plugin off
+    /// must withdraw its addresses at once rather than leaving the last
+    /// grant answerable until something happens to overwrite it.
     pub fn may_open(&self, name: &str) -> Vec<String> {
         let held = self.0.lock().expect("registry lock");
         held.get(name)
-            .filter(|grant| !grant.disabled)
+            .filter(|grant| grant.running && !grant.disabled)
             .map(|grant| grant.open.clone())
             .unwrap_or_default()
     }
