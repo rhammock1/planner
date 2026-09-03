@@ -63,11 +63,13 @@ fn climbing_out_of_the_prefix_is_not() {
 
 #[test]
 fn percent_encoded_climbing_is_not() {
-    // `%2e%2e` stays encoded through `Url` rather than resolving the way a
-    // literal `..` does - it is one path segment, and that segment is not
-    // `pull`, so this is refused by the segment rule rather than by
-    // normalisation. Exercised directly here because this is the boundary:
-    // what runs before anything is handed to the system opener.
+    // `Url` decodes `%2e%2e` and resolves it exactly as it resolves a literal
+    // `..`: this path normalises to `/gotab-inc/node/evil` before `within`
+    // ever sees it, so what refuses it is the segment comparison finding
+    // `evil` where it wanted `pull`. The percent-encoding buys an attacker
+    // nothing, which is the thing worth asserting - and worth asserting
+    // here, at the boundary, rather than assumed of somebody else's
+    // normaliser.
     let prefix = parse_prefix("https://github.com/gotab-inc/node/pull/").expect("prefix");
     assert!(!within(&prefix, &url("https://github.com/gotab-inc/node/pull/%2e%2e/evil")));
 }

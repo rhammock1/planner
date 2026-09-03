@@ -130,9 +130,12 @@ fn serve(app: &AppHandle, name: &str, path: &str) -> Result<(Vec<u8>, &'static s
         // below it. A second `<script>` would not do - a classic script
         // after a module runs before it, and would say ready too early.
         //
-        // The settings go in their own classic script *before* the runtime's,
-        // so `planner.settings` is already there when the plugin's own code
-        // runs. Frozen, so a plugin cannot convince itself it changed one.
+        // The settings go in their own classic script, after the runtime's
+        // and before the plugin's module. After the runtime because the line
+        // assigns onto `window.__planner`, which is what the runtime creates;
+        // before the module because that is the plugin's own code, and
+        // `planner.settings` has to be there by the time it runs. Frozen, so
+        // a plugin cannot convince itself it changed one.
         let page = format!(
             "<!doctype html><meta charset=\"utf-8\">\n\
              <script>{RUNTIME}</script>\n\
