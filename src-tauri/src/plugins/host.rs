@@ -43,14 +43,20 @@ const NO_WEBRTC: &str = include_str!("../../../src/plugins/noWebRTC.js");
 ///
 /// The window is never shown and has no decorations. It exists to run
 /// JavaScript somewhere that is not the app.
-pub fn start(app: &AppHandle, name: &str, entry: &str, capabilities: Vec<String>) -> Result<(), String> {
+pub fn start(
+    app: &AppHandle,
+    name: &str,
+    entry: &str,
+    slots: Vec<String>,
+    capabilities: Vec<String>,
+) -> Result<(), String> {
     let label = format!("{WINDOW_PREFIX}{name}");
     if app.get_webview_window(&label).is_some() {
         return Ok(());
     }
 
     let registry = app.state::<Registry>();
-    registry.grant(name, entry.to_string(), capabilities);
+    registry.grant(name, entry.to_string(), slots, capabilities);
 
     let url = Url::parse(&format!("plugin://{name}/index.html"))
         .map_err(|error| format!("{name} has a name that cannot be a URL: {error}"))?;
@@ -85,7 +91,7 @@ pub fn start(app: &AppHandle, name: &str, entry: &str, capabilities: Vec<String>
 /// plugin still running - a pathological regular expression would spin a
 /// hidden webview until the app was quit - so the window goes as well.
 pub fn put_away(app: &AppHandle, name: &str, reason: &str) {
-    app.state::<Registry>().disable(name);
+    app.state::<Registry>().disable(name, reason);
     eprintln!("planner: {name} has been put away for this session: {reason}");
     close(app, name);
 }

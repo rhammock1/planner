@@ -115,9 +115,10 @@ pub fn start_plugin(
     app: AppHandle,
     name: String,
     entry: String,
+    slots: Vec<String>,
     capabilities: Vec<String>,
 ) -> Result<(), String> {
-    host::start(&app, &name, &entry, capabilities)
+    host::start(&app, &name, &entry, slots, capabilities)
 }
 
 /// What the plugins have to add to a range of days, and anything that went

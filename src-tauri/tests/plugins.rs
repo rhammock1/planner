@@ -44,6 +44,7 @@ fn granted() -> Registry {
     registry.grant(
         "macos-calendar",
         "index.js".into(),
+        vec!["vault.contribute".into()],
         vec!["macos.calendar.read".into()],
     );
     registry
@@ -81,7 +82,7 @@ fn a_plugin_that_misses_its_deadline_is_not_asked_again() {
     let registry = granted();
     assert_eq!(registry.running(), vec!["macos-calendar".to_string()]);
 
-    registry.disable("macos-calendar");
+    registry.disable("macos-calendar", "did not answer within 2s");
 
     assert!(registry.running().is_empty());
     assert!(!registry.permits("macos-calendar", "macos.calendar.read"));
@@ -97,7 +98,7 @@ fn a_plugin_nobody_started_is_not_running() {
 fn the_plugins_are_asked_in_a_settled_order() {
     let registry = Registry::default();
     for name in ["zeta", "alpha", "mu"] {
-        registry.grant(name, "index.js".into(), Vec::new());
+        registry.grant(name, "index.js".into(), Vec::new(), Vec::new());
     }
     // Otherwise the section's lines would shuffle from launch to launch, for
     // no reason the reader could see.
@@ -308,9 +309,14 @@ mod navigation {
 #[test]
 fn starting_a_plugin_again_does_not_forgive_it() {
     let registry = granted();
-    registry.disable("macos-calendar");
+    registry.disable("macos-calendar", "did not answer within 2s");
 
-    registry.grant("macos-calendar", "index.js".into(), vec!["macos.calendar.read".into()]);
+    registry.grant(
+        "macos-calendar",
+        "index.js".into(),
+        vec!["vault.contribute".into()],
+        vec!["macos.calendar.read".into()],
+    );
 
     assert!(registry.disabled("macos-calendar"), "a put-away plugin was let back in");
     assert!(!registry.permits("macos-calendar", "macos.calendar.read"));
@@ -322,7 +328,7 @@ fn strikes_survive_a_second_grant_too() {
     assert!(!registry.strike("macos-calendar"));
     assert!(!registry.strike("macos-calendar"));
 
-    registry.grant("macos-calendar", "index.js".into(), Vec::new());
+    registry.grant("macos-calendar", "index.js".into(), Vec::new(), Vec::new());
 
     // The third strike is still the third, not the first of a new three.
     assert!(registry.strike("macos-calendar"));
@@ -404,5 +410,77 @@ mod in_flight {
         }
 
         assert!(flight.hold("macos-calendar").is_some(), "the slot never came back");
+    }
+}
+
+mod slots {
+    use planner_lib::plugins::Registry;
+
+    fn started() -> Registry {
+        let registry = Registry::default();
+        registry.grant(
+            "ticket-links",
+            "index.js".into(),
+            vec!["item.badge".into()],
+            vec!["shell.open".into()],
+        );
+        registry.grant(
+            "macos-calendar",
+            "index.js".into(),
+            vec!["vault.contribute".into()],
+            vec!["macos.calendar.read".into()],
+        );
+        registry
+    }
+
+    #[test]
+    fn a_plugin_is_asked_only_what_it_was_granted() {
+        let registry = started();
+        assert_eq!(registry.running_for("item.badge"), vec!["ticket-links"]);
+        assert_eq!(registry.running_for("vault.contribute"), vec!["macos-calendar"]);
+        assert!(registry.running_for("theme.tokens").is_empty());
+    }
+
+    #[test]
+    fn a_plugin_put_away_is_asked_nothing() {
+        let registry = started();
+        registry.disable("ticket-links", "did not answer within 2s");
+        assert!(registry.running_for("item.badge").is_empty());
+    }
+
+    #[test]
+    fn the_plugins_for_a_slot_come_back_in_a_settled_order() {
+        let registry = Registry::default();
+        for name in ["zulu", "alpha", "mike"] {
+            registry.grant(name, "index.js".into(), vec!["item.badge".into()], Vec::new());
+        }
+        assert_eq!(registry.running_for("item.badge"), vec!["alpha", "mike", "zulu"]);
+    }
+
+    #[test]
+    fn a_slot_declared_and_never_handled_is_worth_saying() {
+        let registry = started();
+        // What the page reported when it had finished loading.
+        registry.registered("ticket-links", vec!["vault.contribute".into()]);
+
+        // Declared item.badge, handles vault.contribute: neither list is the
+        // other, and both halves are worth a line.
+        assert_eq!(registry.unhandled("ticket-links"), vec!["item.badge".to_string()]);
+    }
+
+    #[test]
+    fn a_plugin_that_handles_what_it_declared_says_nothing() {
+        let registry = started();
+        registry.registered("ticket-links", vec!["item.badge".into()]);
+        assert!(registry.unhandled("ticket-links").is_empty());
+    }
+
+    #[test]
+    fn a_handler_for_a_slot_that_was_never_granted_is_never_asked() {
+        let registry = started();
+        registry.registered("ticket-links", vec!["item.badge".into(), "vault.contribute".into()]);
+        // Registering is not granting. The grant is the only thing
+        // `running_for` reads.
+        assert!(registry.running_for("vault.contribute").iter().all(|one| one != "ticket-links"));
     }
 }

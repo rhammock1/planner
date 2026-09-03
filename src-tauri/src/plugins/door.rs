@@ -92,8 +92,9 @@ pub enum Message {
     /// Failing to answer one. A plugin that says so is better behaved than
     /// one that goes quiet, and is not struck for it.
     Failed { id: u64, error: String },
-    /// The plugin's own code has run. Nothing is asked of it before this.
-    Ready,
+    /// The plugin's own code has run, and these are the slots it registered a
+    /// handler for. Nothing is asked of it before this.
+    Ready { #[serde(default)] slots: Vec<String> },
 }
 
 /// The door (spec §7.1). Every message a plugin sends arrives here.
@@ -136,7 +137,8 @@ pub async fn plugin_message(
         .map_err(|error| format!("{name} sent something the door does not understand: {error}"))?;
 
     match message {
-        Message::Ready => {
+        Message::Ready { slots } => {
+            app.state::<Registry>().registered(&name, slots);
             app.state::<Started>().mark(&name);
             Ok(Value::Null)
         }

@@ -105,7 +105,7 @@ export async function startPlugins(folders, configured) {
   const failures = []
   for (const plugin of start) {
     try {
-      await ipc.startPlugin(plugin.name, plugin.entry, plugin.capabilities)
+      await ipc.startPlugin(plugin.name, plugin.entry, plugin.slots, plugin.capabilities)
     } catch (error) {
       failures.push(`Could not start ${plugin.name}: ${message(error)}`)
     }

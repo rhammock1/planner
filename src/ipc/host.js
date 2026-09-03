@@ -37,7 +37,7 @@
  * @property {(page: string, text: string) => Promise<void>} writePage
  * @property {(handler: (page: string) => void) => void|Promise<void>} onVaultChanged
  * @property {() => Promise<{name: string, manifest: string}[]>} listPlugins
- * @property {(name: string, entry: string, capabilities: string[]) => Promise<void>} startPlugin
+ * @property {(name: string, entry: string, slots: string[], capabilities: string[]) => Promise<void>} startPlugin
  * @property {(from: string, to: string) => Promise<Contributions>} contribute
  * @property {(handler: () => void) => void|Promise<void>} onPopoverShown
  */
@@ -109,8 +109,8 @@ function tauriHost() {
     openSpread: (view) => invoke('open_spread', { view }),
     spreadView: () => invoke('spread_view'),
     listPlugins: () => invoke('list_plugins'),
-    startPlugin: (name, entry, capabilities) =>
-      invoke('start_plugin', { name, entry, capabilities }),
+    startPlugin: (name, entry, slots, capabilities) =>
+      invoke('start_plugin', { name, entry, slots, capabilities }),
     contribute: (from, to) => invoke('contribute', { from, to }),
     onPopoverShown: (handler) => tauri.event.listen('popover:shown', () => handler()),
     readTheme: (name) => invoke('read_theme', { name }),

@@ -140,18 +140,20 @@ export async function listPlugins() {
 }
 
 /**
- * Starts a plugin in its own webview with the capabilities it was granted.
+ * Starts a plugin in its own webview with the slots and capabilities it was
+ * granted.
  *
  * Only the app's own windows can reach this command; a plugin is held to
  * `plugin_message` by the gate in Rust, so none can grant itself anything.
  *
  * @param {string} name
  * @param {string} entry
+ * @param {string[]} slots
  * @param {string[]} capabilities
  * @returns {Promise<void>}
  */
-export async function startPlugin(name, entry, capabilities) {
-  return (await getHost()).startPlugin(name, entry, capabilities)
+export async function startPlugin(name, entry, slots, capabilities) {
+  return (await getHost()).startPlugin(name, entry, slots, capabilities)
 }
 
 /**
