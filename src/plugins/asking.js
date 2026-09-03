@@ -67,6 +67,10 @@ export function createAsking(deps) {
   let states = []
   /** Moves when the world may have changed under a plugin's feet. */
   let generation = 0
+  /** Moves when a plugin starts or stops. Everything said before it was said
+   *  by a different set of plugins, including the empty answer a page gets
+   *  at launch, before the first plugin is up (spec §1.4). */
+  let epoch = 0
   /** The last sync queued, so an overlapping call runs after it rather than
    *  racing it against the same pre-mutation `running` - the hazard
    *  `createWriteQueue` (writeQueue.js) exists for, here applied to plugins
@@ -114,8 +118,6 @@ export function createAsking(deps) {
       try {
         await deps.stopPlugin(name)
         running.delete(name)
-        // Whatever it told us was about the code that is no longer running.
-        forget(name)
       } catch (error) {
         // Left in `running`, so the next sync tries the same stop again, and
         // no start is attempted under a label the old window still holds -
@@ -137,7 +139,18 @@ export function createAsking(deps) {
       }
     }
 
-    if (change.stop.length > 0 || change.start.length > 0) await readStates()
+    if (change.stop.length > 0 || change.start.length > 0) {
+      // Everything held was an answer from a different set of plugins.
+      // Cleared rather than filtered plugin by plugin: a plugin that has
+      // just started said nothing there is anything to filter out, and it is
+      // precisely its markers that are missing. Without this, ticking
+      // `item.badge` leaves the day showing the empty answer it cached
+      // before the plugin was up, until a line is edited or the day turns.
+      epoch += 1
+      held.clear()
+      said.clear()
+      await readStates()
+    }
     return [...planned.notices, ...failures]
   }
 
@@ -177,14 +190,25 @@ export function createAsking(deps) {
    * @returns {Promise<void>}
    */
   async function run(slot, at, params) {
+    // Which set of plugins this question was put to. At launch the day page
+    // asks a microtask before the first `start_plugin` goes out, so the
+    // answer to this one can land *after* the plugin it was meant for is up;
+    // kept, it would be an empty answer cached over a running plugin.
+    const asked = epoch
     try {
       const given = await deps.askPlugins(slot, deps.now(), params)
-      keep(at, given.answers)
-      said.set(slot, given.notices)
+      if (epoch === asked) {
+        keep(at, given.answers)
+        said.set(slot, given.notices)
+      }
     } catch (error) {
-      keep(at, [])
-      said.set(slot, [`Could not ask the plugins: ${message(error)}`])
+      if (epoch === asked) {
+        keep(at, [])
+        said.set(slot, [`Could not ask the plugins: ${message(error)}`])
+      }
     } finally {
+      // Whether it was kept or dropped: dropped means the redraw below finds
+      // a miss and asks again, of the plugins that are now running.
       flying.delete(at)
     }
     // The redraw does not wait on plugin states: it is the answer that was
@@ -225,13 +249,6 @@ export function createAsking(deps) {
       // Not worth a notice: the pane loses a line of explanation, and
       // everything else about the plugin still works.
       states = []
-    }
-  }
-
-  /** @param {string} name @returns {void} */
-  function forget(name) {
-    for (const [at, answers] of held) {
-      held.set(at, answers.filter((answer) => answer.plugin !== name))
     }
   }
 

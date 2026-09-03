@@ -262,3 +262,113 @@ test('two overlapping syncs start each plugin once, not twice', async () => {
   assert.equal(stub.started.length, 1)
   assert.deepEqual(stub.stopped, [])
 })
+
+/**
+ * A host whose plugins only answer once they have been started, which is the
+ * only way to tell a cache that was never invalidated from one that was: a
+ * stub that always answers the same thing hits either way.
+ */
+function answering() {
+  /** @type {Set<string>} */
+  const up = new Set()
+  let rounds = 0
+
+  const deps = {
+    startPlugin: async (
+      /** @type {string} */ name,
+      /** @type {string} */ _entry,
+      /** @type {string[]} */ _slots,
+      /** @type {string[]} */ _capabilities,
+      /** @type {string[]} */ _open,
+    ) => { up.add(name) },
+    stopPlugin: async (/** @type {string} */ name) => { up.delete(name) },
+    askPlugins: async () => {
+      rounds += 1
+      return { answers: [...up].map((name) => ({ plugin: name, value: ['#4412'] })), notices: [] }
+    },
+    pluginStates: async () => [],
+    now: () => ({ date: '2026-09-02', time: '10:00' }),
+    onChanged: () => {},
+  }
+
+  return { deps, rounds: () => rounds }
+}
+
+test('a plugin that starts after the page asked is asked again for the same key', async () => {
+  const stub = answering()
+  const asking = createAsking(stub.deps)
+
+  // The day page draws before the sync finishes - `app.js` does not await it
+  // (addendum §4) - so the first question is put while nothing is running.
+  assert.deepEqual(asking.answers('item.badge', 'k1', {}), [])
+  await flush()
+  assert.deepEqual(asking.answers('item.badge', 'k1', {}), [])
+  assert.equal(stub.rounds(), 1)
+
+  await asking.sync(FOLDERS, configured())
+
+  // The same key, and the same lines. Nothing about the page changed; what
+  // changed is that there is now somebody to ask.
+  assert.deepEqual(asking.answers('item.badge', 'k1', {}), [])
+  await flush()
+  assert.deepEqual(asking.answers('item.badge', 'k1', {}), [
+    { plugin: 'ticket-links', value: ['#4412'] },
+  ])
+  assert.equal(stub.rounds(), 2)
+})
+
+test('a plugin that stops has its marker gone from a key already answered', async () => {
+  const stub = answering()
+  const asking = createAsking(stub.deps)
+  await asking.sync(FOLDERS, configured())
+
+  asking.answers('item.badge', 'k1', {})
+  await flush()
+  assert.deepEqual(asking.answers('item.badge', 'k1', {}), [
+    { plugin: 'ticket-links', value: ['#4412'] },
+  ])
+
+  // Unticked in the pane: what it said was about code that is no longer up.
+  await asking.sync(FOLDERS, new Map())
+
+  assert.deepEqual(asking.answers('item.badge', 'k1', {}), [])
+  await flush()
+  assert.deepEqual(asking.answers('item.badge', 'k1', {}), [])
+})
+
+test('a sync that changes nothing leaves the answers alone', async () => {
+  const stub = answering()
+  const asking = createAsking(stub.deps)
+  await asking.sync(FOLDERS, configured())
+
+  asking.answers('item.badge', 'k1', {})
+  await flush()
+  assert.equal(stub.rounds(), 1)
+
+  // No start and no stop, so nothing a plugin said has gone stale - and a
+  // sync that threw the cache away every time would ask on every popover.
+  await asking.sync(FOLDERS, configured())
+  assert.deepEqual(asking.answers('item.badge', 'k1', {}), [
+    { plugin: 'ticket-links', value: ['#4412'] },
+  ])
+  assert.equal(stub.rounds(), 1)
+})
+
+test('an answer asked before a plugin started is not kept for the key it missed', async () => {
+  const stub = host()
+  const asking = createAsking(stub.deps)
+
+  // The launch order: the page asks, and the sync that starts the plugin is
+  // still in the air behind it.
+  asking.answers('item.badge', 'k1', {})
+  await asking.sync(FOLDERS, configured())
+
+  // Only now does the round put before the start come back - empty, because
+  // nothing was running when it was asked.
+  stub.asked[0]?.settle([])
+  await flush()
+
+  // Not cached over the running plugin: the next draw asks again.
+  assert.deepEqual(asking.answers('item.badge', 'k1', {}), [])
+  assert.equal(stub.asked.length, 2)
+})
