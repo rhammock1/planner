@@ -6,7 +6,7 @@ the part that only an operating system can answer for.
 ## What runs on its own
 
 ```bash
-npm test          # node --test over test/*.js
+npm test          # node --test over test/*.test.js
 npm run typecheck # tsc as a checker; no build step, no emit
 cd src-tauri && cargo test
 npm run serve     # then open test/browser/*.html for the layout checks
