@@ -68,7 +68,12 @@ const HEADING = 40
  * @property {string[]} moves  the theme tokens this plugin says it moves
  * @property {string|null} problem  why it cannot run, when it cannot
  * @property {SettingsField[]} schema  the settings the manifest declares
- * @property {Map<string, TomlValue>} settings  the settled values
+ * @property {Map<string, TomlValue>} settings  the settled values - the
+ *   manifest's defaults filled in, which is what the plugin is handed
+ * @property {Map<string, TomlValue>} held  what the person actually set, as
+ *   `config.toml` holds it. The pane writes this back, never `settings`: a
+ *   default written back becomes indistinguishable from a typed value, and
+ *   binding a command is the one place the difference matters (spec §3.2)
  */
 
 /**
@@ -96,15 +101,17 @@ export function installed(folders, configured) {
         problem: BAD_NAME,
         schema: [],
         settings: new Map(),
+        held: configEntry?.settings ?? new Map(),
       }
     }
 
     const read = readManifest(folder.manifest)
-    const settings = settled(folder.name, read.settings, configEntry?.settings ?? new Map(), [])
+    const held = configEntry?.settings ?? new Map()
+    const settings = settled(folder.name, read.settings, held, [])
     // An unset settings-derived entry resolves to nothing, so it is simply
     // not offered rather than shown as the literal `settings.<key>` string.
     const open = resolveOpen(folder.name, read.open, settings, [])
-    const set = personSet(read.settings, configEntry?.settings ?? new Map())
+    const set = personSet(read.settings, held)
 
     return {
       name: folder.name,
@@ -137,6 +144,7 @@ export function installed(folders, configured) {
       problem: read.error,
       schema: read.settings,
       settings,
+      held,
     }
   })
 }

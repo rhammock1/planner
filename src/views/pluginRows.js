@@ -12,6 +12,7 @@ import { el } from '../ui/dom.js'
 import { sentenceFor } from '../core/slots.js'
 import { tick } from './tick.js'
 import { commandRow } from './commandRows.js'
+import { writeBack } from './pluginWrite.js'
 
 /** @typedef {import('../core/installed.js').Installed} Installed */
 /** @typedef {import('../plugins/asking.js').PluginState} PluginState */
@@ -51,14 +52,7 @@ function pluginRow(plugin, states, handlers) {
   if (plugin.problem !== null && box instanceof HTMLInputElement) box.disabled = true
   box.addEventListener('change', () => {
     if (box instanceof HTMLInputElement) {
-      handlers.onPlugin(plugin.name, {
-        enabled: box.checked,
-        approvedSlots: plugin.approvedSlots,
-        approvedCapabilities: plugin.approved,
-        approvedOpen: plugin.approvedOpen,
-        approvedRun: plugin.approvedRun,
-        settings: plugin.settings,
-      })
+      writeBack(plugin, handlers, { enabled: box.checked })
     }
   })
   line.append(box, el('span', 'setting-label', plugin.name))
@@ -77,14 +71,7 @@ function pluginRow(plugin, states, handlers) {
       sentenceFor(slot),
       plugin.approvedSlots.includes(slot),
       'slot',
-      (on) => handlers.onPlugin(plugin.name, {
-        enabled: plugin.enabled,
-        approvedSlots: toggled(plugin.approvedSlots, slot, on),
-        approvedCapabilities: plugin.approved,
-        approvedOpen: plugin.approvedOpen,
-        approvedRun: plugin.approvedRun,
-        settings: plugin.settings,
-      }),
+      (on) => writeBack(plugin, handlers, { approvedSlots: toggled(plugin.approvedSlots, slot, on) }),
     ))
   }
 
@@ -95,14 +82,7 @@ function pluginRow(plugin, states, handlers) {
       capability,
       plugin.approved.includes(capability),
       'capability',
-      (on) => handlers.onPlugin(plugin.name, {
-        enabled: plugin.enabled,
-        approvedSlots: plugin.approvedSlots,
-        approvedCapabilities: toggled(plugin.approved, capability, on),
-        approvedOpen: plugin.approvedOpen,
-        approvedRun: plugin.approvedRun,
-        settings: plugin.settings,
-      }),
+      (on) => writeBack(plugin, handlers, { approvedCapabilities: toggled(plugin.approved, capability, on) }),
     ))
   }
 
@@ -114,14 +94,7 @@ function pluginRow(plugin, states, handlers) {
         address,
         plugin.approvedOpen.includes(address),
         'address',
-        (on) => handlers.onPlugin(plugin.name, {
-          enabled: plugin.enabled,
-          approvedSlots: plugin.approvedSlots,
-          approvedCapabilities: plugin.approved,
-          approvedOpen: toggled(plugin.approvedOpen, address, on),
-          approvedRun: plugin.approvedRun,
-          settings: plugin.settings,
-        }),
+        (on) => writeBack(plugin, handlers, { approvedOpen: toggled(plugin.approvedOpen, address, on) }),
       ))
     }
   }
@@ -172,17 +145,14 @@ function pluginRow(plugin, states, handlers) {
  */
 function settingRow(plugin, field, handlers) {
   const line = el('label', `setting setting-${field.kind}`)
-  const held = plugin.settings.get(field.key)
+  // The person's value, not the settled one: a default rendered into the box
+  // is a default that looks like something somebody typed, and the next tick
+  // would write it back as exactly that.
+  const held = plugin.held.get(field.key)
 
   /** @param {string|number|boolean} value */
-  const write = (value) => handlers.onPlugin(plugin.name, {
-    enabled: plugin.enabled,
-    approvedSlots: plugin.approvedSlots,
-    approvedCapabilities: plugin.approved,
-    approvedOpen: plugin.approvedOpen,
-    approvedRun: plugin.approvedRun,
-    settings: new Map([...plugin.settings, [field.key, value]]),
-  })
+  const write = (value) =>
+    writeBack(plugin, handlers, { settings: new Map([...plugin.held, [field.key, value]]) })
 
   if (field.kind === 'switch') {
     const box = el('input', 'setting-box')
@@ -199,7 +169,11 @@ function settingRow(plugin, field, handlers) {
   const input = el('input', 'setting-field')
   input.setAttribute('type', field.kind === 'count' ? 'number' : 'text')
   if (field.kind === 'count') input.setAttribute('min', '0')
-  if (field.hint !== null) input.setAttribute('placeholder', field.hint)
+  // The manifest's default belongs here rather than in the box: greyed out it
+  // reads as "nothing set, and this is what happens anyway", which is what it
+  // is. The hint wins when there is one - it was written for this row.
+  const empty = field.hint ?? (field.fallback === null ? null : String(field.fallback))
+  if (empty !== null) input.setAttribute('placeholder', empty)
   if (input instanceof HTMLInputElement) input.value = held === undefined ? '' : String(held)
 
   // `change`, not `input`: every one of these writes config.toml and restarts

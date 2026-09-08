@@ -11,6 +11,7 @@
 
 import { el } from '../ui/dom.js'
 import { tick } from './tick.js'
+import { writeBack } from './pluginWrite.js'
 
 /** @typedef {import('../core/installed.js').Installed} Installed */
 /** @typedef {import('./settingsPanel.js').SettingsHandlers} SettingsHandlers */
@@ -41,13 +42,8 @@ export function commandRow(plugin, command, handlers) {
     // An empty line rather than a missing key: `tomlEdit` cannot delete one,
     // and an empty string is never equal to a rendered command, so what is
     // left behind reads as exactly what it means (spec §1.6).
-    (on) => handlers.onPlugin(plugin.name, {
-      enabled: plugin.enabled,
-      approvedSlots: plugin.approvedSlots,
-      approvedCapabilities: plugin.approved,
-      approvedOpen: plugin.approvedOpen,
+    (on) => writeBack(plugin, handlers, {
       approvedRun: new Map([...plugin.approvedRun, [command.name, on ? command.line : '']]),
-      settings: plugin.settings,
     }),
   ), copyButton(command.line))
   block.append(line)

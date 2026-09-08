@@ -153,6 +153,7 @@ test('a plugin that is switched off is still listed', () => {
     problem: null,
     schema: [],
     settings: new Map(),
+    held: new Map(),
   }])
 })
 
@@ -173,6 +174,7 @@ test('a plugin the config has never heard of is listed as off and ungranted', ()
     problem: null,
     schema: [],
     settings: new Map(),
+    held: new Map(),
   }])
 })
 
@@ -273,4 +275,24 @@ moves = ["paper", "ink"]
 test('a plugin that moves nothing has an empty list, not a missing one', () => {
   const [one] = installed([{ name: 'ticket-links', manifest: 'entry = "index.js"\n' }], new Map())
   assert.deepEqual(one?.moves, [])
+})
+
+test("what the pane writes back is what the person set, never the author's default", () => {
+  // The defect this guards: `Installed.settings` is the *settled* map, with the
+  // manifest's defaults filled in. The pane used to hand that straight back to
+  // `updatePlugin`, so the first tick on any row wrote the author's default
+  // into `[plugins.<name>.settings]` - and from then on `personSet` could not
+  // tell it from a value somebody typed. The pane said "not set, this command
+  // will be refused" and the same click made it run (spec §3.2).
+  const withDefault = RUNNER.replace('kind  = "text"', 'kind  = "text"\ndefault = "~/somewhere"')
+  const [one] = installed(
+    [{ name: 'git-activity', manifest: withDefault }],
+    runConfigured({ settings: new Map() }),
+  )
+  // The plugin is still handed the default - that half is by design.
+  assert.equal(one?.settings.get('repo'), '~/somewhere')
+  // What a writeback carries is empty, because nobody has set anything.
+  assert.equal(one?.held.size, 0)
+  // And so the command still reads as unbindable, which is the truth.
+  assert.equal(one?.run[0]?.binds[0]?.value, null)
 })
