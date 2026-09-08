@@ -26,6 +26,21 @@ export const KEY = /^([A-Za-z0-9_-]+)\s*=\s*/
 export const HEADER = /^\[([A-Za-z0-9_.-]+)\]\s*$/
 
 /**
+ * Whether a name may be written back as a bare key.
+ *
+ * TOML's own rule, and this app's for the same reason: `tomlEdit` writes a key
+ * exactly as it is given, so a name with a dot in it would be read back as a
+ * path into a table nobody meant, and one with a bracket and a newline in it
+ * would open somebody else's (spec §0.2, §1.1).
+ *
+ * @param {string} name
+ * @returns {boolean}
+ */
+export function isBareKey(name) {
+  return /^[A-Za-z0-9_-]+$/.test(name)
+}
+
+/**
  * @param {string} text
  * @returns {TomlTable}
  * @throws {SyntaxError} naming the line, so a malformed file can say where

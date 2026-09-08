@@ -23,7 +23,7 @@ import { readManifest } from './manifest.js'
 import { settled, resolveOpen } from './pluginSettings.js'
 
 /** @typedef {import('./config.js').PluginConfig} PluginConfig */
-/** @typedef {import('./manifest.js').SettingsField} SettingsField */
+/** @typedef {import('./settingsSchema.js').SettingsField} SettingsField */
 /** @typedef {import('./toml.js').TomlValue} TomlValue */
 
 /**

@@ -146,7 +146,7 @@ function pluginRow(plugin, states, handlers) {
 
 /**
  * @param {Installed} plugin
- * @param {import('../core/manifest.js').SettingsField} field
+ * @param {import('../core/settingsSchema.js').SettingsField} field
  * @param {SettingsHandlers} handlers
  * @returns {HTMLElement}
  */

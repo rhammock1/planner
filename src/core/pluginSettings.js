@@ -12,7 +12,7 @@
 
 import { resolvePrefix } from './urls.js'
 
-/** @typedef {import('./manifest.js').SettingsField} SettingsField */
+/** @typedef {import('./settingsSchema.js').SettingsField} SettingsField */
 /** @typedef {import('./toml.js').TomlValue} TomlValue */
 
 /**

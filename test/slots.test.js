@@ -7,7 +7,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { SLOTS, isSlot, sentenceFor } from '../src/core/slots.js'
+import { SLOTS, isSlot, sentenceFor, optionsTableOf } from '../src/core/slots.js'
 
 test('the slots that exist are the ones with a consumer', () => {
   // A slot with no consumer is a guess about an API (spec §0). Adding a name
@@ -33,4 +33,13 @@ test('an unknown slot still gets a sentence, because the pane has to draw it', (
   const said = sentenceFor('vault.write')
   assert.match(said, /vault\.write/)
   assert.match(said, /does not offer/)
+})
+
+test('a slot names the table its options live in, or names none', () => {
+  // One convention, not eight keys in five shapes (spec §1.1): the table is
+  // named for the slot's last word, and only a slot that needs to be told
+  // something the question does not carry has one.
+  assert.equal(optionsTableOf('vault.contribute'), 'contribute')
+  assert.equal(optionsTableOf('item.badge'), null)
+  assert.equal(optionsTableOf('theme.tokens'), null, 'theme.tokens lands at #6, with dusk')
 })
