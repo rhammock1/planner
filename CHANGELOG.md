@@ -11,6 +11,9 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Added
 
+-   A plugin can move the theme's colours (`theme.tokens`). Its rule goes last in the cascade, so a plugin that moves a colour can move it; it may only move the tokens its manifest names, and two plugins may not move the same one
+-   `dusk`, the third reference plugin: the page warms after sunset and cools again at dawn, in quarter-hour steps over the hour either side. Sunrise is arithmetic, not a web service — it asks roughly where this Mac is (`macos.location.read`, two decimal places) or takes a `location` you type in. The precedent for the next plugin that thinks it needs the network
+-   The fifteen-minute refresh now reaches every window, so a second window left open follows the clock too
 -   `tools/rebuild --bundle` assembles and ad-hoc signs `Planner.app`. Anything gated on a macOS permission has to be tested from a bundle: cargo's binary carries `Info.plist` unsealed, and TCC ignores an unsealed one, so the prompt never appears under `npm run app`
 -   A plugin can run a program you approved, argument by argument (`shell.run`). The command is declared in the manifest as an argument list — never a shell line — and `config.toml` holds the one line it renders to, so changing an argument shows up unapproved rather than running. Placeholders are bound to a day or to a setting *you* set; a value that is only the author's default does not bind. No shell, five seconds, and the process group goes with it
 -   `git-activity`, the second reference plugin: one line for a repository that had commits that day. Not a work log — the daily note is that

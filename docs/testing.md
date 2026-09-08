@@ -147,3 +147,38 @@ PLANNER_HOME=/tmp/planner-home npm run app
       answers. The page it is served is not ended by its own settings.
 - [ ] Type a pattern that is not a regular expression: one notice, and the
       rest of the page is unaffected.
+
+**`dusk`, and the one thing that needs a bundle**
+
+macOS will not ask for a permission on behalf of a bare `cargo` binary. It
+embeds `Info.plist` but does not seal it into the signature — `codesign -dv`
+says `Info.plist=not bound` — and TCC ignores an unbound one, so the ask
+returns, the status stays `NotDetermined`, and the plugin looks like it is
+quietly answering nothing. These six are therefore run from the bundle:
+
+```bash
+tools/rebuild --bundle
+cp -R plugins/dusk /tmp/planner-home/plugins/
+PLANNER_HOME=/tmp/planner-home ~/.cache/planner-target/Planner.app/Contents/MacOS/planner
+```
+
+The bundle is signed ad hoc, so its signature changes every time it is built
+and macOS asks again on each rebuild. That is a nuisance rather than a bug —
+and it is also why nothing here leaves a permission granted behind it.
+
+- [ ] With `dusk` switched on and its slot ticked, macOS asks for location the
+      first time; allowing it and reopening the popover warms the page after
+      sunset. Before sunset the page is exactly the theme's own colours.
+- [ ] Setting the machine clock to 21:00 warms it; 16:00 cools it back. Both
+      the popover and the second window, and the second window follows the
+      clock while it is left open.
+- [ ] Refusing location, or turning location services off, gives a notice
+      naming the setting. Typing `35.23,-80.84` into the plugin's row makes it
+      work anyway.
+- [ ] With a `theme.css` that sets `--paper` on `:root`, `dusk` still moves it:
+      a plugin's rule is last.
+- [ ] Two plugins declaring `moves = ["paper"]` — copy `dusk` to a second
+      folder — gives one notice naming both, and only the first by name moves
+      anything.
+- [ ] `dusk` imports `sun.js` from its own folder, which is the check that a
+      plugin may be more than one file.

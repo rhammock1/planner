@@ -334,6 +334,7 @@ how many. It is never guessed at.
 | Capability | Method | Returns |
 |---|---|---|
 | `macos.calendar.read` | `events({from, to})` | `{date, time, text, allDay, status}[]` |
+| `macos.location.read` | `location()` | `{latitude, longitude}` |
 
 `status` is `confirmed`, `tentative`, `cancelled` or `none`. Deciding what to
 do about a cancelled meeting is the plugin's job; the bridge has no opinion.
@@ -345,6 +346,21 @@ allowed it.
 `events` may be asked about at most 62 days at a time. A wider range is
 refused with an error rather than trimmed, because a plugin that asked for a
 decade should find out that it did.
+
+```js
+const { latitude, longitude } = await planner.capability('macos.location.read').location()
+```
+
+`macos.location.read` answers with where this Mac is, rounded to two decimal
+places — about a kilometre, which is what sunrise arithmetic needs and less
+than a plugin needs to know about where somebody lives. There is no finer
+version of this to ask for.
+
+It rejects while macOS is still asking for permission, and again while it has
+no fix yet. Both are ordinary: ask again the next time you are asked
+something. It rejects for good if location services are off, and the message
+says so — which is why `dusk` also has a `location` setting, and why yours
+should too.
 
 ### Settings
 

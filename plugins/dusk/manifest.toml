@@ -1,0 +1,19 @@
+name        = "dusk"
+version     = "0.1.0"
+description = "Warms the page after sunset and cools it again at dawn"
+entry       = "index.js"
+slots       = ["theme.tokens"]
+
+[tokens]
+moves = ["paper", "surface", "edge", "edge-soft", "ink", "dim"]
+
+[permissions]
+capabilities = ["macos.location.read"]
+
+# No default on purpose: an author's coordinates would warm somebody else's
+# evening at the wrong hour, and a plugin quietly using Charlotte's sunset in
+# Berlin is worse than one that says it does not know.
+[settings.location]
+label = "Where this Mac is"
+kind  = "text"
+hint  = "35.23,-80.84"

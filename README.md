@@ -79,6 +79,9 @@ shows the whole command line and nothing runs until you have ticked it:
 cp -R plugins/git-activity ~/.planner/plugins/
 ```
 
+`dusk` warms the page after sunset. It is the one that shows what a plugin can
+do without the network: sunrise is arithmetic on a date and two numbers.
+
 A plugin runs in its own webview with no permissions, may call exactly one
 command, cannot reach the network, and has two seconds to answer anything.
 The API is published in [docs/plugins.md](docs/plugins.md).
