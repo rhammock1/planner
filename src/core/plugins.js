@@ -20,7 +20,7 @@
  */
 
 import { readManifest } from './manifest.js'
-import { settled, resolveOpen, personSet, resolveRun } from './pluginSettings.js'
+import { settled, resolveOpen, personSet, resolveRun, isApproved } from './pluginSettings.js'
 
 /** @typedef {import('./config.js').PluginConfig} PluginConfig */
 /** @typedef {import('./settingsSchema.js').SettingsField} SettingsField */
@@ -150,7 +150,7 @@ export function plan(folders, configured) {
     if (!capabilities.includes('shell.run')) {
       // Only when there is something to say: a plugin with no ticked command
       // and no `shell.run` has nothing wrong with it.
-      const ticked = read.run.filter((one) => settings.approvedRun.get(one.name) === one.line)
+      const ticked = read.run.filter((one) => isApproved(one, settings.approvedRun))
       if (ticked.length > 0) {
         notices.push(`${folder.name} has ${ticked.length === 1 ? 'a command' : 'commands'} approved but not shell.run, so it may not run anything`)
       }

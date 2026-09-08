@@ -150,6 +150,7 @@ test('a plugin that is switched off is still listed', () => {
     approvedRun: new Map(),
     heading: 'macos-calendar',
     moves: [],
+    notices: [],
     problem: null,
     schema: [],
     settings: new Map(),
@@ -171,6 +172,7 @@ test('a plugin the config has never heard of is listed as off and ungranted', ()
     approvedRun: new Map(),
     heading: 'macos-calendar',
     moves: [],
+    notices: [],
     problem: null,
     schema: [],
     settings: new Map(),
@@ -295,4 +297,33 @@ test("what the pane writes back is what the person set, never the author's defau
   assert.equal(one?.held.size, 0)
   // And so the command still reads as unbindable, which is the truth.
   assert.equal(one?.run[0]?.binds[0]?.value, null)
+})
+
+test('a plugin that moves colours says which, so the tick is a decision about a list', () => {
+  const [one] = installed([{
+    name: 'dusk',
+    manifest: 'entry = "index.js"\nslots = ["theme.tokens"]\n\n[tokens]\nmoves = ["paper", "ink"]\n',
+  }], new Map())
+  assert.deepEqual(one?.moves, ['paper', 'ink'])
+})
+
+test('what the manifest reader left out reaches the pane, not only the page', () => {
+  // A plugin sitting switched off is asked nothing, so `plan()` never runs and
+  // its notices appear nowhere. The pane is the one place somebody can act on
+  // them, and it is exactly where they will be when they wonder why.
+  const [one] = installed([{
+    name: 'git-activity',
+    manifest: `
+entry = "index.js"
+
+[permissions.run.log]
+command = ["git", "log"]
+repo    = "settings.repo"
+`,
+  }], new Map())
+  assert.equal(one?.problem, null)
+  assert.equal(one?.notices.length, 1)
+  assert.match(one?.notices[0] ?? '', /does not use/)
+  // And the command it could not read is not offered as tickable.
+  assert.deepEqual(one?.run, [])
 })

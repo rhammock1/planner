@@ -15,7 +15,7 @@
  */
 
 import { tokenKey, readPluginTokens, pluginTokensCss } from '../core/tokens.js'
-import { styleElement } from '../ui/dom.js'
+import { styleElement, setText } from '../ui/dom.js'
 import { today, nowTime } from '../clock.js'
 
 /** @typedef {import('../store.js').Store} Store */
@@ -36,9 +36,11 @@ export function applyPluginTokens(store) {
     store.pluginAnswers('theme.tokens', tokenKey(now, store.pluginGeneration()), {}),
     store.pluginMoves(),
   )
-  // Written every draw rather than only when it changed: assigning the same
-  // string to `textContent` is not a style recalculation, and a branch here
-  // would be a second place for the two windows to disagree.
-  styleElement('theme-plugin').textContent = pluginTokensCss(read.tokens)
+  // `setText`, not `textContent`: assigning to `textContent` replaces the
+  // node, and replacing a `<style>` element's text node makes the browser
+  // throw the sheet away and parse it again. `draw()` runs on every keystroke
+  // in the add row, in both windows. `setText` writes only when the string
+  // actually differs, which on almost every draw is not at all.
+  setText(styleElement('theme-plugin'), pluginTokensCss(read.tokens))
   return read.notices
 }

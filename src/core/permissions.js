@@ -22,7 +22,10 @@ import { readPrefix } from './urls.js'
  */
 export function readCapabilities(permissions) {
   if (permissions === undefined) return []
-  if (typeof permissions !== 'object' || Array.isArray(permissions)) {
+  // `null` too, and not only because TOML has none: this takes `unknown`, the
+  // cast below is what stops the type-checker noticing, and its two siblings
+  // both answer this question the same way.
+  if (typeof permissions !== 'object' || permissions === null || Array.isArray(permissions)) {
     return 'manifest.toml has a permissions key that is not a table'
   }
 

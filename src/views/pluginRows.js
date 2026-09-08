@@ -73,6 +73,15 @@ function pluginRow(plugin, states, handlers) {
       'slot',
       (on) => writeBack(plugin, handlers, { approvedSlots: toggled(plugin.approvedSlots, slot, on) }),
     ))
+    // A slot that carries a list is a grant of that list. `theme.tokens` hands
+    // over every colour the manifest named, and a tick over one sentence is
+    // not consent to a list nobody was shown - the same rule an address list
+    // obeys (spec §1.1). Named here rather than driven off the options table
+    // because this is the only slot that carries one, and a loop over one case
+    // would be a guess about the next.
+    if (slot === 'theme.tokens' && plugin.moves.length > 0) {
+      block.append(el('div', 'plugin-bind', `Moves ${plugin.moves.join(', ')}.`))
+    }
   }
 
   // What it asks for, one line each, so granting is a decision per capability
@@ -124,6 +133,15 @@ function pluginRow(plugin, states, handlers) {
   // than the app's Config (spec §1.5).
   for (const field of plugin.schema) {
     block.append(settingRow(plugin, field, handlers))
+  }
+
+  // What the manifest reader had to leave out. These are written for a person
+  // - a command whose binding rule is missing, a setting of a kind this pane
+  // cannot draw - and the pane is the one place they can be acted on. For a
+  // plugin that is switched off they appear nowhere else at all, which is
+  // exactly when somebody is here working out why (spec §6).
+  for (const line of plugin.notices) {
+    block.append(el('div', 'plugin-note', line))
   }
 
   const state = states.get(plugin.name)

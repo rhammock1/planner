@@ -112,7 +112,7 @@ export function resolveRun(name, declared, approvedRun, set, notices) {
   const granted = []
 
   for (const command of declared) {
-    if (approvedRun.get(command.name) !== command.line) {
+    if (!isApproved(command, approvedRun)) {
       notices.push(`${name} asks to run ${command.name}, which config.toml has not approved as it is now written`)
       continue
     }
@@ -130,6 +130,25 @@ export function resolveRun(name, declared, approvedRun, set, notices) {
     })
   }
   return granted
+}
+
+/**
+ * Whether `config.toml` approves this command exactly as it is now written.
+ *
+ * One predicate, exported for the same reason `valueOf` is: the pane, the
+ * planner and the notice all have to be asking the same question. Three copies
+ * of "is this approved" is three chances for the pane to show a tick over a
+ * command `plan()` will not grant (spec §1.6).
+ *
+ * An empty line is never equal to a rendered command, which is what makes an
+ * unticked leftover key read as exactly what it means.
+ *
+ * @param {{name: string, line: string}} command
+ * @param {Map<string, string>} approvedRun
+ * @returns {boolean}
+ */
+export function isApproved(command, approvedRun) {
+  return approvedRun.get(command.name) === command.line
 }
 
 /**

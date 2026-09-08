@@ -15,7 +15,7 @@
  */
 
 import { readManifest, slotOptions, optionText, optionNames } from './manifest.js'
-import { settled, resolveOpen, personSet, valueOf } from './pluginSettings.js'
+import { settled, resolveOpen, personSet, valueOf, isApproved } from './pluginSettings.js'
 import { isPluginName, BAD_NAME, both } from './plugins.js'
 
 /** @typedef {import('./config.js').PluginConfig} PluginConfig */
@@ -66,6 +66,9 @@ const HEADING = 40
  *   tick back does not throw away the others
  * @property {string} heading  what the day page calls this plugin's section
  * @property {string[]} moves  the theme tokens this plugin says it moves
+ * @property {string[]} notices  what its manifest reader had to leave out.
+ *   The pane is where these can be acted on, and for a plugin that is not
+ *   switched on it is the only place they are shown at all
  * @property {string|null} problem  why it cannot run, when it cannot
  * @property {SettingsField[]} schema  the settings the manifest declares
  * @property {Map<string, TomlValue>} settings  the settled values - the
@@ -98,6 +101,7 @@ export function installed(folders, configured) {
         approvedRun,
         heading: folder.name,
         moves: [],
+        notices: [],
         problem: BAD_NAME,
         schema: [],
         settings: new Map(),
@@ -106,11 +110,14 @@ export function installed(folders, configured) {
     }
 
     const read = readManifest(folder.manifest)
+    // Collected rather than discarded: every one of these lines was written
+    // for a person to read, and the pane is where a person is.
+    const notices = [...read.notices]
     const held = configEntry?.settings ?? new Map()
-    const settings = settled(folder.name, read.settings, held, [])
+    const settings = settled(folder.name, read.settings, held, notices)
     // An unset settings-derived entry resolves to nothing, so it is simply
     // not offered rather than shown as the literal `settings.<key>` string.
-    const open = resolveOpen(folder.name, read.open, settings, [])
+    const open = resolveOpen(folder.name, read.open, settings, notices)
     const set = personSet(read.settings, held)
 
     return {
@@ -125,7 +132,7 @@ export function installed(folders, configured) {
       run: read.run.map((command) => ({
         name: command.name,
         line: command.line,
-        approved: approvedRun.get(command.name) === command.line,
+        approved: isApproved(command, approvedRun),
         binds: command.binds.map((bind) => ({
           name: bind.name,
           rule: bind.rule,
@@ -141,6 +148,7 @@ export function installed(folders, configured) {
       // check for one.
       heading: optionText(slotOptions(read, 'vault.contribute'), 'heading', HEADING) || folder.name,
       moves: optionNames(slotOptions(read, 'theme.tokens'), 'moves'),
+      notices,
       problem: read.error,
       schema: read.settings,
       settings,
