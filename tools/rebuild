@@ -140,13 +140,28 @@ PLIST
   # Ad-hoc, which is all a local test needs: what TCC wants is a signature the
   # plist is sealed into, not one anybody has paid for.
   #
-  # `--options runtime` is not optional here, though. Without the hardened
-  # runtime the executable is not dyld-restricted, so anything running as this
-  # user can DYLD_INSERT_LIBRARIES its way into a process that holds the
-  # calendar and location grants this bundle exists to obtain, and read both
-  # with no prompt. There are no entitlements to reconcile, so it costs
-  # nothing.
-  codesign --force --options runtime --sign - "$APP"
+  # `--options runtime` is not optional here. Without the hardened runtime the
+  # executable is not dyld-restricted, so anything running as this user can
+  # DYLD_INSERT_LIBRARIES its way into a process that holds the calendar and
+  # location grants this bundle exists to obtain, and read both with no prompt.
+  #
+  # And it costs the entitlements file, which is the other half of the same
+  # rule: the runtime refuses the two resources unless the signature names
+  # them, and refuses them silently. Signed with the runtime and no
+  # entitlements - which is how this shipped for a day - locationd logs
+  # "doesn't have the entitlement, not sending #AuthPrompt" and no prompt is
+  # ever drawn. src-tauri/Entitlements.md is the long version, and says why
+  # the plist beside it carries no comments of its own.
+  codesign --force --options runtime \
+    --entitlements "$ROOT/src-tauri/Entitlements.plist" --sign - "$APP"
+
+  # Told to LaunchServices, because a bundle nobody has ever opened is not in
+  # its database and CoreLocationAgent looks the app up there to draw the
+  # prompt. Before this, locationd logged
+  # `kLSApplicationNotFoundErr ... io.hammock.planner` on every ask.
+  # Idempotent, and cheap.
+  "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister" \
+    -f "$APP" || true
 
   echo "Bundled: $APP"
 
@@ -162,9 +177,19 @@ PLIST
   sealed="$(codesign -dv "$APP" 2>&1 || true)"
   case "$sealed" in
     *"Info.plist entries="*)
-      echo "         the plist is sealed in, so permissions will be asked for" ;;
+      echo "         the plist is sealed in" ;;
     *)
       echo "         WARNING: the plist is not sealed in - nothing will prompt" >&2 ;;
+  esac
+
+  # The other half, and worth its own line for the same reason: a hardened
+  # runtime without these refuses location and calendar without saying so.
+  entitled="$(codesign -d --entitlements - "$APP" 2>&1 || true)"
+  case "$entitled" in
+    *"personal-information.location"*)
+      echo "         and the entitlements are on it, so permissions will be asked for" ;;
+    *)
+      echo "         WARNING: no location entitlement - nothing will prompt" >&2 ;;
   esac
 fi
 

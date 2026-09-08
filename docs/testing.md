@@ -161,6 +161,16 @@ PLANNER_HOME="$TMPDIR/planner-home" tools/update
 PLANNER_HOME="$TMPDIR/planner-home" ~/.cache/planner-target/Planner.app/Contents/MacOS/planner
 ```
 
+Two things about that bundle have to be right at once, and each fails the same
+silent way — the ask returns, the status stays `NotDetermined`, and the plugin
+looks like it is answering nothing. `tools/rebuild --bundle` asserts both where
+it makes them:
+
+  - the `Info.plist` is sealed into the signature, or TCC will not read it;
+  - the signature carries the entitlements in `src-tauri/Entitlements.plist`,
+    or the hardened runtime refuses. `locationd` says so and nothing else does:
+    `doesn't have the entitlement, not sending #AuthPrompt`.
+
 The bundle is signed ad hoc, so its signature changes every time it is built
 and macOS asks again on each rebuild. That is a nuisance rather than a bug —
 and it is also why nothing here leaves a permission granted behind it.
