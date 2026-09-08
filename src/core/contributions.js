@@ -49,6 +49,9 @@ export function readContributions(answers, page, headings) {
   const notices = []
 
   for (const answer of answers) {
+    // Nothing to say, which is not the same as the wrong shape: a handler
+    // that returned nothing is answering, it just has no lines this time.
+    if (answer.value === null || answer.value === undefined) continue
     if (!Array.isArray(answer.value)) {
       // Named, because with several plugins answering "a plugin" is not
       // enough to go and look at anything.

@@ -56,6 +56,9 @@ export function readPluginTokens(answers, moves) {
   const tokens = new Map()
 
   for (const answer of answers) {
+    // Nothing to say, which is not the same as the wrong shape: a handler
+    // that returned nothing is answering, it just has no colours to move this time.
+    if (answer.value === null || answer.value === undefined) continue
     if (typeof answer.value !== 'object' || answer.value === null || Array.isArray(answer.value)) {
       notices.push(`${answer.plugin} returned something that is not a map of tokens`)
       continue
@@ -67,6 +70,12 @@ export function readPluginTokens(answers, moves) {
     // the 4.
     let notMine = 0
     let unusable = 0
+    // Named while there is one to name, counted once there are several: the
+    // token's own name is the useful half of this sentence, and a plugin
+    // answering thirteen bad values must not put thirteen lines on the page.
+    /** @type {{name: string, why: string}|null} */
+    let firstRefused = null
+    let refused = 0
     for (const [name, raw] of Object.entries(/** @type {Record<string, unknown>} */ (answer.value))) {
       // The claim is what decides, not the answer: a plugin that declared a
       // token holds it whether or not it happened to answer this time, so the
@@ -80,9 +89,10 @@ export function readPluginTokens(answers, moves) {
         unusable += 1
         continue
       }
-      const refused = forbidden(value)
-      if (refused !== null) {
-        notices.push(`${answer.plugin}'s ${name} was refused - ${refused.why}`)
+      const why = forbidden(value)
+      if (why !== null) {
+        refused += 1
+        if (firstRefused === null) firstRefused = { name, why: why.why }
         continue
       }
       tokens.set(name, value)
@@ -94,6 +104,10 @@ export function readPluginTokens(answers, moves) {
     }
     if (unusable > 0) {
       notices.push(`${answer.plugin} sent ${unusable} ${unusable === 1 ? 'value' : 'values'} this app could not use`)
+    }
+    if (firstRefused !== null) {
+      const also = refused === 1 ? '' : ` (and ${refused - 1} more)`
+      notices.push(`${answer.plugin}'s ${firstRefused.name} was refused${also} - ${firstRefused.why}`)
     }
   }
 

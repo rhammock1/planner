@@ -80,6 +80,9 @@ export function readBadges(answers, lines) {
   const sent = new Set(lines.map((line) => line.index))
 
   for (const answer of answers) {
+    // Nothing to say, which is not the same as the wrong shape: a handler
+    // that returned nothing is answering, it just has no markers this time.
+    if (answer.value === null || answer.value === undefined) continue
     if (!Array.isArray(answer.value)) {
       notices.push(`${answer.plugin} returned something that is not a list`)
       continue

@@ -114,7 +114,11 @@
     }
     try {
       const value = await handler(message)
-      await send({ kind: 'reply', id: message.id, value: value ?? [] })
+      // `null`, not `[]`. A handler that falls off the end has nothing to say,
+      // and that is the same nothing whichever slot asked - where `[]` is an
+      // answer, and the wrong shape for a slot that replies with a map. Every
+      // reader treats null as nothing rather than as a plugin misbehaving.
+      await send({ kind: 'reply', id: message.id, value: value ?? null })
     } catch (error) {
       const said = error instanceof Error ? error.message : String(error)
       await send({ kind: 'failed', id: message.id, error: said })

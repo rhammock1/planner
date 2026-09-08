@@ -127,3 +127,47 @@ test('what is moved becomes one rule, in a settled order', () => {
     ':root {\n  --ink: #2A2622;\n  --paper: #F6EEDD;\n}\n',
   )
 })
+
+test('a value that would swallow the rule takes nothing else with it', () => {
+  // The reason `forbidden` checks that brackets close. Tokens are written out
+  // in name order, so `accent` lands first: unrefused, it would open a
+  // function the browser consumes to the end of the sheet and `two` would
+  // lose colours it was granted, silently, because the app believes it wrote
+  // them.
+  const moves = new Map([['one', ['accent']], ['two', ['paper', 'ink']]])
+  const { tokens, notices } = readPluginTokens([
+    { plugin: 'one', value: { accent: 'rgb(' } },
+    { plugin: 'two', value: { paper: '#F6EEDD', ink: '#2A2622' } },
+  ], moves)
+
+  assert.equal(tokens.has('accent'), false)
+  assert.equal(tokens.get('paper'), '#F6EEDD')
+  assert.equal(tokens.get('ink'), '#2A2622')
+  assert.equal(notices.length, 1)
+  assert.match(notices[0] ?? '', /^one's accent was refused/)
+})
+
+test('a plugin with nothing to say is not a plugin misbehaving', () => {
+  // A handler that falls off the end answers `null`, and that is an answer.
+  // Reported as a shape error it would send an author looking for a bug in
+  // the one code path where they wrote no bug.
+  const { tokens, notices } = readPluginTokens(
+    [{ plugin: 'dusk', value: null }],
+    new Map([['dusk', ['paper']]]),
+  )
+  assert.equal(tokens.size, 0)
+  assert.deepEqual(notices, [])
+})
+
+test('a plugin answering with thirteen bad values still gets one line', () => {
+  // Spec §6: counted, not listed. The first is named because the token's own
+  // name is the useful half of the sentence.
+  const moves = new Map([['one', ['paper', 'ink', 'dim', 'surface']]])
+  const { notices } = readPluginTokens([{
+    plugin: 'one',
+    value: { paper: 'a;b', ink: 'c{d', dim: 'rgb(', surface: 'e}f' },
+  }], moves)
+
+  assert.equal(notices.length, 1)
+  assert.match(notices[0] ?? '', /and 3 more/)
+})

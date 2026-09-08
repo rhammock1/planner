@@ -195,6 +195,13 @@ test('forbidden says which rule refused a value, and nothing about a good one', 
   assert.match(forbidden('a\\b')?.why ?? '', /backslash/)
   // And the ones that must keep working: a gradient, a font stack, a shadow.
   assert.equal(forbidden('linear-gradient(#fff, #000)'), null)
+  // Nothing forbidden in it, and it eats the rest of the stylesheet: CSS
+  // consumes an unclosed function to the end of the sheet, so one value like
+  // this takes every declaration after it - including another plugin's.
+  assert.match(forbidden('rgb(')?.why ?? '', /do not close/)
+  assert.match(forbidden('"')?.why ?? '', /do not close/)
+  assert.match(forbidden("'")?.why ?? '', /do not close/)
+  assert.match(forbidden('red)')?.why ?? '', /do not close/)
   assert.equal(forbidden('"SF Mono", ui-monospace, monospace'), null)
   assert.equal(forbidden('0 1px 2px rgba(0, 0, 0, 0.2)'), null)
 })
