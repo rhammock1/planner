@@ -80,8 +80,12 @@ you have allowed it.
 repository that had commits — it is the one that runs a program, so its pane
 shows the whole command line and nothing runs until you have ticked it.
 
-`dusk` warms the page after sunset. It is the one that shows what a plugin can
-do without the network: sunrise is arithmetic on a date and two numbers.
+`dusk` puts the sky on the page. Through twilight the surfaces deepen and a
+real sunset appears behind the list — entering from the sun's own bearing and
+sinking as it sets — and at civil dusk the page turns over into a night page
+and back again at dawn. It is the one that shows what a plugin can do without
+the network: where the sun is, is arithmetic on a date, a time and two
+numbers.
 
 A plugin runs in its own webview with no permissions, may call exactly one
 command, cannot reach the network, and has two seconds to answer anything.

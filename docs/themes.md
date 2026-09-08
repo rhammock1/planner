@@ -33,7 +33,7 @@ font-head   = "Newsreader, Georgia, serif"
 font-body   = "Public Sans, system-ui, sans-serif"
 font-meta   = "IBM Plex Mono, monospace"
 radius      = "10px"
-texture     = "radial-gradient(#E2DFD4 1px, transparent 1px)"
+texture     = "radial-gradient(#E2DFD4 1px, transparent 1px) 8px 8px / 14px 14px"
 ```
 
 `appearance` drives the macOS window appearance and the page's
@@ -56,10 +56,25 @@ lives in.
 | `font-body`   | Item text and notes                                              |
 | `font-meta`   | Times, due dates, counts — anything that lines up in a column    |
 | `radius`      | Corner radius, applied once and used everywhere                  |
-| `texture`     | A background layer over `paper`: a gradient, a repeating image   |
+| `texture`     | A background layer over `paper`, geometry included (below)       |
 
 Tokens reach the page as CSS custom properties on `:root`, named with a `--`
 prefix: `paper` becomes `var(--paper)`.
+
+`texture` is the one that is not a single value but a whole background layer,
+so it may carry its own position and size the way the `background` shorthand
+writes them:
+
+```toml
+texture = "radial-gradient(#E2DFD4 1px, transparent 1px) 8px 8px / 14px 14px"
+```
+
+Geometry belongs in the token rather than in your `theme.css`, because a
+`background-size` set on `.page` governs *every* layer on it - including the
+ones a `theme.tokens` plugin stacks over your grain, which it cannot give a
+size of its own. A theme that sizes its texture out there tiles somebody's
+sunset into 14-pixel squares. Comma-separated layers are fine, and each may
+carry its own.
 
 ## theme.css
 

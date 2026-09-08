@@ -16,18 +16,27 @@ import { tokenKey, readPluginTokens, pluginTokensCss } from '../src/core/tokens.
 
 const DUSK = new Map([['dusk', ['paper', 'ink']]])
 
-test('the key steps at the quarter hour, and moves with the generation', () => {
-  // Every fifteen minutes is the resolution the clock-driven slots get: the
-  // alarm thread wakes then, so a finer key would ask questions nothing
-  // would answer differently (spec §1.4).
-  assert.equal(tokenKey({ date: '2026-09-02', time: '19:42' }, 3), '2026-09-02:19:30:3')
+test('the key steps at the minute, and moves with the generation', () => {
+  // The minute, not the quarter hour it used to be. Fifteen minutes is when
+  // the alarm thread wakes, which is a fact about the alarm; a slot whose
+  // whole subject is the passage of light cannot say anything in four steps
+  // an hour that does not read as four jumps.
+  assert.equal(tokenKey({ date: '2026-09-02', time: '19:42' }, 3), '2026-09-02:19:42:3')
   assert.equal(tokenKey({ date: '2026-09-02', time: '19:30' }, 3), '2026-09-02:19:30:3')
   assert.equal(tokenKey({ date: '2026-09-02', time: '19:00' }, 3), '2026-09-02:19:00:3')
-  assert.equal(tokenKey({ date: '2026-09-02', time: '19:59' }, 3), '2026-09-02:19:45:3')
+  assert.equal(tokenKey({ date: '2026-09-02', time: '19:59' }, 3), '2026-09-02:19:59:3')
+  // Two minutes running are two different questions, which is the whole
+  // point of the change.
+  assert.notEqual(
+    tokenKey({ date: '2026-09-02', time: '19:42' }, 3),
+    tokenKey({ date: '2026-09-02', time: '19:43' }, 3),
+  )
   assert.notEqual(
     tokenKey({ date: '2026-09-02', time: '19:42' }, 3),
     tokenKey({ date: '2026-09-02', time: '19:42' }, 4),
   )
+  // A time this app did not write is still a key rather than a NaN.
+  assert.equal(tokenKey({ date: '2026-09-02', time: '' }, 1), '2026-09-02:00:00:1')
 })
 
 test('a token a plugin said it would move is moved', () => {
@@ -66,12 +75,29 @@ test('a value that is not a string is not a value', () => {
   assert.equal(read.tokens.size, 0)
 })
 
-test('a value longer than a colour has any business being is dropped, not cut', () => {
+test('a value longer than a sky has any business being is dropped, not cut', () => {
   // Dropped rather than truncated, unlike a contributed line or a heading: a
   // colour cut in half is not a shorter colour, it is a broken declaration.
-  const read = readPluginTokens([{ plugin: 'dusk', value: { paper: 'x'.repeat(300) } }], DUSK)
+  const read = readPluginTokens([{ plugin: 'dusk', value: { paper: 'x'.repeat(500) } }], DUSK)
   assert.equal(read.tokens.has('paper'), false)
   assert.equal(read.notices.length, 1)
+})
+
+test('a sky is longer than a colour, and fits', () => {
+  // Three gradient layers over a theme's own texture. 200 characters was a
+  // guess about how long a colour is; what defends this value is the bracket
+  // and character checks, and none of those get weaker with length.
+  const sky =
+    'radial-gradient(64% 46% at 105% 24%, #9a3a5775, transparent 66%), ' +
+    'radial-gradient(90% 34% at -5% 2%, #a87e9840, transparent 70%), ' +
+    'linear-gradient(180deg, #3f4a8380, #9a3a5738 74%), ' +
+    'repeating-linear-gradient(180deg, transparent 0 27px, #C4D0DE 27px 28px)'
+  assert.ok(sky.length > 200, 'the fixture stopped being the awkward case')
+
+  const moves = new Map([['dusk', ['texture']]])
+  const read = readPluginTokens([{ plugin: 'dusk', value: { texture: sky } }], moves)
+  assert.equal(read.tokens.get('texture'), sky)
+  assert.deepEqual(read.notices, [])
 })
 
 test('a value is flattened to one line', () => {

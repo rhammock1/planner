@@ -16,28 +16,50 @@
 
 import { TOKEN_NAMES, forbidden } from './theme.js'
 
-/** A colour, a font stack or a gradient. Longer than this is not one. */
-const LONGEST = 200
-
-/** The alarm thread wakes every fifteen minutes, so that is the resolution a
- *  clock-driven slot gets: `dusk` steps rather than drifting (spec §1.4). */
-const QUARTER = 15
+/**
+ * A colour, a font stack, or a sky.
+ *
+ * 200 was a guess about how long a colour is, and a sky is not a colour:
+ * `dusk` answers `texture` with three gradient layers over whatever the theme
+ * had there already, which on `composition-book` lands at about 200 exactly.
+ * Nothing that defends this value gets weaker with length - the character and
+ * bracket checks in `theme.js` are the defence, and the number is only there
+ * so that a value which is plainly not one of the three above is refused
+ * before it reaches a stylesheet.
+ *
+ * Exported because it is published in `docs/plugins.md` and a plugin composing
+ * a value has to know it - `dusk` gives up a layer rather than be refused
+ * whole. A plugin cannot import this, so its own copy is what a test compares
+ * against: two numbers that must agree are two numbers that will not.
+ */
+export const LONGEST = 400
 
 /**
- * The key that makes an old answer wrong.
+ * The key that makes an old answer wrong: the minute, and the generation.
  *
- * Generation-forced (spec §1.4): the counter moves when the popover opens and
- * when the schedule refreshes, so a page pinned across sunset is re-asked four
- * times over the hour rather than holding the answer it opened with.
+ * The minute rather than the quarter hour it used to be. Fifteen minutes is
+ * when the alarm thread wakes, which is a fact about the alarm; a slot whose
+ * whole subject is the passage of light cannot say anything in four steps an
+ * hour that does not read as four jumps. `theming.js` holds the clock that
+ * turns a new key into a new question.
+ *
+ * Generation-forced as well (spec §1.4): the counter moves when the popover
+ * opens and when the schedule refreshes, so an answer given before a plugin
+ * was reconfigured is not one the page keeps wearing.
  *
  * @param {{date: string, time: string}} now
  * @param {number} generation
  * @returns {string}
  */
 export function tokenKey(now, generation) {
-  const [hour, minute] = now.time.split(':')
-  const stepped = Math.floor(Number(minute ?? 0) / QUARTER) * QUARTER
-  return `${now.date}:${hour ?? '00'}:${String(stepped).padStart(2, '0')}:${generation}`
+  const [hour = '', minute = ''] = now.time.split(':')
+  // A time this app did not write is a key rather than a NaN that spreads:
+  // `NaN` would stringify into a key that never matches itself and ask the
+  // plugin again on every single draw. Base ten explicitly, so this reads the
+  // digits `nowTime` writes and nothing else - `Number` would take `0x10` for
+  // sixteen and collide two keys that are not the same minute.
+  const at = (/** @type {string} */ part) => String(Number.parseInt(part, 10) || 0).padStart(2, '0')
+  return `${now.date}:${at(hour)}:${at(minute)}:${generation}`
 }
 
 /**

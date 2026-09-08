@@ -12,8 +12,12 @@
   position: relative;
   width: 100%;
   height: 100%;
+  /* The shorthand, and `background-color` after it, for the reason
+     `components.css` gives at `.page`: a texture is a layer with its own
+     geometry, and a size set out here would govern every layer a plugin
+     stacked on top of it. */
+  background: var(--texture);
   background-color: var(--paper);
-  background-image: var(--texture);
   color: var(--ink);
   display: flex;
   flex-direction: column;

@@ -1,11 +1,19 @@
 name        = "dusk"
-version     = "0.1.0"
-description = "Warms the page after sunset and cools it again at dawn"
+version     = "0.2.0"
+description = "The sky on the page: twilight over the surfaces, and a night page after civil dusk"
 entry       = "index.js"
 slots       = ["theme.tokens"]
 
+# Nine, where 0.1.0 named six. Growing this list grants nothing: `texture`,
+# `accent` and `alert` arrive unticked and are refused until somebody says
+# otherwise, so anyone already running dusk ticks the three once in the ⌘,
+# pane. That is the rule working, not a migration.
+#
+# One line, because `core/toml.js` reads single-line arrays and nothing else -
+# a list broken over several lines parses as no list at all, and a plugin that
+# declared nothing is refused every colour it answers with.
 [tokens]
-moves = ["paper", "surface", "edge", "edge-soft", "ink", "dim"]
+moves = ["paper", "surface", "edge", "edge-soft", "ink", "dim", "accent", "alert", "texture"]
 
 [permissions]
 capabilities = ["macos.location.read"]

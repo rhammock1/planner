@@ -1,47 +1,36 @@
 // @ts-check
 
 /**
- * dusk — the page warms after sunset and cools again at dawn.
+ * dusk - the sky, on the page.
  *
  * A reference plugin, and the design's own test: it is written against the
  * public API with no privilege the API does not grant (spec §7.5).
  *
- * Two things about it are worth reading for.
+ * Three things about it are worth reading for.
  *
- * **It never touches the network.** Sunrise and sunset are arithmetic on a
- * date and two numbers (`sun.js`), and the two numbers come from a capability
- * or from a settings row. The next plugin that thinks it needs `net.fetch`
- * probably needs a setting.
+ * **It never touches the network.** Where the sun is comes out of arithmetic
+ * on a date, a time and two numbers (`sun.js`), and the two numbers come from
+ * a capability or from a settings row. The next plugin that thinks it needs
+ * `net.fetch` probably needs a setting.
  *
  * **It moves the theme it is given, rather than replacing it.** The question
  * carries the theme's own tokens, so what this plugin ships is not a palette
- * but a *transformation*: how far each channel travels from daylight to
- * lamplight, applied to whatever colour the theme actually set. On Ledger that
- * arithmetic comes out at the destination named below; on any other theme it
- * warms that theme instead of overwriting it with this one.
+ * but a *transformation*: the surfaces travel the ratio a reference pair
+ * travels, and the night page is built out of the theme's own two colours. On
+ * a theme it has never seen it deepens that theme; on one that is already dark
+ * it leaves the ink where it found it, because there is nothing to hand over.
  *
- * **It returns nothing in daylight.** At nought there is nothing to move, and
- * an empty map leaves the theme alone rather than restating it.
+ * **It answers for the minute it was asked about.** The app asks a
+ * `theme.tokens` plugin once a minute while a window is open, so the curve is
+ * this plugin's own to draw rather than something the app has to smooth. That
+ * is also what lets the turn at civil dusk be a single step - see
+ * `palette.js`, where the whole of the opinion lives.
+ *
+ * Everything below is the API and the location. Nothing here decides a colour.
  */
 
-import { sunEvents, localMinutes, minutesOf, warmthAt, mix, shifted, readPlace } from './sun.js'
-
-/**
- * The reference pair, per token: Ledger in daylight, and the same page under a
- * lamp. One row rather than two maps, because a name present in one and
- * missing from the other is then not a thing that can be written down - and
- * because this row is what `manifest.toml`'s `moves` list has to agree with.
- *
- * @type {readonly [string, string, string][]}
- */
-const RAMP = [
-  ['paper', '#FBFAF6', '#F6EEDD'],
-  ['surface', '#F4F2EA', '#EFE6D3'],
-  ['edge', '#D9D6CC', '#D2C4A7'],
-  ['edge-soft', '#E7E4DA', '#E1D4BA'],
-  ['ink', '#23262A', '#2A2622'],
-  ['dim', '#8B8981', '#8C8271'],
-]
+import { solarPosition, readPlace } from './sun.js'
+import { nightfall } from './palette.js'
 
 /** Where this Mac is, and the day it was worked out on. A laptop does not
  *  move far enough between two questions to matter, but it does between two
@@ -50,30 +39,7 @@ let known = null
 
 planner.on('theme.tokens', async ({ now, tokens }) => {
   const at = await placeOn(now.date)
-  const events = sunEvents(now.date, at.latitude, at.longitude)
-  // A day with no sunrise or no sunset in it has no dusk to interpolate over,
-  // and this plugin has nothing honest to say about one.
-  if (events === null) return {}
-
-  const warmth = warmthAt(
-    minutesOf(now.time),
-    localMinutes(now.date, events.sunrise),
-    localMinutes(now.date, events.sunset),
-  )
-  // Absent rather than a day palette: this plugin moves colours, and in
-  // daylight there is nothing to move.
-  if (warmth <= 0) return {}
-
-  /** @type {Record<string, string>} */
-  const moved = {}
-  for (const [name, day, night] of RAMP) {
-    // The theme's own value is the one being moved. The reference stands in
-    // for a theme that somehow has no such token: warming a colour nobody set
-    // is better than answering with nothing for it.
-    const current = tokens[name] ?? day
-    moved[name] = mix(current, shifted(current, day, night), warmth)
-  }
-  return moved
+  return nightfall(tokens, solarPosition(now.date, now.time, at.latitude, at.longitude))
 })
 
 /**

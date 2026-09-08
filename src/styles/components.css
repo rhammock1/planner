@@ -10,10 +10,21 @@
   /* Fills the window, whatever size it has been dragged to. */
   width: 100%;
   height: 100%;
+  /* The shorthand's image slot, so a texture carries its own geometry: a dot
+     grid and a ruled line want different scales and origins, and both belong
+     to the value the theme wrote rather than to a rule here that has to guess
+     which it was given. `background-position / size` inside the token is what
+     that buys.
+
+     It is also what makes `texture` a token a plugin can move. A rule setting
+     one size governs *every* layer, so a theme sizing its own grain here
+     would tile a plugin's sky into 14-pixel squares - and a plugin cannot
+     answer with a size, because a size is not a token. Written this way, each
+     layer carries its own.
+
+     Before `background-color`, which the shorthand resets. */
+  background: var(--texture);
   background-color: var(--paper);
-  /* The texture's scale and origin belong to the theme that drew it: a dot
-     grid and a ruled line want different ones. */
-  background-image: var(--texture);
   color: var(--ink);
   border: 1px solid var(--edge);
   border-radius: var(--radius);

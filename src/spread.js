@@ -155,8 +155,8 @@ function draw() {
 
   // The colours the plugins moved, over the theme's own (spec §3.3). This
   // window asks for itself: the two windows have separate stores and never
-  // talk to each other.
-  const warmed = applyPluginTokens(store)
+  // talk to each other, and each keeps its own minute clock.
+  const warmed = applyPluginTokens(store, draw)
 
   spreadPage.render({
     view,

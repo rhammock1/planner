@@ -7,12 +7,19 @@
  * whole trick: every row is a whole number of rules tall, because the line
  * height is the rule spacing. A line that wraps takes two rules instead of
  * one and the next row still starts on a rule.
+ *
+ * Written out here rather than as `var(--texture)`, which is what it used to
+ * be. A `theme.tokens` plugin may move `texture`, so that reference is not a
+ * promise of this theme's own rules any more - it is whatever the plugins
+ * settled on, painted a second time and re-anchored to the list's own box.
+ * A theme reaching for a token a plugin can move has to mean it.
  */
 
 .items {
   position: relative;
   padding: 0 0 6px;
-  background-image: var(--texture);
+  background-image:
+    repeating-linear-gradient(180deg, transparent 0 27px, #C4D0DE 27px 28px);
   background-position: 0 0;
 }
 

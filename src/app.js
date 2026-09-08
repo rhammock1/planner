@@ -192,8 +192,9 @@ function draw() {
   // What the plugins have to say about the lines on this page (spec §1.4).
   const marked = badgesFor(store, page)
 
-  // The colours the plugins moved, over the theme's own (spec §3.3).
-  const warmed = applyPluginTokens(store)
+  // The colours the plugins moved, over the theme's own (spec §3.3). It also
+  // keeps the minute clock that lets a pinned page follow the sky.
+  const warmed = applyPluginTokens(store, draw)
 
   ambient.update(now)
 

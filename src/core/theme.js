@@ -51,7 +51,7 @@ const LEDGER_TOKENS = [
   ['font-body', 'Public Sans, system-ui, sans-serif'],
   ['font-meta', 'IBM Plex Mono, monospace'],
   ['radius', '10px'],
-  ['texture', 'radial-gradient(#E2DFD4 1px, transparent 1px)'],
+  ['texture', 'radial-gradient(#E2DFD4 1px, transparent 1px) 8px 8px / 14px 14px'],
 ]
 
 /**

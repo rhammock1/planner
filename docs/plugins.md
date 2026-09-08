@@ -159,8 +159,23 @@ somebody says otherwise. Name only what you will actually move.
 Values go through the same checks a theme's own values get: no braces, no
 semicolons, no angle brackets, no `@import`, no `url()` with a scheme in it,
 no backslashes, no `image-set()` or `cross-fade()`, and no comments. A value
-longer than 200 characters is dropped rather than cut — a colour cut in half
+longer than 400 characters is dropped rather than cut — a colour cut in half
 is not a shorter colour.
+
+`texture` is the one token that is a whole background layer rather than a
+value, so it may carry its own position and size and may be several layers
+deep. That is what lets you stack something over a theme's own grain instead
+of deleting it — the theme's value is in `tokens`, so put it last and it stays
+under yours:
+
+```js
+texture: `linear-gradient(180deg, #3f4a8380, transparent 58%), ${tokens.texture}`
+```
+
+Each layer keeps its own geometry, so a theme's 14-pixel dot grid still tiles
+while your gradient fills the page. If a theme's texture is long enough that
+adding it would take you past the limit, drop *its* layer rather than yours: a
+value refused whole is no texture at all.
 
 **Two plugins may not move the same token.** If two enabled plugins name the
 same one in `moves`, the first by name keeps it and the second is refused it,
@@ -172,9 +187,17 @@ an unclosed function to the end of the stylesheet, so one such value would take
 every declaration after it — including another plugin's.
 
 You are asked when the popover opens, when the fifteen-minute refresh fires,
-and whenever the quarter hour turns — so a page left open across sunset is
-re-asked four times over the hour. That is the resolution the clock gives you;
-do not build anything that needs a finer one.
+and **on the turn of every minute** while a window is open — so a page left
+open across sunset follows the sky rather than stepping after it. The clock
+runs only while some plugin has actually claimed a colour, so a vault without
+one costs nothing.
+
+Which makes the shape of the answer yours. There is no transition between two
+of your answers and there is not meant to be: the app applies what you last
+said. Something you want to arrive gradually is a curve you draw a minute at a
+time; something you want to arrive at once is a step — which is the only way to
+hand a page from dark ink to light without it passing through a moment of being
+neither. `dusk` does both, and is worth reading for that.
 
 ### `[contribute] heading`
 
