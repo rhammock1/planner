@@ -10,6 +10,8 @@
 
 import { el } from '../ui/dom.js'
 import { sentenceFor } from '../core/slots.js'
+import { tick } from './tick.js'
+import { commandRow } from './commandRows.js'
 
 /** @typedef {import('../core/installed.js').Installed} Installed */
 /** @typedef {import('../plugins/asking.js').PluginState} PluginState */
@@ -124,6 +126,20 @@ function pluginRow(plugin, states, handlers) {
     }
   }
 
+  // A command is approved by its rendered line, one command at a time: the
+  // reach is the program and its arguments, not the name `shell.run`.
+  //
+  // Both ticks are needed, and the order they are made in does not matter -
+  // so the boxes stay live and the state is said out loud instead. Ticking a
+  // command and stopping there is the easy mistake, because the git line is
+  // the half that looks like the sensitive one.
+  if (plugin.run.length > 0 && !plugin.approved.includes('shell.run')) {
+    block.append(el('div', 'plugin-note', 'shell.run is not ticked, so none of these run.'))
+  }
+  for (const command of plugin.run) {
+    block.append(commandRow(plugin, command, handlers))
+  }
+
   // Worth saying out loud: a plugin that asks for nothing is not a plugin
   // that was refused everything.
   if (plugin.asked.length === 0) {
@@ -206,27 +222,6 @@ function settingRow(plugin, field, handlers) {
   })
 
   line.append(input)
-  return line
-}
-
-/**
- * One checkbox and the sentence it is the answer to.
- *
- * @param {string} label
- * @param {boolean} checked
- * @param {string} kind  for the class, so a slot and a capability can look different
- * @param {(on: boolean) => void} onToggle
- * @returns {HTMLElement}
- */
-function tick(label, checked, kind, onToggle) {
-  const line = el('label', kind)
-  const box = el('input', 'setting-box')
-  box.setAttribute('type', 'checkbox')
-  if (box instanceof HTMLInputElement) box.checked = checked
-  box.addEventListener('change', () => {
-    if (box instanceof HTMLInputElement) onToggle(box.checked)
-  })
-  line.append(box, el('span', `${kind}-name`, label))
   return line
 }
 

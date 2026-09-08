@@ -153,6 +153,100 @@ rather than falling back to anything wider. This is what lets a person whose
 tickets live on a different host use the plugin at all: the address is theirs,
 typed into the pane, and typing it is the approval.
 
+### `shell.run`
+
+```toml
+[permissions]
+capabilities = ["shell.run"]
+
+[permissions.run.log]
+command = ["git", "-C", "{repo}", "-c", "log.showSignature=false", "log", "--since={from} 00:00", "--until={to} 23:59", "--format=%an%x09%s"]
+repo    = "settings.repo"
+from    = "date"
+to      = "date"
+```
+
+```js
+const { status, stdout, stderr } = await planner.capability('shell.run')
+  .run('log', { from, to })
+```
+
+Every command you may run, declared by name as an **argument list** — never as
+a shell line, because there is no shell. Placeholders are `{name}`, substituted
+inside a single argument, so the list stays the length you wrote it and a bound
+value can never become two arguments.
+
+Each placeholder needs a rule in the same table, and the rule decides where
+its value comes from — which is why you pass `{from, to}` above and not
+`{repo}`:
+
+- `"date"` — **you pass it**, as a `YYYY-MM-DD`. Only you know which day you
+  are answering about.
+- `"settings.<key>"` — **it is filled in for you**, from that setting, and
+  what you pass under that name is ignored. The setting must have been set by
+  the person: a value that is only your manifest's `default` does not bind and
+  the call is refused, because a default is your string and the settings pane
+  is meant to show theirs.
+
+The second of those is why you never have to think about a setting's type. A
+`count` reaches you through `planner.settings` as a number and reaches the
+command line as its digits, and nothing you do decides which.
+
+A leading `~` in a bound value is expanded for you. The program — the first
+element — may not contain a placeholder: the pane shows the rendered line and
+the tick beside it is the approval, and nobody can approve a program they
+cannot see.
+
+**Approval is of the rendered line.** The pane shows each command as one line
+and offers to copy it; `config.toml` holds that line under the command's name
+in `[plugins.<you>.run]`. Change an argument and the manifest renders to a
+different line, which is not the one that was ticked — so it shows up
+unapproved rather than running.
+
+The line is rendered by a rule, so that you and the pane and the person
+pasting it into an editor all produce the same string: arguments joined with
+single spaces, and any argument not made entirely of `A-Za-z0-9_@%+=:,./{}-`
+wrapped in single quotes, with an inner `'` written as `'\''`. Every argument
+must be printable ASCII — a tab and a non-breaking space are drawn as a space
+and would make the line lie about where one argument ends and the next begins.
+
+Each placeholder is written with its rule inside it: `{repo}` bound to
+`settings.repo` renders as `{repo=settings.repo}`. The stored line is the
+approval, so it has to carry everything that decides what runs — otherwise a
+later version of your plugin could keep its arguments, move `{repo}` from
+`settings.repo` to `settings.token`, and keep its tick.
+
+Everything in `argv` is a string, so a `count` setting arrives on the command
+line as its digits. Reading the same setting through `planner.settings` still
+gives you the number — the two are separate paths and neither goes through the
+other.
+
+**What actually runs.** No shell. The program is looked up on the PATH a login
+shell would have; given as a path it must be absolute and outside
+`~/.planner`. The working directory is the home directory and the environment
+is `PATH`, `HOME` and `LANG` and nothing else. Five seconds, then the process
+group is killed. You get `{status, stdout, stderr}` — `status` is null when it
+was killed, `stdout` is cut at 256 KiB and `stderr` at 4 KiB.
+
+**Both ticks are needed.** `shell.run` is the capability and the line is the
+command; the pane shows them as two boxes and both have to be ticked. Neither
+order is wrong, and the pane says when only one of them is.
+
+**A refused binding is a strike.** The manifest is your own file, so a call
+that does not match what it declared is not a misunderstanding. In practice
+that means a `date` that is not a `YYYY-MM-DD`, or a command name you were
+never granted. Three of those and the plugin is put away for the session.
+
+Two things that are *not* strikes, because neither is your fault: `shell.run`
+not being ticked, and a `settings.<key>` the person has not filled in. Both are
+refused with a reason you can show. And a setting of the wrong type is not
+possible: you do not pass it.
+
+A capability call is not a question and has no two-second deadline of its own —
+but a question does. Do not hold a question open across a `run`: answer with
+what you have, start the run, and answer properly the next time you are asked.
+That is what the fifteen-minute refresh and the popover opening are for.
+
 ### `onContribute`
 
 Called with `{from, to}`, each `YYYY-MM-DD` local, inclusive. Return — or
