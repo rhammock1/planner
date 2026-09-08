@@ -67,6 +67,20 @@ declare namespace Planner {
     run(name: string, values: Record<string, string>): Promise<Ran>
   }
 
+  /** Where this Mac is, rounded to two decimal places - about a kilometre. */
+  interface Place {
+    latitude: number
+    longitude: number
+  }
+
+  interface LocationCapability {
+    /**
+     * Rejects while macOS is still asking, and while it has no fix yet. Both
+     * are ordinary: ask again the next time you are asked something.
+     */
+    location(): Promise<Place>
+  }
+
   /** What every question carries: the day and the time it was asked. */
   interface Now {
     /** `YYYY-MM-DD`, local. */
@@ -134,6 +148,8 @@ declare const planner: {
   capability(name: 'macos.calendar.read'): Planner.CalendarCapability
 
   capability(name: 'shell.run'): Planner.RunCapability
+
+  capability(name: 'macos.location.read'): Planner.LocationCapability
 
   /**
    * This plugin's own settings, as `config.toml` holds them, keyed the way

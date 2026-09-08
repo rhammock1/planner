@@ -78,6 +78,8 @@
          */
         run: (name, values) =>
           send({ kind: 'capability', capability, method: 'run', params: { name, values } }),
+        /** Where this Mac is, to two decimal places. */
+        location: () => send({ kind: 'capability', capability, method: 'location', params: {} }),
       }
     },
 

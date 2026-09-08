@@ -6,6 +6,7 @@
 //! already passed - this file's job is only to do the thing.
 
 pub mod calendar;
+pub mod location;
 
 use serde_json::Value;
 
@@ -28,6 +29,7 @@ pub fn dispatch(
 ) -> Result<Value, String> {
     match (capability, method) {
         ("macos.calendar.read", "events") => calendar::events(params),
+        ("macos.location.read", "location") => location::location(app),
         ("shell.run", "run") => crate::plugins::run::call(app, plugin, params),
         _ => Err(format!("no bridge provides {capability}.{method}")),
     }
