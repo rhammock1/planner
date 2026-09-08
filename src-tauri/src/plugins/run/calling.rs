@@ -50,7 +50,7 @@ pub fn call(app: &AppHandle, plugin: &str, params: &Value) -> Result<Value, Stri
         // Declared and not ticked is a decision nobody has made yet. Never
         // declared is a plugin that is not what its manifest said it was, and
         // only that is worth a strike.
-        if registry.declared(plugin, "run", wanted) {
+        if registry.declared_run(plugin, wanted) {
             return Err(format!(
                 "{plugin} may not run {wanted} until it is ticked in settings"
             ));

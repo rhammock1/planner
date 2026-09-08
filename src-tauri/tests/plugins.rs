@@ -47,11 +47,8 @@ fn granted() -> Registry {
         entry: "index.js".into(),
         slots: vec!["vault.contribute".into()],
         capabilities: vec!["macos.calendar.read".into()],
-        open: Vec::new(),
-        run: Vec::new(),
         asked: vec!["macos.calendar.read".into()],
-        asked_run: Vec::new(),
-        settings: serde_json::json!({}),
+        ..Default::default()
     });
     registry
 }
@@ -311,11 +308,8 @@ fn starting_a_plugin_again_does_not_forgive_it() {
         entry: "index.js".into(),
         slots: vec!["vault.contribute".into()],
         capabilities: vec!["macos.calendar.read".into()],
-        open: Vec::new(),
-        run: Vec::new(),
         asked: vec!["macos.calendar.read".into()],
-        asked_run: Vec::new(),
-        settings: serde_json::json!({}),
+        ..Default::default()
     });
 
     assert!(registry.disabled("macos-calendar"), "a put-away plugin was let back in");
@@ -331,13 +325,7 @@ fn strikes_survive_a_second_grant_too() {
     registry.grant(Granting {
         name: "macos-calendar".into(),
         entry: "index.js".into(),
-        slots: Vec::new(),
-        capabilities: Vec::new(),
-        open: Vec::new(),
-        run: Vec::new(),
-        asked: Vec::new(),
-        asked_run: Vec::new(),
-        settings: serde_json::json!({}),
+        ..Default::default()
     });
 
     // The third strike is still the third, not the first of a new three.
@@ -434,22 +422,16 @@ mod slots {
         entry: "index.js".into(),
         slots: vec!["item.badge".into()],
         capabilities: vec!["shell.open".into()],
-        open: Vec::new(),
-        run: Vec::new(),
         asked: vec!["shell.open".into()],
-        asked_run: Vec::new(),
-        settings: serde_json::json!({}),
+        ..Default::default()
     });
         registry.grant(Granting {
         name: "macos-calendar".into(),
         entry: "index.js".into(),
         slots: vec!["vault.contribute".into()],
         capabilities: vec!["macos.calendar.read".into()],
-        open: Vec::new(),
-        run: Vec::new(),
         asked: vec!["macos.calendar.read".into()],
-        asked_run: Vec::new(),
-        settings: serde_json::json!({}),
+        ..Default::default()
     });
         registry
     }
@@ -477,12 +459,7 @@ mod slots {
         name: name.into(),
         entry: "index.js".into(),
         slots: vec!["item.badge".into()],
-        capabilities: Vec::new(),
-        open: Vec::new(),
-        run: Vec::new(),
-        asked: Vec::new(),
-        asked_run: Vec::new(),
-        settings: serde_json::json!({}),
+        ..Default::default()
     });
         }
         assert_eq!(registry.running_for("item.badge"), vec!["alpha", "mike", "zulu"]);

@@ -175,7 +175,7 @@ async fn run_capability(
             // the day it is installed - which is the one day it is certain to
             // hit this. `docs/plugins.md` promises as much. Only a capability
             // the plugin's own manifest never declared is a strike (spec §1.2).
-            if registry.declared(name, "capability", &capability) {
+            if registry.declared_capability(name, &capability) {
                 return Err(format!(
                     "{name} was not granted {capability}; it has not been ticked in settings"
                 ));

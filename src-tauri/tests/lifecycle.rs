@@ -17,11 +17,8 @@ fn granted() -> Registry {
         entry: "index.js".into(),
         slots: vec!["item.badge".into()],
         capabilities: vec!["shell.open".into()],
-        open: Vec::new(),
-        run: Vec::new(),
         asked: vec!["shell.open".into()],
-        asked_run: Vec::new(),
-        settings: serde_json::json!({}),
+        ..Default::default()
     });
     registry
 }
@@ -42,12 +39,7 @@ fn starting_it_again_makes_it_askable_again() {
         name: "ticket-links".into(),
         entry: "index.js".into(),
         slots: vec!["item.badge".into()],
-        capabilities: Vec::new(),
-        open: Vec::new(),
-        run: Vec::new(),
-        asked: Vec::new(),
-        asked_run: Vec::new(),
-        settings: serde_json::json!({}),
+        ..Default::default()
     });
     assert_eq!(registry.running_for("item.badge"), vec!["ticket-links"]);
 }
@@ -63,12 +55,7 @@ fn a_stop_does_not_forgive_a_plugin_that_was_put_away() {
         name: "ticket-links".into(),
         entry: "index.js".into(),
         slots: vec!["item.badge".into()],
-        capabilities: Vec::new(),
-        open: Vec::new(),
-        run: Vec::new(),
-        asked: Vec::new(),
-        asked_run: Vec::new(),
-        settings: serde_json::json!({}),
+        ..Default::default()
     });
     assert!(registry.disabled("ticket-links"));
     assert!(registry.running_for("item.badge").is_empty());
@@ -83,13 +70,8 @@ fn a_stopped_plugin_is_not_answered_for_what_it_may_open() {
     registry.grant(Granting {
         name: "ticket-links".into(),
         entry: "index.js".into(),
-        slots: Vec::new(),
-        capabilities: Vec::new(),
         open: vec!["https://github.com/gotab-inc/node/pull/".into()],
-        run: Vec::new(),
-        asked: Vec::new(),
-        asked_run: Vec::new(),
-        settings: serde_json::json!({}),
+        ..Default::default()
     });
     assert_eq!(
         registry.may_open("ticket-links"),
@@ -170,13 +152,7 @@ fn the_states_come_back_in_a_settled_order() {
         registry.grant(Granting {
         name: name.into(),
         entry: "index.js".into(),
-        slots: Vec::new(),
-        capabilities: Vec::new(),
-        open: Vec::new(),
-        run: Vec::new(),
-        asked: Vec::new(),
-        asked_run: Vec::new(),
-        settings: serde_json::json!({}),
+        ..Default::default()
     });
     }
     let names: Vec<String> = registry.states().into_iter().map(|state| state.name).collect();
@@ -193,15 +169,13 @@ fn a_stopped_plugin_may_run_nothing() {
         entry: "index.js".into(),
         slots: vec!["vault.contribute".into()],
         capabilities: vec!["shell.run".into()],
-        open: Vec::new(),
         run: vec![planner_lib::plugins::run::Command {
             name: "log".into(),
             command: vec!["git".into(), "log".into()],
             binds: Vec::new(),
         }],
         asked: vec!["shell.run".into()],
-        asked_run: Vec::new(),
-        settings: serde_json::Value::Object(Default::default()),
+        ..Default::default()
     });
     assert_eq!(registry.run_of("git-activity").map(|held| held.len()), Some(1));
 
@@ -230,16 +204,16 @@ fn what_a_manifest_declared_outlives_what_the_config_ticked() {
         ..Default::default()
     });
 
-    assert!(registry.declared("git-activity", "capability", "shell.run"));
-    assert!(registry.declared("git-activity", "run", "log"));
+    assert!(registry.declared_capability("git-activity", "shell.run"));
+    assert!(registry.declared_run("git-activity", "log"));
     // Granted nothing, so neither is permitted - but both were declared.
     assert!(!registry.permits("git-activity", "shell.run"));
 
     // Never declared, in either namespace.
-    assert!(!registry.declared("git-activity", "capability", "macos.calendar.read"));
-    assert!(!registry.declared("git-activity", "run", "push"));
+    assert!(!registry.declared_capability("git-activity", "macos.calendar.read"));
+    assert!(!registry.declared_run("git-activity", "push"));
     // And the two namespaces do not leak into one another.
-    assert!(!registry.declared("git-activity", "run", "shell.run"));
-    assert!(!registry.declared("git-activity", "capability", "log"));
-    assert!(!registry.declared("never-started", "capability", "shell.run"));
+    assert!(!registry.declared_run("git-activity", "shell.run"));
+    assert!(!registry.declared_capability("git-activity", "log"));
+    assert!(!registry.declared_capability("never-started", "shell.run"));
 }
