@@ -176,9 +176,14 @@ and it is also why nothing here leaves a permission granted behind it.
       work anyway. The row's hint is a format and not a coordinate, on purpose:
       a plausible one there is read as the answer the field already holds.
 - [ ] The same plugin under `npm run app` (or `tools/update --no-bundle`) says
-      *this build cannot ask* and names the setting, rather than saying it is
-      asking for a prompt that is never coming. This is the one check that
-      wants the bare binary.
+      macOS *does not see this process as an app* and names the setting, rather
+      than saying it is asking for a prompt that is never coming. This is the
+      one check that wants the bare binary.
+- [ ] Launched by the path above, `lsappinfo list | grep -A4 planner-target`
+      says `bundleID="io.hammock.planner"` and `type="UIElement"`. Through a
+      symlink to that same file it says `bundleID=[ NULL ]` — the identity
+      comes from the path a process was executed as, not from what it resolves
+      to, and without one nothing is ever prompted.
 - [ ] Every tick in the plugin pane is one row of small grey type: the seven
       `Moves <colour>` rows line up with the sentence above them rather than
       running together at the body size.

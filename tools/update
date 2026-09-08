@@ -253,30 +253,63 @@ install_tree themes "$ROOT/themes" "$INTO/themes"
 mkdir -p "$TARGET"
 touch "$STAMP"
 
-##  The `planner` on PATH, kept pointing at the thing worth running.
+##  The `planner` on PATH, kept running the thing worth running.
 ##
-##  Only when it is already a link into the build cache. A link somebody made
-##  for their own reasons is not this script's to redirect, and one that is not
-##  there at all is not this script's to create in a directory it does not own.
+##  A script that `exec`s the real path, and emphatically not a symlink.
+##  LaunchServices identifies a process by the path it was *executed as*, not
+##  by what that path resolves to: exec a link in ~/scripts/bin and the process
+##  registers with `bundleID=[ NULL ]` however correctly signed the bundle it
+##  points into is. TCC then has no app to attribute a permission request to,
+##  so the request is made, CoreLocationAgent wakes, and no prompt is ever
+##  drawn - which looks from the terminal exactly like the app asking politely
+##  and macOS ignoring it.
 ##
-##  It is worth keeping in step because the two targets are not interchangeable
-##  and the difference does not show until a permission is asked for: a link
-##  left on the bare binary answers `macos.calendar.read` and
-##  `macos.location.read` with a refusal that reads like a broken plugin.
+##  Only ever touched when it is this script's: a link into the build cache, or
+##  a file this script wrote. One somebody made for their own reasons is left
+##  alone, and one that is not there at all is not created - ~/scripts/bin is
+##  not a directory this project owns.
 LINK="$HOME/scripts/bin/planner"
-if [ -L "$LINK" ] && [ "$(readlink "$LINK")" != "$RUN" ]; then
-  case "$(readlink "$LINK")" in
-    "$TARGET"/*)
-      ln -sfn "$RUN" "$LINK"
-      echo "==> repointed $LINK"
-      echo "    at $RUN"
-      echo
-      ;;
-  esac
+MARK="# written by tools/update"
+
+link_state() {
+  if [ -L "$LINK" ]; then
+    # A link this script made, back when it made links.
+    case "$(readlink "$LINK")" in
+      "$TARGET"/*) echo ours ;;
+      *) echo theirs ;;
+    esac
+  elif [ ! -f "$LINK" ]; then
+    echo absent
+  elif ! grep -Fq "$MARK" "$LINK"; then
+    echo theirs
+  elif grep -Fq "exec \"$RUN\"" "$LINK"; then
+    echo current
+  else
+    echo ours
+  fi
+}
+
+if [ "$(link_state)" = ours ]; then
+  # Removed rather than written over: `> "$LINK"` on a symlink writes through
+  # it, and what is on the other end is the app's own executable.
+  rm -f "$LINK"
+  cat > "$LINK" <<SCRIPT
+#!/bin/bash
+$MARK
+#
+# Not a symlink. A process executed through one registers with no bundle
+# identifier, and macOS will not show a permission prompt to a process that
+# has none - so the calendar and location plugins would refuse and say why.
+exec "$RUN" "\$@"
+SCRIPT
+  chmod 755 "$LINK"
+  echo "==> rewrote $LINK"
+  echo "    it now execs $RUN"
+  echo
 fi
 
 echo "Run it:  $RUN"
-if [ -L "$LINK" ] && [ "$(readlink "$LINK")" = "$RUN" ]; then
+if [ "$(link_state)" = current ]; then
   echo "     or: planner"
 fi
 if [ "$bundle" = no ]; then

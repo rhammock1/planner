@@ -138,8 +138,11 @@ npm run update    # build if needed, assemble Planner.app, install the plugins
 ~/.cache/planner-target/Planner.app/Contents/MacOS/planner
 ```
 
-`update` keeps a `planner` on your `PATH` pointing at that, if you have made
-one — it will not make one for you.
+If you keep a `planner` on your `PATH`, `update` keeps it running that — as a
+script that `exec`s the path above, never a symlink. macOS identifies a process
+by the path it was executed as, so a symlink from elsewhere registers an app
+with no bundle identifier and no permission can be granted to it. It will not
+make you one; it only maintains one that is already there.
 
 `npm run app` builds and runs too, and is quicker, but what it runs is a bare
 cargo binary. macOS will not grant one a permission: `Info.plist` is embedded
