@@ -11,12 +11,16 @@
 
 import { el } from '../ui/dom.js'
 
+/** @typedef {import('./tickKinds.js').TickKind} TickKind */
+
 /**
  * One checkbox and the sentence it is the answer to.
  *
  * @param {string} label
  * @param {boolean} checked
- * @param {string} kind  for the class, so a slot and a capability can look different
+ * @param {TickKind} kind  for the class, so a slot and a capability can look
+ *   different. A union rather than a string: the class it becomes has to exist
+ *   in components.css, and a name invented here would silently have no rule.
  * @param {(on: boolean) => void} onToggle
  * @returns {HTMLElement}
  */

@@ -91,6 +91,23 @@ moved() {
   find $WATCH -path src-tauri/target -prune -o -newer "$STAMP" -print -quit 2>/dev/null
 }
 
+##  Whether Planner.app is worth running, which is a different question from
+##  whether it is there.
+##
+##  The bundle is assembled by copying, so nothing about it updates itself: an
+##  existing one goes on holding the binary and the themes it was built from
+##  however far the build has since moved. Asked for `--bundle` and given back
+##  yesterday's app is the worst answer this script could give, because the
+##  bundle is the one a permission is being tested from and it is the one thing
+##  here whose staleness is invisible from the outside.
+current_bundle() {
+  local exe="$TARGET/Planner.app/Contents/MacOS/planner"
+  [ -f "$exe" ] || return 1
+  [ ! "$BINARY" -nt "$exe" ] || return 1
+  # Contents/Resources/themes is a copy too, and settings.rs reads it.
+  [ -z "$(find themes -newer "$exe" -print -quit 2>/dev/null)" ]
+}
+
 why=""
 if [ "$force" = yes ]; then
   why="asked for with --force"
@@ -98,8 +115,8 @@ elif [ ! -x "$BINARY" ]; then
   why="there is no binary at $BINARY yet"
 elif [ ! -f "$STAMP" ]; then
   why="this is the first update, so nothing is known to be current"
-elif [ "$bundle" = yes ] && [ ! -d "$TARGET/Planner.app" ]; then
-  why="there is no Planner.app yet"
+elif [ "$bundle" = yes ] && ! current_bundle; then
+  why="Planner.app is missing, or older than the build it is supposed to carry"
 else
   changed="$(moved)"
   if [ -n "$changed" ]; then why="$changed has changed since the last update"; fi

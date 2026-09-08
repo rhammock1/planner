@@ -794,7 +794,7 @@
 
 /* Indented under the plugin they belong to, so what is being granted and to
    whom reads as one thing (spec §7.4). */
-.capability, .slot, .address {
+.capability, .slot, .address, .token {
   display: flex;
   align-items: center;
   gap: 8px;

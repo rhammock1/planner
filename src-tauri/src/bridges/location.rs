@@ -30,6 +30,8 @@
 //! from a bundle (`src-tauri/Info.plist` says the rest).
 
 use std::cell::OnceCell;
+use std::ffi::OsStr;
+use std::path::Path;
 use std::sync::{mpsc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -111,6 +113,18 @@ fn ask_macos() -> Result<(), String> {
 
         match status {
             CLAuthorizationStatus::NotDetermined => {
+                // Said before asking, because from here the ask cannot land and
+                // the honest message is a different one. Left as "Planner is
+                // asking", a dev build shows a notice about a prompt that is
+                // never coming, on every draw, for as long as it runs.
+                if !bundled() {
+                    return Err("This build cannot ask macOS for permission: it is not an app \
+                                bundle, so the prompt never appears. Type where you are into \
+                                the plugin's own setting, or run Planner.app \
+                                (tools/update --bundle)."
+                        .to_string());
+                }
+
                 // Fire and forget: the prompt waits for a person, and nothing
                 // else in this app is willing to.
                 unsafe { manager.requestWhenInUseAuthorization() };
@@ -165,4 +179,65 @@ fn ask_macos() -> Result<(), String> {
             }
         }
     })
+}
+
+/// Whether this executable is running from inside an app bundle.
+///
+/// Which is exactly the difference between a permission that can be asked for
+/// and one that cannot. cargo's binary carries `Info.plist` in a `__TEXT`
+/// section the signature does not seal; TCC will not read an unsealed plist,
+/// so `requestWhenInUseAuthorization` leaves the status at `NotDetermined` with
+/// no prompt and no refusal (docs/testing.md, and the header of this file).
+fn bundled() -> bool {
+    std::env::current_exe().map(|exe| in_bundle(&exe)).unwrap_or(false)
+}
+
+/// The shape of the path, split out so it can be checked without one.
+///
+/// A path test rather than a signature test: reading the seal means shelling
+/// out to `codesign`, and this runs on the main thread while the popover is
+/// waiting. Being wrong costs a notice that names the wrong remedy, which is
+/// still better than the one that names a prompt that is not coming.
+fn in_bundle(exe: &Path) -> bool {
+    let Some(macos) = exe.parent() else { return false };
+    if !macos.ends_with("Contents/MacOS") {
+        return false;
+    }
+    macos
+        .parent()
+        .and_then(|contents| contents.parent())
+        .and_then(|app| app.extension())
+        == Some(OsStr::new("app"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::in_bundle;
+    use std::path::Path;
+
+    #[test]
+    fn a_bundled_binary_is_recognised() {
+        assert!(in_bundle(Path::new(
+            "/Users/someone/.cache/planner-target/Planner.app/Contents/MacOS/planner"
+        )));
+    }
+
+    #[test]
+    fn a_cargo_binary_is_not() {
+        // The one that matters: this is what `npm run app` runs, and the whole
+        // point of the check is that it cannot be asked a permission question.
+        assert!(!in_bundle(Path::new(
+            "/Users/someone/.cache/planner-target/debug/planner"
+        )));
+    }
+
+    #[test]
+    fn the_folders_have_to_be_the_bundle_s_own() {
+        // Not any Contents/MacOS anywhere - a bundle is a `.app` with those
+        // two inside it, and a directory that merely shares the names is not
+        // one macOS will read a plist out of.
+        assert!(!in_bundle(Path::new("/tmp/Planner/Contents/MacOS/planner")));
+        assert!(!in_bundle(Path::new("/tmp/Planner.app/MacOS/planner")));
+        assert!(!in_bundle(Path::new("planner")));
+    }
 }

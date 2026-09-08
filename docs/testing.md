@@ -172,8 +172,15 @@ and it is also why nothing here leaves a permission granted behind it.
       the popover and the second window, and the second window follows the
       clock while it is left open.
 - [ ] Refusing location, or turning location services off, gives a notice
-      naming the setting. Typing `35.23,-80.84` into the plugin's row makes it
-      work anyway.
+      naming the setting. Typing a coordinate into the plugin's row makes it
+      work anyway. The row's hint is a format and not a coordinate, on purpose:
+      a plausible one there is read as the answer the field already holds.
+- [ ] The same plugin under `npm run app` says *this build cannot ask* and
+      names the setting, rather than saying it is asking for a prompt that is
+      never coming. This is the one check that wants the bare binary.
+- [ ] Every tick in the plugin pane is one row of small grey type: the seven
+      `Moves <colour>` rows line up with the sentence above them rather than
+      running together at the body size.
 - [ ] With a `theme.css` that sets `--paper` on `:root`, `dusk` still moves it:
       a plugin's rule is last.
 - [ ] Two plugins declaring `moves = ["paper"]` — copy `dusk` to a second

@@ -13,7 +13,12 @@ capabilities = ["macos.location.read"]
 # No default on purpose: an author's coordinates would warm somebody else's
 # evening at the wrong hour, and a plugin quietly using Charlotte's sunset in
 # Berlin is worse than one that says it does not know.
+#
+# The hint is a format and not a pair of numbers for the same reason. A
+# plausible-looking coordinate in a greyed-out box is read as the answer the
+# field already has, and it gets typed in - which is the default arriving by
+# the other door, and worse than a default because nobody chose it.
 [settings.location]
 label = "Where this Mac is"
 kind  = "text"
-hint  = "35.23,-80.84"
+hint  = "latitude,longitude"
