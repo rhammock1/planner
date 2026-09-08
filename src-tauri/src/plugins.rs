@@ -24,6 +24,7 @@ pub mod opening;
 pub mod registry;
 pub mod run;
 pub mod serving;
+pub mod spawning;
 pub mod waiting;
 
 pub use door::Message;
