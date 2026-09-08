@@ -170,3 +170,27 @@ fn the_login_path_is_a_path_and_is_captured_once() {
     assert!(once.contains('/'), "the captured PATH is not a path: {once}");
     assert!(std::ptr::eq(once, login_path()), "the PATH was captured twice");
 }
+
+#[test]
+fn a_relative_path_entry_is_not_searched() {
+    // `.` and `node_modules/.bin` are ordinary entries in a developer's PATH,
+    // and both resolve against this process's working directory - which is not
+    // something a manifest chose. Refusing a relative *program* and then
+    // searching a relative *folder* would be the same hole by another door.
+    let here = std::env::current_dir().expect("no working directory");
+    let planted = here.join("planner-relpath-check");
+    std::fs::write(&planted, "#!/bin/sh\nexit 0\n").expect("could not plant it");
+    std::fs::set_permissions(&planted, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    // Named absolutely, the folder is searched - so the file and its execute
+    // bit are both right, and the refusal below is about the rule.
+    let found = resolve("planner-relpath-check", here.to_str().expect("not utf-8"), None);
+    // The same folder, written relatively, is not searched at all.
+    let refused = resolve("planner-relpath-check", ".", None);
+
+    // Before the assertions, so a failure does not leave the file behind.
+    let _ = std::fs::remove_file(&planted);
+
+    assert!(found.is_ok(), "the planted program was not found by its absolute folder");
+    assert!(refused.is_err(), "a relative PATH entry was searched");
+}

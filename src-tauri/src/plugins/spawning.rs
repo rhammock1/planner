@@ -133,7 +133,13 @@ pub fn resolve(program: &str, path: &str, refused: Option<&Path>) -> Result<Path
         runnable(at)
     } else {
         path.split(':')
-            .filter(|folder| !folder.is_empty())
+            // Absolute only. Refusing a relative *program* eleven lines above
+            // and then accepting a relative PATH *folder* would let the same
+            // thing back in by another door: `.` and `node_modules/.bin` are
+            // both ordinary entries in a developer's PATH, and both resolve
+            // against this process's working directory rather than against
+            // anything a manifest chose.
+            .filter(|folder| Path::new(folder).is_absolute())
             .find_map(|folder| runnable(&Path::new(folder).join(program)))
     };
 
@@ -143,7 +149,20 @@ pub fn resolve(program: &str, path: &str, refused: Option<&Path>) -> Result<Path
     // Against the canonical path, so a symlink out of somewhere allowed into
     // `~/.planner` is caught by the same line.
     if let Some(refused) = refused {
-        let refused = std::fs::canonicalize(refused).unwrap_or_else(|_| refused.to_path_buf());
+        // Both forms, because `found` is canonical and this one might not be:
+        // `canonicalize` fails on a folder that is not there yet, and returns
+        // a different path when `PLANNER_HOME` is reached through a symlink.
+        // `starts_with` is component-wise, so comparing a canonical path with
+        // a raw one silently never matches - which is this check quietly not
+        // running. Said out loud when it happens (spec §8).
+        let canonical = std::fs::canonicalize(refused).ok();
+        if canonical.is_none() {
+            eprintln!(
+                "planner: could not resolve {} to check what a plugin may run",
+                refused.display()
+            );
+        }
+        let refused = canonical.unwrap_or_else(|| refused.to_path_buf());
         if found.starts_with(&refused) {
             return Err(format!(
                 "{program} resolves inside {}, which a plugin may not run out of",
