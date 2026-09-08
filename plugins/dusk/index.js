@@ -13,44 +13,42 @@
  * or from a settings row. The next plugin that thinks it needs `net.fetch`
  * probably needs a setting.
  *
- * **It returns nothing in daylight.** The app hands a plugin no way to read
- * the theme, so this one carries its own two palettes and interpolates between
- * them. At nought it returns an empty map rather than its day palette, which
- * is what keeps a theme that is not Ledger untouched for the whole of the day
- * and moved only over the hour this plugin exists for.
+ * **It moves the theme it is given, rather than replacing it.** The question
+ * carries the theme's own tokens, so what this plugin ships is not a palette
+ * but a *transformation*: how far each channel travels from daylight to
+ * lamplight, applied to whatever colour the theme actually set. On Ledger that
+ * arithmetic comes out at the destination named below; on any other theme it
+ * warms that theme instead of overwriting it with this one.
+ *
+ * **It returns nothing in daylight.** At nought there is nothing to move, and
+ * an empty map leaves the theme alone rather than restating it.
  */
 
-import { sunEvents, localMinutes, minutesOf, warmthAt, mix, readPlace } from './sun.js'
+import { sunEvents, localMinutes, minutesOf, warmthAt, mix, shifted, readPlace } from './sun.js'
 
-/** Ledger's own, which is what the page looks like in daylight.
- *  Annotated, because `Object.keys` gives `string[]` and an inferred literal
- *  key type would make `DAY[name]` an implicit-any index below.
- *  @type {Record<string, string>} */
-const DAY = {
-  'paper': '#FBFAF6',
-  'surface': '#F4F2EA',
-  'edge': '#D9D6CC',
-  'edge-soft': '#E7E4DA',
-  'ink': '#23262A',
-  'dim': '#8B8981',
-}
-
-/** The same page under a lamp. @type {Record<string, string>} */
-const NIGHT = {
-  'paper': '#F6EEDD',
-  'surface': '#EFE6D3',
-  'edge': '#D2C4A7',
-  'edge-soft': '#E1D4BA',
-  'ink': '#2A2622',
-  'dim': '#8C8271',
-}
+/**
+ * The reference pair, per token: Ledger in daylight, and the same page under a
+ * lamp. One row rather than two maps, because a name present in one and
+ * missing from the other is then not a thing that can be written down - and
+ * because this row is what `manifest.toml`'s `moves` list has to agree with.
+ *
+ * @type {readonly [string, string, string][]}
+ */
+const RAMP = [
+  ['paper', '#FBFAF6', '#F6EEDD'],
+  ['surface', '#F4F2EA', '#EFE6D3'],
+  ['edge', '#D9D6CC', '#D2C4A7'],
+  ['edge-soft', '#E7E4DA', '#E1D4BA'],
+  ['ink', '#23262A', '#2A2622'],
+  ['dim', '#8B8981', '#8C8271'],
+]
 
 /** Where this Mac is, and the day it was worked out on. A laptop does not
  *  move far enough between two questions to matter, but it does between two
  *  days. @type {{on: string, at: {latitude: number, longitude: number}}|null} */
 let known = null
 
-planner.on('theme.tokens', async ({ now }) => {
+planner.on('theme.tokens', async ({ now, tokens }) => {
   const at = await placeOn(now.date)
   const events = sunEvents(now.date, at.latitude, at.longitude)
   // A day with no sunrise or no sunset in it has no dusk to interpolate over,
@@ -68,8 +66,12 @@ planner.on('theme.tokens', async ({ now }) => {
 
   /** @type {Record<string, string>} */
   const moved = {}
-  for (const name of Object.keys(DAY)) {
-    moved[name] = mix(DAY[name] ?? '', NIGHT[name] ?? '', warmth)
+  for (const [name, day, night] of RAMP) {
+    // The theme's own value is the one being moved. The reference stands in
+    // for a theme that somehow has no such token: warming a colour nobody set
+    // is better than answering with nothing for it.
+    const current = tokens[name] ?? day
+    moved[name] = mix(current, shifted(current, day, night), warmth)
   }
   return moved
 })

@@ -12,7 +12,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
-  sunEvents, localMinutes, minutesOf, warmthAt, mix, readPlace,
+  sunEvents, localMinutes, minutesOf, warmthAt, mix, shifted, readPlace,
 } from '../plugins/dusk/sun.js'
 
 /** Charlotte, North Carolina, to the two decimal places the bridge hands over. */
@@ -39,7 +39,7 @@ test('a UTC minute before or after the day still lands on the right local time',
 
   assert.equal(localMinutes('2026-09-02', 600), expected(600))
   // Charlotte's sunset that day, in UTC minutes from its own midnight.
-  assert.equal(localMinutes('2026-09-02', 1429), expected(1429))
+  assert.equal(localMinutes('2026-09-02', 1430), expected(1430))
   // And the two that leave the day at either end.
   assert.equal(localMinutes('2026-09-02', 1500), expected(1500))
   assert.equal(localMinutes('2026-09-02', -380), expected(-380))
@@ -88,12 +88,15 @@ test('longitude moves noon four minutes a degree, and westward is later', () => 
 
 test('an equinox is a day of about twelve hours everywhere it has one', () => {
   // A little over twelve: sunrise is measured to the top of a refracted disc,
-  // not to the centre of a geometric one, which is what the 90.833° is.
+  // not to the centre of a geometric one, which is what the 90.833° is. The
+  // lower bound is above 720 on purpose - a horizon of a flat 90° would give
+  // almost exactly twelve hours, and a band that admitted it would not be
+  // checking the refraction it says it is checking.
   for (const latitude of [0, 35.23, -35.23, 51.48]) {
     const events = sunEvents('2026-03-20', latitude, 0)
     assert.ok(events !== null, `${latitude}`)
     const length = events.sunset - events.sunrise
-    assert.ok(length > 715 && length < 745, `${latitude}: ${length} minutes`)
+    assert.ok(length > 723 && length < 735, `${latitude}: ${length} minutes`)
   }
 })
 
@@ -145,6 +148,45 @@ test('warmth only ever goes one way across an event', () => {
     assert.ok(now >= last, `warmth fell at ${at}`)
     last = now
   }
+})
+
+test('a place whose sunset falls after local midnight still has a daytime', () => {
+  // Nome, Alaska at midsummer: local sunrise 04:19 and local sunset 01:47, so
+  // sunset is the *smaller* number. Read as an interval between two numbers
+  // every comparison falls through and the answer is 1 at every hour - noon
+  // in the full night palette, all day, with no time that recovers. The clock
+  // is a circle, and this is the test that says so.
+  const sunrise = 4 * 60 + 19
+  const sunset = 1 * 60 + 47
+  assert.ok(sunset < sunrise, 'the fixture has stopped being the awkward case')
+
+  assert.equal(warmthAt(12 * 60, sunrise, sunset), 0, 'midsummer noon was dark')
+  assert.equal(warmthAt(18 * 60, sunrise, sunset), 0)
+  assert.equal(warmthAt(23 * 60, sunrise, sunset), 0)
+  // Night is the short arc from sunset round to sunrise.
+  assert.equal(warmthAt(3 * 60, sunrise, sunset), 1)
+  // And both events still ramp, in the right direction.
+  assert.equal(warmthAt(sunset, sunrise, sunset), 0.5)
+  assert.equal(warmthAt(sunrise, sunrise, sunset), 0.5)
+  assert.ok(warmthAt(sunset + 20, sunrise, sunset) > warmthAt(sunset - 20, sunrise, sunset))
+  assert.ok(warmthAt(sunrise + 20, sunrise, sunset) < warmthAt(sunrise - 20, sunrise, sunset))
+})
+
+test('a colour moves the way the reference pair moves, whatever theme it came from', () => {
+  // What lets one plugin warm a theme it has never seen. On the reference
+  // theme the transformation lands exactly on the reference destination, so
+  // nothing about Ledger changes; on a dark theme it warms without lightening.
+  assert.equal(shifted('#FBFAF6', '#FBFAF6', '#F6EEDD'), '#f6eedd')
+  assert.equal(shifted('#23262A', '#23262A', '#2A2622'), '#2a2622')
+
+  // A dark theme's paper stays dark - the giveaway that this is a ratio and
+  // not a difference, which would have lightened it toward Ledger's cream.
+  const dark = shifted('#141414', '#FBFAF6', '#F6EEDD')
+  assert.ok(dark < '#202020', `a dark paper became ${dark}`)
+
+  // And a channel cannot leave the byte it lives in.
+  assert.equal(shifted('#EEEEEE', '#23262A', '#2A2622').slice(1, 3), 'ff')
+  assert.equal(shifted('#000000', '#FBFAF6', '#F6EEDD'), '#000000')
 })
 
 test('a colour between two colours', () => {

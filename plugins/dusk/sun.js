@@ -119,11 +119,35 @@ export function minutesOf(time) {
 }
 
 /**
+ * Minutes from `event` to `now`, the short way round a 24-hour clock.
+ *
+ * Negative before the event, positive after, never outside twelve hours - so
+ * 23:50 is ten minutes *before* midnight's event rather than 1430 after it.
+ *
+ * @param {number} now  minutes past local midnight
+ * @param {number} event  the same
+ * @returns {number} -720 to 720
+ */
+function toward(now, event) {
+  return ((((now - event + 720) % 1440) + 1440) % 1440) - 720
+}
+
+/**
  * How far into the evening a moment is: nought in daylight, one at night.
  *
  * A straight ramp over the hour centred on each event, which at the quarter
- * hour is four steps across it. Monotone in both directions, so a page
- * redrawn a minute later never goes back the way it came.
+ * hour is four steps across it. Monotone across each event, so a page redrawn
+ * a minute later never goes back the way it came.
+ *
+ * **The clock is a circle, and that is the whole difficulty.** Read as a line
+ * this is four comparisons; read as a line it is also wrong wherever local
+ * sunset lands after local midnight, which is most of western Alaska and any
+ * place sitting far enough west inside its timezone. There `sunset < sunrise`
+ * as numbers, every comparison falls through, and the answer is 1 at every
+ * hour of the day - midsummer noon in the full night palette, with no time of
+ * day that recovers. So the events are located by the short way round instead,
+ * and daylight is the arc running forward from sunrise to sunset rather than
+ * the interval between two numbers.
  *
  * @param {number} now  minutes past local midnight
  * @param {number} sunrise  the same
@@ -131,11 +155,20 @@ export function minutesOf(time) {
  * @returns {number} 0 to 1
  */
 export function warmthAt(now, sunrise, sunset) {
-  if (now <= sunrise - HALF) return 1
-  if (now < sunrise + HALF) return (sunrise + HALF - now) / (HALF * 2)
-  if (now <= sunset - HALF) return 0
-  if (now < sunset + HALF) return (now - (sunset - HALF)) / (HALF * 2)
-  return 1
+  const dawn = toward(now, sunrise)
+  const dusk = toward(now, sunset)
+
+  // The nearer event owns the moment. They can only both be in range where
+  // the whole of daylight is under an hour, and there the answer wanted is
+  // the one belonging to the event actually being crossed.
+  if (Math.abs(dawn) < HALF && Math.abs(dawn) <= Math.abs(dusk)) {
+    return (HALF - dawn) / (HALF * 2)
+  }
+  if (Math.abs(dusk) < HALF) return (dusk + HALF) / (HALF * 2)
+
+  const since = (((now - sunrise) % 1440) + 1440) % 1440
+  const daylight = (((sunset - sunrise) % 1440) + 1440) % 1440
+  return since < daylight ? 0 : 1
 }
 
 /**
@@ -149,8 +182,42 @@ export function warmthAt(now, sunrise, sunset) {
 export function mix(from, to, amount) {
   const one = channels(from)
   const two = channels(to)
-  const between = one.map((value, at) => Math.round(value + ((two[at] ?? value) - value) * amount))
-  return `#${between.map((value) => value.toString(16).padStart(2, '0')).join('')}`
+  return hex(one.map((value, at) => Math.round(value + ((two[at] ?? value) - value) * amount)))
+}
+
+/**
+ * `colour`, moved the way `day` moves to `night`.
+ *
+ * This is what lets one plugin warm a theme it has never seen. The app shows
+ * a `theme.tokens` plugin the theme's own colours, and returning a palette of
+ * its own would *replace* them - so what travels here is the transformation
+ * rather than the destination: the ratio each channel takes from `day` to
+ * `night`, applied to whatever the theme actually set.
+ *
+ * A ratio rather than a difference, because a difference measured on a light
+ * theme lightens a dark one. Ledger's `paper` loses a tenth of its blue at
+ * night; a dark theme's paper loses a tenth of its own, and stays dark.
+ *
+ * @param {string} colour  what the theme set
+ * @param {string} day  this plugin's reference colour in daylight
+ * @param {string} night  the same colour under a lamp
+ * @returns {string} `#rrggbb`
+ */
+export function shifted(colour, day, night) {
+  const from = channels(colour)
+  const before = channels(day)
+  const after = channels(night)
+  return hex(from.map((value, at) => {
+    const was = before[at] ?? 0
+    // A channel already at nought cannot be scaled, and has nowhere to go.
+    const ratio = was === 0 ? 1 : (after[at] ?? was) / was
+    return Math.max(0, Math.min(255, Math.round(value * ratio)))
+  }))
+}
+
+/** @param {number[]} values @returns {string} */
+function hex(values) {
+  return `#${values.map((value) => value.toString(16).padStart(2, '0')).join('')}`
 }
 
 /**
