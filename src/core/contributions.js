@@ -14,6 +14,15 @@
 
 /** @typedef {{time: string|null, text: string}} Event */
 
+/**
+ * One plugin's lines, under the heading it asked to be called.
+ *
+ * @typedef {object} Section
+ * @property {string} plugin  who said it, which is what the heading answers to
+ * @property {string} heading  its `[contribute] heading`, or its own name
+ * @property {Event[]} events  never empty: a section with nothing is absent
+ */
+
 /** A day's worth of a line, and no more. Longer is a paste, not an event. */
 const LONGEST = 200
 
@@ -21,23 +30,23 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/
 
 /**
- * The events the plugins contributed to one day.
+ * The sections the plugins contributed to one day (spec §3.2).
+ *
+ * One per plugin that had something, in the order the answers arrived - which
+ * Rust settles by name, so two launches draw the same page in the same order.
+ * With two contributors, `On the calendar` is wrong for one of them, and the
+ * key on each answer is what makes a heading possible at all.
  *
  * @param {{plugin: string, value: unknown}[]} answers  what each plugin said
  * @param {string} page  `YYYY-MM-DD`
- * @returns {{events: Event[], notices: string[]}}
+ * @param {Map<string, string>} headings  by plugin name; missing means its name
+ * @returns {{sections: Section[], notices: string[]}}
  */
-export function readContributions(answers, page) {
-  /** @type {Event[]} */
-  const events = []
+export function readContributions(answers, page, headings) {
+  /** @type {Section[]} */
+  const sections = []
   /** @type {string[]} */
   const notices = []
-  let dropped = 0
-
-  // The same holiday subscribed twice is one holiday. Two identical lines say
-  // nothing the first did not, and the list below is keyed by what a line
-  // says - so a duplicate would be two rows claiming the same key.
-  const seen = new Set()
 
   for (const answer of answers) {
     if (!Array.isArray(answer.value)) {
@@ -46,6 +55,15 @@ export function readContributions(answers, page) {
       notices.push(`${answer.plugin} returned something that is not a list`)
       continue
     }
+
+    /** @type {Event[]} */
+    const events = []
+    let dropped = 0
+    // The same holiday subscribed twice is one holiday. Within a section, not
+    // across them: two sections each say who spoke, so the same sentence under
+    // two headings is information rather than a repetition.
+    const seen = new Set()
+
     for (const item of answer.value) {
       const event = readOne(item, page)
       if (event === 'elsewhere') continue
@@ -58,15 +76,25 @@ export function readContributions(answers, page) {
       seen.add(key)
       events.push(event)
     }
+
+    // Counted, not listed, and one notice per answer (spec §6). One malformed
+    // item is worth saying; forty would be forty lines of notice over a list
+    // of three tasks.
+    if (dropped > 0) {
+      notices.push(`${answer.plugin} sent ${dropped} ${dropped === 1 ? 'line' : 'lines'} this app could not read`)
+    }
+    // Absent rather than empty, per section: a heading over nothing is a
+    // section earning its space by lying about having some.
+    if (events.length === 0) continue
+
+    sections.push({
+      plugin: answer.plugin,
+      heading: headings.get(answer.plugin) ?? answer.plugin,
+      events: sorted(events),
+    })
   }
 
-  // Counted, not listed. One malformed item is worth saying; forty of them
-  // would be forty lines of notice over a list of three tasks.
-  if (dropped > 0) {
-    notices.push(`A plugin sent ${dropped} ${dropped === 1 ? 'line' : 'lines'} this app could not read`)
-  }
-
-  return { events: sorted(events), notices }
+  return { sections, notices }
 }
 
 /**

@@ -66,10 +66,14 @@ function show(count, events, notices, actions) {
     doc: parse(pageOf(count)),
     horizon: [],
     carry: [],
-    events: Array.from({ length: events ?? 0 }, (_, at) => ({
-      time: `${String(9 + at).padStart(2, '0')}:00`,
-      text: `Meeting number ${at + 1}`,
-    })),
+    sections: (events ?? 0) === 0 ? [] : [{
+      plugin: 'macos-calendar',
+      heading: 'On the calendar',
+      events: Array.from({ length: events ?? 0 }, (_, at) => ({
+        time: `${String(9 + at).padStart(2, '0')}:00`,
+        text: `Meeting number ${at + 1}`,
+      })),
+    }],
     notices: notices ?? [],
     actions: actions ?? [],
   })
@@ -198,16 +202,19 @@ check('an empty day still offers its note', () => {
 
 check('a day with nothing contributed shows no section at all', () => {
   show(3)
-  const given = stage.querySelector('.given')
-  ok(given instanceof HTMLElement, 'the section is missing from the page')
-  ok(given.hidden, 'an empty section was left on the page')
-  equal(given.getBoundingClientRect().height, 0, 'an empty section still took up room')
+  // The stack, not a section: with nothing contributed there is no section to
+  // find, and the thing that has to be out of the way is what holds them.
+  const given = stage.querySelector('.givens')
+  ok(given instanceof HTMLElement, 'the stack is missing from the page')
+  ok(given.hidden, 'an empty stack was left on the page')
+  equal(given.getBoundingClientRect().height, 0, 'an empty stack still took up room')
+  equal(stage.querySelectorAll('.given').length, 0, 'a section was drawn for a plugin with nothing')
 })
 
 check('contributed events appear under the list and above the note', () => {
   show(3, 2)
   const order = [...stage.querySelectorAll('.page > *')].map((part) => part.className)
-  equal(order.join(' '), 'page-head notice-band carry horizon items add given note page-foot search settings', 'the section is in the wrong place')
+  equal(order.join(' '), 'page-head notice-band carry horizon items add givens note page-foot search settings', 'the section is in the wrong place')
   equal(stage.querySelectorAll('.given-item').length, 2, 'the events did not appear')
 })
 
@@ -335,6 +342,7 @@ check('the settings pane lists a plugin and what it asks for', () => {
     approved: ['macos.calendar.read'],
     open: [],
     approvedOpen: [],
+    heading: 'macos-calendar',
     problem: null,
     schema: [],
     settings: new Map(),
@@ -405,6 +413,37 @@ check('a negative number of days is put back rather than written', () => {
   lead.dispatchEvent(new Event('change'))
   equal(saved.length, 0, 'a negative lead time was written')
   equal(lead.value, '7', 'the field was left showing something the config would refuse')
+})
+
+// Two contributors is the case the heading exists for. Both sections have to
+// be on the page at once, and the footer still has to be at the bottom of it.
+check('two plugins get two headed sections, and the footer stays put', () => {
+  // `show` mounts the page; this re-renders it with two sections rather than
+  // one, which is the case the heading exists for.
+  show(6)
+  dayPage.render({
+    today: '2026-09-01',
+    page: '2026-09-01',
+    doc: parse(pageOf(6)),
+    horizon: [],
+    carry: [],
+    sections: [
+      { plugin: 'git-activity', heading: 'From git', events: [{ time: null, text: '6 commits to gotab-inc/node' }] },
+      { plugin: 'macos-calendar', heading: 'On the calendar', events: [{ time: '09:30', text: 'Standup' }] },
+    ],
+    notices: [],
+    actions: [],
+  })
+
+  const heads = [...stage.querySelectorAll('.given-head')].map((one) => one.textContent)
+  equal(heads.join(' | '), 'From git | On the calendar', 'the two sections are not headed by their plugins')
+
+  const foot = part('.page-foot').getBoundingClientRect()
+  const window = stage.getBoundingClientRect()
+  ok(
+    Math.abs(foot.bottom - window.bottom) <= 1,
+    `two sections pushed the footer to ${Math.round(foot.bottom)} in a window ending at ${Math.round(window.bottom)}`,
+  )
 })
 
 report()

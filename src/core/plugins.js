@@ -19,7 +19,7 @@
  * page you are looking at.
  */
 
-import { readManifest } from './manifest.js'
+import { readManifest, slotOptions, optionText } from './manifest.js'
 import { settled, resolveOpen } from './pluginSettings.js'
 
 /** @typedef {import('./config.js').PluginConfig} PluginConfig */
@@ -50,6 +50,8 @@ import { settled, resolveOpen } from './pluginSettings.js'
  * @property {string[]} approved  of those, the ones config.toml has allowed
  * @property {string[]} open  addresses the manifest declares
  * @property {string[]} approvedOpen  of those, the ones config.toml allows
+ * @property {string} heading  what the day page calls this plugin's section:
+ *   its `[contribute] heading`, cut to one line at 40, or its own name
  * @property {string|null} problem  why it cannot run, when it cannot
  * @property {SettingsField[]} schema  the settings the manifest declares
  * @property {Map<string, TomlValue>} settings  the settled values, checked against schema
@@ -64,6 +66,10 @@ import { settled, resolveOpen } from './pluginSettings.js'
  * the name is checked before anything else about the folder is believed.
  */
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/
+
+/** A heading sits above a list in a narrow popover. Longer than this is a
+ *  sentence, and a sentence is not a heading (spec §1.3). */
+const HEADING = 40
 
 /** Said the same way in both places a folder is refused for its name. */
 const BAD_NAME =
@@ -95,6 +101,7 @@ export function installed(folders, configured) {
         name: folder.name,
         enabled,
         slots: [], approvedSlots: [], asked: [], approved: [], open: [], approvedOpen: [],
+        heading: folder.name,
         problem: BAD_NAME,
         schema: [],
         settings: new Map(),
@@ -115,6 +122,10 @@ export function installed(folders, configured) {
       approved: both(read.capabilities, configEntry?.approvedCapabilities),
       open,
       approvedOpen: both(open, configEntry?.approvedOpen),
+      // The manifest's, when it has one. A plugin that never contributes
+      // never has this drawn - and a null would only mean every reader had to
+      // check for one.
+      heading: optionText(slotOptions(read, 'vault.contribute'), 'heading', HEADING) || folder.name,
       problem: read.error,
       schema: read.settings,
       settings,

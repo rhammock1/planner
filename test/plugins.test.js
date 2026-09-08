@@ -129,6 +129,7 @@ test('a plugin that is switched off is still listed', () => {
     approved: ['macos.calendar.read'],
     open: [],
     approvedOpen: [],
+    heading: 'macos-calendar',
     problem: null,
     schema: [],
     settings: new Map(),
@@ -145,6 +146,7 @@ test('a plugin the config has never heard of is listed as off and ungranted', ()
     approved: [],
     open: [],
     approvedOpen: [],
+    heading: 'macos-calendar',
     problem: null,
     schema: [],
     settings: new Map(),
@@ -524,4 +526,34 @@ test('changing a setting changes the signature, so the plugin restarts', () => {
   const second = plan(folders(SCHEMA), config).start[0]
   assert.ok(second)
   assert.notEqual(before, signature(second))
+})
+
+test('a contributing plugin is listed with the heading it asked for', () => {
+  const folders = [{
+    name: 'git-activity',
+    manifest: `
+entry = "index.js"
+slots = ["vault.contribute"]
+
+[contribute]
+heading = "From git"
+`,
+  }]
+  const [one] = installed(folders, new Map())
+  assert.equal(one?.heading, 'From git')
+})
+
+test('a contributing plugin with no heading is listed under its own name', () => {
+  const folders = [{ name: 'macos-calendar', manifest: 'entry = "index.js"\nslots = ["vault.contribute"]\n' }]
+  const [one] = installed(folders, new Map())
+  assert.equal(one?.heading, 'macos-calendar')
+})
+
+test('a plugin that does not contribute still has a heading, and it is its name', () => {
+  // The pane and the day page both read one list. A plugin that never
+  // contributes never has its heading drawn, and a null here would only mean
+  // every reader had to check for it.
+  const folders = [{ name: 'ticket-links', manifest: 'entry = "index.js"\nslots = ["item.badge"]\n' }]
+  const [one] = installed(folders, new Map())
+  assert.equal(one?.heading, 'ticket-links')
 })

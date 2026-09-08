@@ -1,8 +1,11 @@
 // @ts-check
 
 /**
- * What a plugin sends is not this app's data. These are the rules it is held
- * to before any of it reaches a page.
+ * What a plugin sent, turned into something a page can show.
+ *
+ * Everything here arrived from somebody else's code, so the shape is checked,
+ * the text is flattened to one line, and anything that does not survive is
+ * dropped and counted rather than drawn.
  */
 
 import test from 'node:test'
@@ -10,144 +13,149 @@ import assert from 'node:assert/strict'
 
 import { readContributions } from '../src/core/contributions.js'
 
-const DAY = '2026-09-01'
+const HEADINGS = new Map([
+  ['macos-calendar', 'On the calendar'],
+  ['git-activity', 'From git'],
+])
 
-/** @param {unknown[]} items */
-function read(items) {
-  return readContributions([{ plugin: 'macos-calendar', value: items }], DAY)
-}
-
-test('a well-formed event comes through', () => {
-  const { events, notices } = read([{ date: DAY, time: '09:30', text: 'Standup' }])
-  assert.deepEqual(events, [{ time: '09:30', text: 'Standup' }])
-  assert.deepEqual(notices, [])
-})
-
-test('another day is not this day, and is not a fault', () => {
-  const { events, notices } = read([{ date: '2026-09-02', time: '09:30', text: 'Standup' }])
-  assert.deepEqual(events, [])
-  assert.deepEqual(notices, [])
-})
-
-test('all-day things come first, then the clock', () => {
-  const { events } = read([
-    { date: DAY, time: '14:00', text: '1:1 with Priya' },
-    { date: DAY, time: null, text: 'Labor Day' },
-    { date: DAY, time: '09:30', text: 'Standup' },
-  ])
-  assert.deepEqual(events.map((one) => one.text), ['Labor Day', 'Standup', '1:1 with Priya'])
-})
-
-test('two events at the same time keep a settled order', () => {
-  const { events } = read([
-    { date: DAY, time: '09:00', text: 'Beta' },
-    { date: DAY, time: '09:00', text: 'Alpha' },
-  ])
-  assert.deepEqual(events.map((one) => one.text), ['Alpha', 'Beta'])
-})
-
-test('an hour that is not an hour leaves the event without one', () => {
-  // The meeting still happened. Only the time was unreadable.
-  for (const time of ['half nine', '25:00', '9:30', '09:60', 930, null]) {
-    const { events } = read([{ date: DAY, time, text: 'Standup' }])
-    assert.deepEqual(events, [{ time: null, text: 'Standup' }], `${time} was read as a time`)
-  }
-})
-
-test('an event with no readable text is dropped and counted', () => {
-  const { events, notices } = read([
-    { date: DAY, time: '09:30', text: '   ' },
-    { date: DAY, time: '10:00' },
-    { date: DAY, time: '11:00', text: 42 },
-  ])
-  assert.deepEqual(events, [])
-  assert.deepEqual(notices, ['A plugin sent 3 lines this app could not read'])
-})
-
-test('one bad line reads as a line, not lines', () => {
-  assert.deepEqual(read([{ date: DAY }]).notices, ['A plugin sent 1 line this app could not read'])
-})
-
-test('anything that is not an item at all is dropped', () => {
-  const { events, notices } = read(['a string', 42, null, [], undefined])
-  assert.deepEqual(events, [])
-  assert.deepEqual(notices, ['A plugin sent 5 lines this app could not read'])
-})
-
-test('a date that is not a date is dropped rather than assumed to be today', () => {
-  for (const date of ['tomorrow', '2026-9-1', '', 20260901, undefined]) {
-    assert.deepEqual(read([{ date, text: 'Standup' }]).events, [], `${date} was accepted`)
-  }
-})
-
-test('an event cannot decide how many lines of the page it takes', () => {
-  const { events } = read([{ date: DAY, text: 'Standup\nand another thing\n\n\nand more' }])
-  assert.deepEqual(events, [{ time: null, text: 'Standup and another thing and more' }])
-})
-
-test('an event cannot decide how much of the page it takes either', () => {
-  const { events } = read([{ date: DAY, text: 'x'.repeat(500) }])
-  assert.equal(events[0]?.text.length, 200)
-  assert.ok(events[0]?.text.endsWith('…'), 'a cut line does not say it was cut')
-})
-
-test('a title exactly at the limit is left alone', () => {
-  const { events } = read([{ date: DAY, text: 'x'.repeat(200) }])
-  assert.equal(events[0]?.text, 'x'.repeat(200))
-})
-
-test('nothing contributed is nothing shown, and nothing said', () => {
-  assert.deepEqual(read([]), { events: [], notices: [] })
-})
-
-test('a plugin cannot reach into the app through a key it made up', () => {
-  // A plain object is built from the fields this app reads, and no others.
-  const { events } = read([
-    { date: DAY, text: 'Standup', __proto__: { polluted: true }, onclick: 'boom' },
-  ])
-  assert.deepEqual(events, [{ time: null, text: 'Standup' }])
-  assert.equal(Object.keys(events[0] ?? {}).sort().join(','), 'text,time')
-})
-
-test('the same event in two calendars is one line', () => {
-  // Subscribing to two holiday calendars is ordinary, and gives every public
-  // holiday twice. It is also two rows claiming the same key in the list.
-  const { events } = read([
-    { date: DAY, time: null, text: 'Labor Day' },
-    { date: DAY, time: null, text: 'Labor Day' },
-    { date: DAY, time: '09:30', text: 'Standup' },
-    { date: DAY, time: '09:30', text: 'Standup' },
-  ])
-  assert.deepEqual(events, [
-    { time: null, text: 'Labor Day' },
-    { time: '09:30', text: 'Standup' },
-  ])
-})
-
-test('the same title at different times is two lines', () => {
-  const { events } = read([
-    { date: DAY, time: '09:30', text: 'Standup' },
-    { date: DAY, time: '16:30', text: 'Standup' },
-  ])
-  assert.equal(events.length, 2)
-})
-
-test('every line the page draws has a key of its own', () => {
-  const { events } = read([
-    { date: DAY, time: null, text: 'Labor Day' },
-    { date: DAY, time: null, text: 'Labor Day' },
-    { date: DAY, time: '09:30', text: 'Standup' },
-  ])
-  const keys = events.map((one) => `${one.time ?? ''}:${one.text}`)
-  assert.equal(new Set(keys).size, keys.length, 'two lines share a key')
-})
-
-test('a plugin that answers with something other than a list is named', () => {
-  const { events, notices } = readContributions(
-    [{ plugin: 'macos-calendar', value: 'no' }, { plugin: 'ticket-links', value: [] }],
+test('each plugin gets a section of its own, headed by what it said to call it', () => {
+  const read = readContributions(
+    [
+      { plugin: 'git-activity', value: [{ date: '2026-09-02', time: null, text: '6 commits to gotab-inc/node' }] },
+      { plugin: 'macos-calendar', value: [{ date: '2026-09-02', time: '09:30', text: 'Standup' }] },
+    ],
     '2026-09-02',
+    HEADINGS,
   )
-  assert.deepEqual(events, [])
-  assert.equal(notices.length, 1)
-  assert.match(notices[0] ?? '', /macos-calendar/)
+
+  assert.deepEqual(read.sections.map((one) => one.plugin), ['git-activity', 'macos-calendar'])
+  assert.deepEqual(read.sections.map((one) => one.heading), ['From git', 'On the calendar'])
+  assert.equal(read.sections[0]?.events.length, 1)
+  assert.equal(read.sections[1]?.events[0]?.time, '09:30')
+  assert.deepEqual(read.notices, [])
+})
+
+test('a plugin with nothing for this day has no section at all', () => {
+  // Absent rather than empty, per section: a heading over nothing is a
+  // section earning its space by lying about having some.
+  const read = readContributions(
+    [
+      { plugin: 'git-activity', value: [] },
+      { plugin: 'macos-calendar', value: [{ date: '2026-09-02', time: null, text: 'A holiday' }] },
+    ],
+    '2026-09-02',
+    HEADINGS,
+  )
+  assert.deepEqual(read.sections.map((one) => one.plugin), ['macos-calendar'])
+})
+
+test('a plugin with no heading is headed by its own name', () => {
+  const read = readContributions(
+    [{ plugin: 'unnamed', value: [{ date: '2026-09-02', time: null, text: 'A line' }] }],
+    '2026-09-02',
+    new Map(),
+  )
+  assert.equal(read.sections[0]?.heading, 'unnamed')
+})
+
+test('another day is not a fault, and is not on this page', () => {
+  const read = readContributions(
+    [{ plugin: 'macos-calendar', value: [
+      { date: '2026-09-03', time: '09:30', text: 'Tomorrow' },
+      { date: '2026-09-02', time: '09:30', text: 'Today' },
+    ] }],
+    '2026-09-02',
+    HEADINGS,
+  )
+  assert.deepEqual(read.sections[0]?.events.map((one) => one.text), ['Today'])
+  assert.deepEqual(read.notices, [])
+})
+
+test('the same line twice from one plugin is one line', () => {
+  const read = readContributions(
+    [{ plugin: 'macos-calendar', value: [
+      { date: '2026-09-02', time: null, text: 'A holiday' },
+      { date: '2026-09-02', time: null, text: 'A holiday' },
+    ] }],
+    '2026-09-02',
+    HEADINGS,
+  )
+  assert.equal(read.sections[0]?.events.length, 1)
+})
+
+test('the same line from two plugins is two lines, because they are labelled', () => {
+  // Deduplication is inside a section, not across them. Two sections each say
+  // who spoke, so the same sentence under two headings is information.
+  const read = readContributions(
+    [
+      { plugin: 'git-activity', value: [{ date: '2026-09-02', time: null, text: 'Same' }] },
+      { plugin: 'macos-calendar', value: [{ date: '2026-09-02', time: null, text: 'Same' }] },
+    ],
+    '2026-09-02',
+    HEADINGS,
+  )
+  assert.equal(read.sections.length, 2)
+})
+
+test('all-day things come first, then the clock, then the text', () => {
+  const read = readContributions(
+    [{ plugin: 'macos-calendar', value: [
+      { date: '2026-09-02', time: '14:00', text: 'Later' },
+      { date: '2026-09-02', time: null, text: 'A holiday' },
+      { date: '2026-09-02', time: '09:00', text: 'Earlier' },
+    ] }],
+    '2026-09-02',
+    HEADINGS,
+  )
+  assert.deepEqual(read.sections[0]?.events.map((one) => one.text), ['A holiday', 'Earlier', 'Later'])
+})
+
+test('a plugin that did not answer with a list is named, once', () => {
+  const read = readContributions(
+    [{ plugin: 'macos-calendar', value: { date: '2026-09-02' } }],
+    '2026-09-02',
+    HEADINGS,
+  )
+  assert.deepEqual(read.sections, [])
+  assert.equal(read.notices.length, 1)
+  assert.match(read.notices[0] ?? '', /macos-calendar/)
+})
+
+test('lines this app cannot read are counted, per plugin, and never drawn', () => {
+  const read = readContributions(
+    [{ plugin: 'macos-calendar', value: [
+      { date: '2026-09-02', time: null, text: 'Kept' },
+      { date: 'not a date', text: 'Dropped' },
+      { date: '2026-09-02', text: '' },
+      'not even an object',
+    ] }],
+    '2026-09-02',
+    HEADINGS,
+  )
+  assert.deepEqual(read.sections[0]?.events.map((one) => one.text), ['Kept'])
+  assert.equal(read.notices.length, 1)
+  assert.match(read.notices[0] ?? '', /macos-calendar sent 3 lines/)
+})
+
+test('a title is one line, however many the plugin sent', () => {
+  const read = readContributions(
+    [{ plugin: 'macos-calendar', value: [
+      { date: '2026-09-02', time: null, text: `Standup\nand${' x'.repeat(400)}` },
+    ] }],
+    '2026-09-02',
+    HEADINGS,
+  )
+  const text = read.sections[0]?.events[0]?.text ?? ''
+  assert.equal(text.includes('\n'), false)
+  assert.equal(text.length, 200)
+})
+
+test('an hour this app cannot read is a line without a time, not a dropped line', () => {
+  const read = readContributions(
+    [{ plugin: 'macos-calendar', value: [{ date: '2026-09-02', time: '25:00', text: 'Standup' }] }],
+    '2026-09-02',
+    HEADINGS,
+  )
+  assert.equal(read.sections[0]?.events[0]?.time, null)
+  assert.deepEqual(read.notices, [])
 })

@@ -535,6 +535,17 @@
 
 .quick-preview[hidden] { display: none; }
 
+/* The sections a plugin contributed, one per plugin (spec §3.2). A column, so
+   each section keeps the rule above it that separates it from what it is
+   under - the list on one, the section before it on the rest. */
+.givens {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.givens[hidden] { display: none; }
+
 /* What a plugin had to add to the day (addendum §1). Quieter than the list
    above it: this is what is happening to you, not what you decided to do. */
 .given {
@@ -544,6 +555,10 @@
 }
 
 .given[hidden] { display: none; }
+
+/* Between two sections the rule is enough on its own; the second does not
+   also need the breathing room the first takes from the list above it. */
+.given + .given { padding-top: 6px; }
 
 .given-head {
   margin: 0 0 4px;
