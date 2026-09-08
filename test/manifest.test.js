@@ -266,3 +266,24 @@ moves = ["paper", "ink", "paper"]
   // holding one is refused whole, well before this reader is reached.
   assert.deepEqual(optionNames({ moves: /** @type {any} */ (['paper', 4, 'ink']) }, 'moves'), ['paper', 'ink'])
 })
+
+test('a manifest that declares commands carries them, rendered', () => {
+  const read = readManifest(`
+entry = "index.js"
+
+[permissions]
+capabilities = ["shell.run"]
+
+[permissions.run.log]
+command = ["git", "-C", "{repo}", "log"]
+repo    = "settings.repo"
+`)
+  assert.equal(read.error, null)
+  assert.deepEqual(read.run.map((one) => one.name), ['log'])
+  assert.equal(read.run[0]?.line, 'git -C {repo=settings.repo} log')
+})
+
+test('a permissions.run that is not a table stops the plugin', () => {
+  const read = readManifest('entry = "index.js"\n\n[permissions]\nrun = "git log"\n')
+  assert.match(read.error ?? '', /permissions\.run/)
+})

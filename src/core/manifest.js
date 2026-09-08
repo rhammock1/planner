@@ -20,7 +20,7 @@
 
 import { parseToml } from './toml.js'
 import { isSlot, optionsTableOf } from './slots.js'
-import { readCapabilities, readOpen } from './permissions.js'
+import { readCapabilities, readOpen, readRun } from './permissions.js'
 import { readSettings } from './settingsSchema.js'
 
 /** @typedef {import('./toml.js').TomlValue} TomlValue */
@@ -35,6 +35,8 @@ import { readSettings } from './settingsSchema.js'
  *   complaint, since this file already made the first one
  * @property {string[]} capabilities  declared; the config decides the rest
  * @property {string[]} open  addresses this plugin says it may open
+ * @property {import('./permissions.js').RunCommand[]} run  commands this
+ *   plugin says it may run, in name order
  * @property {Map<string, Record<string, TomlValue>>} options  per declared
  *   slot, the table named for its last word - what that slot needs to know
  *   that the question does not carry (spec §1.1)
@@ -51,7 +53,7 @@ export function readManifest(text) {
   /** @param {string} error @returns {Manifest} */
   const bad = (error) => ({
     entry: '', slots: [], unofferedSlots: [], capabilities: [], open: [],
-    options: new Map(), error, notices: [], settings: [],
+    run: [], options: new Map(), error, notices: [], settings: [],
   })
 
   let table
@@ -86,9 +88,12 @@ export function readManifest(text) {
   const open = readOpen(table['permissions'], notices)
   if (typeof open === 'string') return bad(open)
 
+  const run = readRun(table['permissions'], notices)
+  if (typeof run === 'string') return bad(run)
+
   const options = readOptions(table, slots, notices)
   const settings = readSettings(table['settings'], notices)
-  return { entry, slots, unofferedSlots, capabilities, open, options, error: null, notices, settings }
+  return { entry, slots, unofferedSlots, capabilities, open, run, options, error: null, notices, settings }
 }
 
 /**
