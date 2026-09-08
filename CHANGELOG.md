@@ -73,6 +73,7 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Changed
 
+-   `tools/update` assembles `Planner.app` by default, and `planner` on the `PATH` is kept pointing at it. The bare cargo binary is now the special case (`--no-bundle`), because macOS will not grant one a permission — an app that quietly cannot do two of the things it does is a poor thing to hand back to somebody who asked for their app
 -   `slots` in `manifest.toml` is now read, and approved in `config.toml` as `approved_slots`. **A plugin installed before this version is asked nothing until its slot is ticked once**
 -   `contribute` is gone as a command; every slot is asked through `ask_plugins`, which asks all of them at once and says who answered what
 

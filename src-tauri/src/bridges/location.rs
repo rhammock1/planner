@@ -189,7 +189,13 @@ fn ask_macos() -> Result<(), String> {
 /// so `requestWhenInUseAuthorization` leaves the status at `NotDetermined` with
 /// no prompt and no refusal (docs/testing.md, and the header of this file).
 fn bundled() -> bool {
-    std::env::current_exe().map(|exe| in_bundle(&exe)).unwrap_or(false)
+    // Resolved first. `planner` on somebody's PATH is a symlink into the build
+    // cache (tools/update keeps it pointing at the bundle), and the path this
+    // hands back is allowed to be the link rather than what it points at - so
+    // without this the app would run from the bundle, hold the permission, and
+    // still print the notice that says it cannot have one.
+    let Ok(exe) = std::env::current_exe() else { return false };
+    in_bundle(&std::fs::canonicalize(&exe).unwrap_or(exe))
 }
 
 /// The shape of the path, split out so it can be checked without one.

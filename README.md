@@ -134,8 +134,18 @@ Needs a Rust toolchain ([rustup](https://rustup.rs)); the JavaScript above
 does not.
 
 ```bash
-npm run app       # cargo run, from src-tauri/
+npm run update    # build if needed, assemble Planner.app, install the plugins
+~/.cache/planner-target/Planner.app/Contents/MacOS/planner
 ```
+
+`update` keeps a `planner` on your `PATH` pointing at that, if you have made
+one — it will not make one for you.
+
+`npm run app` builds and runs too, and is quicker, but what it runs is a bare
+cargo binary. macOS will not grant one a permission: `Info.plist` is embedded
+but not sealed into the signature, TCC ignores an unsealed one, and
+`macos.calendar.read` and `macos.location.read` both come back refused with a
+notice saying so. Use it for anything that does not touch those two.
 
 It puts an item in the menu bar and nothing else — no dock icon, no window
 until you click it. The icon carries how much of today is still open, and a

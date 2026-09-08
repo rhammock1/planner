@@ -157,7 +157,7 @@ returns, the status stays `NotDetermined`, and the plugin looks like it is
 quietly answering nothing. These six are therefore run from the bundle:
 
 ```bash
-PLANNER_HOME="$TMPDIR/planner-home" tools/update --bundle
+PLANNER_HOME="$TMPDIR/planner-home" tools/update
 PLANNER_HOME="$TMPDIR/planner-home" ~/.cache/planner-target/Planner.app/Contents/MacOS/planner
 ```
 
@@ -175,9 +175,10 @@ and it is also why nothing here leaves a permission granted behind it.
       naming the setting. Typing a coordinate into the plugin's row makes it
       work anyway. The row's hint is a format and not a coordinate, on purpose:
       a plausible one there is read as the answer the field already holds.
-- [ ] The same plugin under `npm run app` says *this build cannot ask* and
-      names the setting, rather than saying it is asking for a prompt that is
-      never coming. This is the one check that wants the bare binary.
+- [ ] The same plugin under `npm run app` (or `tools/update --no-bundle`) says
+      *this build cannot ask* and names the setting, rather than saying it is
+      asking for a prompt that is never coming. This is the one check that
+      wants the bare binary.
 - [ ] Every tick in the plugin pane is one row of small grey type: the seven
       `Moves <colour>` rows line up with the sentence above them rather than
       running together at the body size.

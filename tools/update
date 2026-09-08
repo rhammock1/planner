@@ -38,7 +38,15 @@ STAMP="$TARGET/.planner-update"
 
 force=no
 release=no
-bundle=no
+##  Bundling is the default, and the bare binary is the special case.
+##
+##  Not how this started, and the reason to change it is that the bare binary
+##  cannot be granted a permission at all: TCC will not read the unsealed
+##  `Info.plist` cargo produces, so `macos.calendar.read` and
+##  `macos.location.read` are both dead in it and say so. An app that quietly
+##  cannot do two of the things it does is a poor default to hand somebody who
+##  typed `update` and expected their app back.
+bundle=yes
 pass=""
 
 for argument in "$@"; do
@@ -46,17 +54,19 @@ for argument in "$@"; do
     -q|--quick)   pass="$pass --quick" ;;
     -f|--force)   force=yes ;;
     -r|--release) release=yes; pass="$pass --release" ;;
-    -b|--bundle)  bundle=yes; pass="$pass --bundle" ;;
+    -b|--bundle)  bundle=yes ;;
+    --no-bundle)  bundle=no ;;
     -h|--help)
-      echo "Usage: tools/update [-q|--quick] [-f|--force] [-r|--release] [-b|--bundle]"
+      echo "Usage: tools/update [-q|--quick] [-f|--force] [-r|--release] [--no-bundle]"
       echo
-      echo "  Rebuilds the app if anything has changed, then installs this"
-      echo "  checkout's plugins and themes into $INTO."
+      echo "  Rebuilds the app if anything has changed, assembles Planner.app,"
+      echo "  and installs this checkout's plugins and themes into $INTO."
       echo
       echo "  -q, --quick    skip the test suites when building"
       echo "  -f, --force    build even if nothing has changed"
       echo "  -r, --release  build the release profile instead of debug"
-      echo "  -b, --bundle   also assemble and sign Planner.app"
+      echo "  --no-bundle    stop at the bare binary, which cannot be granted"
+      echo "                 a macOS permission"
       exit 0
       ;;
     *)
@@ -67,10 +77,18 @@ for argument in "$@"; do
   esac
 done
 
+if [ "$bundle" = yes ]; then pass="$pass --bundle"; fi
+
 cd "$ROOT"
 
 BINARY="$TARGET/debug/planner"
 if [ "$release" = yes ]; then BINARY="$TARGET/release/planner"; fi
+
+##  What a person should actually run, which is the bundle whenever there is
+##  one (see the `bundle` default above).
+APP="$TARGET/Planner.app"
+RUN="$BINARY"
+if [ "$bundle" = yes ]; then RUN="$APP/Contents/MacOS/planner"; fi
 
 ##  Everything a build is downstream of.
 ##
@@ -101,7 +119,7 @@ moved() {
 ##  bundle is the one a permission is being tested from and it is the one thing
 ##  here whose staleness is invisible from the outside.
 current_bundle() {
-  local exe="$TARGET/Planner.app/Contents/MacOS/planner"
+  local exe="$APP/Contents/MacOS/planner"
   [ -f "$exe" ] || return 1
   [ ! "$BINARY" -nt "$exe" ] || return 1
   # Contents/Resources/themes is a copy too, and settings.rs reads it.
@@ -127,7 +145,11 @@ if [ -n "$why" ]; then
   echo "    ($why)"
   echo
   # Unquoted on purpose: $pass holds the flags collected above, each one word.
-  "$ROOT/tools/rebuild" $pass
+  #
+  # UPDATE_WILL_SAY silences rebuild's closing lines. Not tidiness: this script
+  # names the bundle and rebuild names the bare binary, so left alone the two
+  # print different answers to "what do I run" on one screen.
+  UPDATE_WILL_SAY=1 "$ROOT/tools/rebuild" $pass
   echo
 else
   echo "==> nothing to build"
@@ -231,20 +253,37 @@ install_tree themes "$ROOT/themes" "$INTO/themes"
 mkdir -p "$TARGET"
 touch "$STAMP"
 
-echo
-##  Only when this run did not build: tools/rebuild has already said all of
-##  this, and saying it twice on one screen reads as two different things.
-if [ -z "$why" ]; then
-  echo "Run it:  $BINARY"
-  if [ -L "$HOME/scripts/bin/planner" ]; then
-    echo "     or: planner"
-  fi
-  if [ "$bundle" = yes ]; then
-    echo "     or: $TARGET/Planner.app/Contents/MacOS/planner"
-    echo "         (the bundle is the one that can ask for a permission)"
-  fi
-  echo
+##  The `planner` on PATH, kept pointing at the thing worth running.
+##
+##  Only when it is already a link into the build cache. A link somebody made
+##  for their own reasons is not this script's to redirect, and one that is not
+##  there at all is not this script's to create in a directory it does not own.
+##
+##  It is worth keeping in step because the two targets are not interchangeable
+##  and the difference does not show until a permission is asked for: a link
+##  left on the bare binary answers `macos.calendar.read` and
+##  `macos.location.read` with a refusal that reads like a broken plugin.
+LINK="$HOME/scripts/bin/planner"
+if [ -L "$LINK" ] && [ "$(readlink "$LINK")" != "$RUN" ]; then
+  case "$(readlink "$LINK")" in
+    "$TARGET"/*)
+      ln -sfn "$RUN" "$LINK"
+      echo "==> repointed $LINK"
+      echo "    at $RUN"
+      echo
+      ;;
+  esac
 fi
+
+echo "Run it:  $RUN"
+if [ -L "$LINK" ] && [ "$(readlink "$LINK")" = "$RUN" ]; then
+  echo "     or: planner"
+fi
+if [ "$bundle" = no ]; then
+  echo "         (a bare binary, so macOS will not grant it calendar or"
+  echo "          location - use the bundle for either)"
+fi
+echo
 ##  Said every time, because it is the one thing about this that surprises.
 ##  `list_plugins` is called from store.js `open()`, which runs at startup and
 ##  after a settings write - not when the popover opens. A folder that arrived

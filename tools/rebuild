@@ -168,6 +168,13 @@ PLIST
   esac
 fi
 
+##  tools/update sets this when it is about to say all of the same things
+##  itself, and better: it knows whether the bundle or the bare binary is the
+##  one to run. Two answers to that question on one screen is worse than none.
+if [ -n "${UPDATE_WILL_SAY:-}" ]; then
+  exit 0
+fi
+
 echo
 echo "Built: $BINARY"
 echo "       $(date -r "$BINARY" '+%Y-%m-%d %H:%M')"
