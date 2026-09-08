@@ -51,6 +51,7 @@ function configured(approvedSlots) {
     approvedSlots: approvedSlots ?? ['item.badge'],
     approvedCapabilities: [],
     approvedOpen: [],
+    approvedMoves: [],
     approvedRun: new Map(),
     settings: new Map(),
   }]])
@@ -398,6 +399,7 @@ test('a plugin is started with the commands it was granted', async () => {
       approvedSlots: [],
       approvedCapabilities: ['shell.run'],
       approvedOpen: [],
+      approvedMoves: [],
       approvedRun: new Map([['log', 'git -C {repo=settings.repo}']]),
       settings: new Map([['repo', '~/gotab/node']]),
     }]]),

@@ -342,6 +342,7 @@ check('the settings pane lists a plugin and what it asks for', () => {
     approved: ['macos.calendar.read'],
     open: [],
     approvedOpen: [],
+    approvedMoves: [],
     run: [],
     approvedRun: new Map(),
     heading: 'macos-calendar',
@@ -349,7 +350,6 @@ check('the settings pane lists a plugin and what it asks for', () => {
     notices: [],
     problem: null,
     schema: [],
-    settings: new Map(),
     held: new Map(),
   }])
   dayPage.settings().open()

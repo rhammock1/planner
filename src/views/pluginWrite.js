@@ -4,7 +4,7 @@
  * One writeback for a plugin's `config.toml` section.
  *
  * Every tick in the pane writes the *whole* section, because `tomlEdit` writes
- * keys rather than diffs - so each one has to carry the five approvals it is
+ * keys rather than diffs - so each one has to carry the six approvals it is
  * not changing. Written out at each call site, that was six chances to drop a
  * field and silently erase somebody's approvals; here it is one.
  *
@@ -31,6 +31,7 @@ export function writeBack(plugin, handlers, change) {
     approvedSlots: plugin.approvedSlots,
     approvedCapabilities: plugin.approved,
     approvedOpen: plugin.approvedOpen,
+    approvedMoves: plugin.approvedMoves,
     approvedRun: plugin.approvedRun,
     settings: plugin.held,
     ...change,

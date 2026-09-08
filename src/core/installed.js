@@ -17,6 +17,7 @@
 import { readManifest, slotOptions, optionText, optionNames } from './manifest.js'
 import { settled, resolveOpen, personSet, valueOf, isApproved } from './pluginSettings.js'
 import { isPluginName, BAD_NAME, both } from './plugins.js'
+import { TOKEN_NAMES } from './theme.js'
 
 /** @typedef {import('./config.js').PluginConfig} PluginConfig */
 /** @typedef {import('./settingsSchema.js').SettingsField} SettingsField */
@@ -65,18 +66,27 @@ const HEADING = 40
  * @property {Map<string, string>} approvedRun  the raw table, so writing one
  *   tick back does not throw away the others
  * @property {string} heading  what the day page calls this plugin's section
- * @property {string[]} moves  the theme tokens this plugin says it moves
+ * @property {string[]} moves  the theme tokens this plugin says it moves, of
+ *   the names this version knows. A name no theme has is dropped here rather
+ *   than shown: the pane is a consent surface, and offering a tick over
+ *   something that can never move anything is offering to approve nothing
+ * @property {string[]} approvedMoves  of those, the ones config.toml allows
  * @property {string[]} notices  what its manifest reader had to leave out.
  *   The pane is where these can be acted on, and for a plugin that is not
  *   switched on it is the only place they are shown at all
  * @property {string|null} problem  why it cannot run, when it cannot
  * @property {SettingsField[]} schema  the settings the manifest declares
- * @property {Map<string, TomlValue>} settings  the settled values - the
- *   manifest's defaults filled in, which is what the plugin is handed
  * @property {Map<string, TomlValue>} held  what the person actually set, as
- *   `config.toml` holds it. The pane writes this back, never `settings`: a
- *   default written back becomes indistinguishable from a typed value, and
- *   binding a command is the one place the difference matters (spec §3.2)
+ *   `config.toml` holds it, and the only settings map the pane has.
+ *
+ *   The *settled* map - this one with the manifest's defaults filled in - is
+ *   what a running plugin is handed, and it is built by `plan()` rather than
+ *   carried here. It used to be both, and the pane wrote it back: the first
+ *   tick on any row turned the author's default into the person's own value,
+ *   after which `personSet` could no longer tell them apart, and a command the
+ *   pane called unbindable ran on the same click (spec §3.2). One map on this
+ *   record is what makes that mistake unavailable rather than merely warned
+ *   against
  */
 
 /**
@@ -101,10 +111,10 @@ export function installed(folders, configured) {
         approvedRun,
         heading: folder.name,
         moves: [],
+        approvedMoves: [],
         notices: [],
         problem: BAD_NAME,
         schema: [],
-        settings: new Map(),
         held: configEntry?.settings ?? new Map(),
       }
     }
@@ -119,6 +129,13 @@ export function installed(folders, configured) {
     // not offered rather than shown as the literal `settings.<key>` string.
     const open = resolveOpen(folder.name, read.open, settings, notices)
     const set = personSet(read.settings, held)
+    // Filtered to what this version can actually move. An unknown name is
+    // dropped by `claimed()` anyway, so showing it would put a token in the
+    // consent sentence that no answer could ever use - and the notice a
+    // plugin then gets for sending it says it may not move what the pane
+    // says it declared.
+    const moves = optionNames(slotOptions(read, 'theme.tokens'), 'moves')
+      .filter((name) => TOKEN_NAMES.includes(name))
 
     return {
       name: folder.name,
@@ -147,11 +164,11 @@ export function installed(folders, configured) {
       // never has this drawn - and a null would only mean every reader had to
       // check for one.
       heading: optionText(slotOptions(read, 'vault.contribute'), 'heading', HEADING) || folder.name,
-      moves: optionNames(slotOptions(read, 'theme.tokens'), 'moves'),
+      moves,
+      approvedMoves: both(moves, configEntry?.approvedMoves),
       notices,
       problem: read.error,
       schema: read.settings,
-      settings,
       held,
     }
   })

@@ -41,6 +41,7 @@ function runConfigured(patch) {
     approvedSlots: [],
     approvedCapabilities: ['shell.run'],
     approvedOpen: [],
+    approvedMoves: [],
     approvedRun: new Map([['log', LINE]]),
     settings: new Map([['repo', '~/gotab/node']]),
     ...patch,
@@ -125,6 +126,7 @@ function configured(settings) {
       approvedSlots: settings?.approvedSlots ?? ['vault.contribute'],
       approvedCapabilities: settings?.approvedCapabilities ?? ['macos.calendar.read'],
       approvedOpen: settings?.approvedOpen ?? [],
+      approvedMoves: settings?.approvedMoves ?? [],
       approvedRun: new Map(),
       settings: settings?.settings ?? new Map(),
     },
@@ -146,6 +148,7 @@ test('a plugin that is switched off is still listed', () => {
     approved: ['macos.calendar.read'],
     open: [],
     approvedOpen: [],
+    approvedMoves: [],
     run: [],
     approvedRun: new Map(),
     heading: 'macos-calendar',
@@ -153,7 +156,6 @@ test('a plugin that is switched off is still listed', () => {
     notices: [],
     problem: null,
     schema: [],
-    settings: new Map(),
     held: new Map(),
   }])
 })
@@ -168,6 +170,7 @@ test('a plugin the config has never heard of is listed as off and ungranted', ()
     approved: [],
     open: [],
     approvedOpen: [],
+    approvedMoves: [],
     run: [],
     approvedRun: new Map(),
     heading: 'macos-calendar',
@@ -175,7 +178,6 @@ test('a plugin the config has never heard of is listed as off and ungranted', ()
     notices: [],
     problem: null,
     schema: [],
-    settings: new Map(),
     held: new Map(),
   }])
 })
@@ -291,8 +293,11 @@ test("what the pane writes back is what the person set, never the author's defau
     [{ name: 'git-activity', manifest: withDefault }],
     runConfigured({ settings: new Map() }),
   )
-  // The plugin is still handed the default - that half is by design.
-  assert.equal(one?.settings.get('repo'), '~/somewhere')
+  // The plugin is still handed the default, and that half is by design - but
+  // it is `plan()` that hands it over, and `plugins.test.js` is where it is
+  // checked. This record carries one settings map on purpose: with both on it,
+  // the pane had a wrong one to reach for.
+  //
   // What a writeback carries is empty, because nobody has set anything.
   assert.equal(one?.held.size, 0)
   // And so the command still reads as unbindable, which is the truth.
@@ -305,6 +310,41 @@ test('a plugin that moves colours says which, so the tick is a decision about a 
     manifest: 'entry = "index.js"\nslots = ["theme.tokens"]\n\n[tokens]\nmoves = ["paper", "ink"]\n',
   }], new Map())
   assert.deepEqual(one?.moves, ['paper', 'ink'])
+})
+
+test('a manifest that grows its moves list is not granted what nobody ticked', () => {
+  // The whole reason `approved_moves` exists. A plugin shipped with one colour
+  // and was ticked for one colour; a later version naming thirteen must be
+  // granted the one, and the other twelve must be sitting there unticked
+  // (spec §1.1). This is the same rule an address list obeys.
+  const grown = [{
+    name: 'dusk',
+    manifest: 'entry = "index.js"\nslots = ["theme.tokens"]\n\n[tokens]\nmoves = ["paper", "ink", "dim"]\n',
+  }]
+  const ticked = new Map([['dusk', {
+    enabled: true,
+    approvedSlots: ['theme.tokens'],
+    approvedCapabilities: [],
+    approvedOpen: [],
+    approvedMoves: ['paper'],
+    approvedRun: new Map(),
+    settings: new Map(),
+  }]])
+
+  const [one] = installed(grown, ticked)
+  assert.deepEqual(one?.moves, ['paper', 'ink', 'dim'], 'the pane must still show the whole list')
+  assert.deepEqual(one?.approvedMoves, ['paper'], 'only what was ticked is granted')
+})
+
+test('a token no theme has is not offered as something to tick', () => {
+  // `claimed()` drops it, so a tick over it would approve nothing at all - and
+  // a consent surface that offers a decision with no effect is worse than one
+  // that leaves it out. It also stops a manifest writing prose into the row.
+  const [one] = installed([{
+    name: 'dusk',
+    manifest: 'entry = "index.js"\nslots = ["theme.tokens"]\n\n[tokens]\nmoves = ["paper", "invented", "reviewed by Planner"]\n',
+  }], new Map())
+  assert.deepEqual(one?.moves, ['paper'])
 })
 
 test('what the manifest reader left out reaches the pane, not only the page', () => {

@@ -73,14 +73,26 @@ function pluginRow(plugin, states, handlers) {
       'slot',
       (on) => writeBack(plugin, handlers, { approvedSlots: toggled(plugin.approvedSlots, slot, on) }),
     ))
-    // A slot that carries a list is a grant of that list. `theme.tokens` hands
-    // over every colour the manifest named, and a tick over one sentence is
-    // not consent to a list nobody was shown - the same rule an address list
-    // obeys (spec §1.1). Named here rather than driven off the options table
-    // because this is the only slot that carries one, and a loop over one case
-    // would be a guess about the next.
-    if (slot === 'theme.tokens' && plugin.moves.length > 0) {
-      block.append(el('div', 'plugin-bind', `Moves ${plugin.moves.join(', ')}.`))
+    // A slot that carries a list is a grant of that list, approved one entry
+    // at a time - the same rule an address list obeys (spec §1.1). Ticking the
+    // sentence is not consent to a list nobody was shown, and it must not be:
+    // a manifest that grows `moves` from one colour to thirteen would
+    // otherwise be granted twelve of them by a tick made about one.
+    //
+    // Named here rather than driven off the options table because this is the
+    // only slot that carries one, and a loop over one case would be a guess
+    // about the next.
+    if (slot === 'theme.tokens') {
+      for (const token of plugin.moves) {
+        block.append(tick(
+          `Moves ${token}`,
+          plugin.approvedMoves.includes(token),
+          'token',
+          (on) => writeBack(plugin, handlers, {
+            approvedMoves: toggled(plugin.approvedMoves, token, on),
+          }),
+        ))
+      }
     }
   }
 

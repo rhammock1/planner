@@ -40,6 +40,7 @@ export function updatePlugin(text, name, settings) {
     { path: ['plugins', name, 'approved_slots'], value: settings.approvedSlots },
     { path: ['plugins', name, 'approved_capabilities'], value: settings.approvedCapabilities },
     { path: ['plugins', name, 'approved_open'], value: settings.approvedOpen },
+    { path: ['plugins', name, 'approved_moves'], value: settings.approvedMoves },
     ...[...settings.approvedRun].map(([command, line]) => ({
       path: ['plugins', name, 'run', command],
       value: line,
@@ -85,6 +86,7 @@ export function readPlugins(table, notices) {
       approvedCapabilities:
         readNames(name, 'approved_capabilities', entry['approved_capabilities'], notices),
       approvedOpen: readNames(name, 'approved_open', entry['approved_open'], notices),
+      approvedMoves: readNames(name, 'approved_moves', entry['approved_moves'], notices),
       approvedRun: readLines(entry['run']),
       settings: readSettings(entry['settings']),
     })
