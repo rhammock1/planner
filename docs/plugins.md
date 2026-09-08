@@ -107,6 +107,7 @@ that the manifest does not declare is never asked either.
 |---|---|---|
 | `vault.contribute` | Nothing but the range of days. | `{date, time, text}[]` |
 | `item.badge` | `{date, items: [{index, text}]}` — every line the parser understood on the page being drawn, and where it sits. Not its note, not its tokens, not the daily note. | `{index, label, href}[]` |
+| `theme.tokens` | Nothing but the clock. What you do with colour is a function of the time of day, and you are not shown the page. | `Record<string, string>` — a partial map of theme tokens |
 
 A badge's `label` is one line, cut at 16 characters. Its `index` must be one
 the question sent — the lines may have moved while you were thinking, and a
@@ -115,6 +116,61 @@ plugin.
 
 `href` is opened by the app when somebody clicks the marker. Your plugin is
 not asked anything at that point and does not run at all.
+
+### `theme.tokens`
+
+```toml
+slots = ["theme.tokens"]
+
+[tokens]
+moves = ["paper", "ink"]
+```
+
+```js
+planner.on('theme.tokens', ({ now }) => ({ paper: '#F6EEDD', ink: '#2A2622' }))
+```
+
+Return a partial map of theme tokens. The app puts them in a rule of its own,
+last in the cascade — after the theme's tokens and after its `theme.css` — so
+a plugin that moves a colour can move it.
+
+You may only move what `[tokens] moves` names, and only names that are theme
+tokens (`docs/themes.md` has the list). Anything else is dropped and counted.
+The pane shows the person that list beside the tick, so name only what you
+will actually move.
+
+Values go through the same checks a theme's own values get: no braces, no
+semicolons, no angle brackets, no `@import`, no `url()` with a scheme in it,
+no backslashes, no `image-set()` or `cross-fade()`, and no comments. A value
+longer than 200 characters is dropped rather than cut — a colour cut in half
+is not a shorter colour.
+
+**Two plugins may not move the same token.** If two enabled plugins name the
+same one in `moves`, the first by name keeps it and the second is refused it,
+with a notice naming both. Colour is not a thing two plugins can each have
+half of.
+
+You are asked when the popover opens, when the fifteen-minute refresh fires,
+and whenever the quarter hour turns — so a page left open across sunset is
+re-asked four times over the hour. That is the resolution the clock gives you;
+do not build anything that needs a finer one.
+
+### `[contribute] heading`
+
+```toml
+slots = ["vault.contribute"]
+
+[contribute]
+heading = "From git"
+```
+
+What the day page calls your section. Every contributing plugin gets one of
+its own, in name order, so two of them are told apart by what they are rather
+than by which arrived first. One line, cut at 40 characters; with no heading
+the section is titled with your folder's name.
+
+A slot that needs telling something has one table, named for the slot's last
+word, and it is read only when you declare that slot.
 
 ### `shell.open`
 
@@ -227,6 +283,14 @@ shell would have; given as a path it must be absolute and outside
 is `PATH`, `HOME` and `LANG` and nothing else. Five seconds, then the process
 group is killed. You get `{status, stdout, stderr}` — `status` is null when it
 was killed, `stdout` is cut at 256 KiB and `stderr` at 4 KiB.
+
+**What approval by reading can and cannot do.** The program is fixed and the
+whole line is shown, so nothing runs that a person did not read. But reading is
+the whole of it: plenty of ordinary programs have argument surfaces that amount
+to running something else — `git -c core.sshCommand=…`, `git -c alias.x=!…`,
+`find -exec`, `env`, any interpreter. A manifest may declare those and the line
+will look plausible. The tick is a judgement about a command, not a proof that
+the command is harmless, and this app does not pretend to make it one.
 
 **Both ticks are needed.** `shell.run` is the capability and the line is the
 command; the pane shows them as two boxes and both have to be ticked. Neither
