@@ -13,6 +13,7 @@
 import { readConfig as parseConfig, expandHome } from './core/config.js'
 import { readTheme as parseTheme, themeCss, LEDGER } from './core/theme.js'
 import * as ipc from './ipc.js'
+import { styleElement } from './ui/dom.js'
 
 /** @typedef {import('./core/config.js').Config} Config */
 
@@ -113,17 +114,4 @@ export async function registerHotkey(accelerator) {
  */
 function message(error) {
   return error instanceof Error ? error.message : String(error)
-}
-
-/**
- * @param {string} id
- * @returns {HTMLStyleElement}
- */
-function styleElement(id) {
-  const existing = document.querySelector(`#${id}`)
-  if (existing instanceof HTMLStyleElement) return existing
-  const created = document.createElement('style')
-  created.id = id
-  document.head.append(created)
-  return created
 }

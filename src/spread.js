@@ -10,6 +10,7 @@
  */
 
 import { today } from './clock.js'
+import { applyPluginTokens } from './plugins/theming.js'
 import { moveItem } from './core/move.js'
 import { search } from './core/search.js'
 import { badgesFor, openBadge } from './plugins/pageAsking.js'
@@ -142,13 +143,18 @@ function draw() {
     badgeNotices.push(...marked.notices)
   }
 
+  // The colours the plugins moved, over the theme's own (spec §3.3). This
+  // window asks for itself: the two windows have separate stores and never
+  // talk to each other.
+  const warmed = applyPluginTokens(store)
+
   spreadPage.render({
     view,
     today: today(),
     anchor,
     vault: store.vault(),
     badges,
-    notices: [...store.notices(), ...badgeNotices],
+    notices: [...store.notices(), ...badgeNotices, ...warmed],
   })
 }
 

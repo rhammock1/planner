@@ -17,6 +17,7 @@ import { badgesFor, openBadge } from './plugins/pageAsking.js'
 import { openInEditor, pickVault } from './vaultActions.js'
 import { search } from './core/search.js'
 import { installed } from './core/installed.js'
+import { applyPluginTokens } from './plugins/theming.js'
 import { today } from './clock.js'
 import { createShowing } from './showing.js'
 import { createStore } from './store.js'
@@ -191,6 +192,9 @@ function draw() {
   // What the plugins have to say about the lines on this page (spec §1.4).
   const marked = badgesFor(store, page)
 
+  // The colours the plugins moved, over the theme's own (spec §3.3).
+  const warmed = applyPluginTokens(store)
+
   ambient.update(now)
 
   // Drawn whenever the day is, so a setting changed here and a setting
@@ -216,7 +220,7 @@ function draw() {
     actions: store.vaultExists() ? [] : [{ label: 'Choose a folder…', run: () => { void pickVault(store, ipc) } }],
     // Worked out on the way to the page rather than kept, so redrawing the
     // same contributions does not say the same thing twice.
-    notices: [...store.notices(), ...given.notices, ...marked.notices],
+    notices: [...store.notices(), ...given.notices, ...marked.notices, ...warmed],
   })
 }
 

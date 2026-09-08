@@ -50,3 +50,23 @@ export function setClass(element, className, present) {
 export function clear(parent) {
   parent.replaceChildren()
 }
+
+/**
+ * The one style element with a given id, made if it is not there yet.
+ *
+ * Appended in creation order and never moved, which is what makes the cascade
+ * a matter of *when* each one is first asked for: `theme-tokens`, then
+ * `theme-css`, then `theme-plugin` (spec §3.3). Startup asks for the first two
+ * before the first draw, and a plugin's tokens can only arrive after one.
+ *
+ * @param {string} id
+ * @returns {HTMLStyleElement}
+ */
+export function styleElement(id) {
+  const existing = document.querySelector(`#${id}`)
+  if (existing instanceof HTMLStyleElement) return existing
+  const created = document.createElement('style')
+  created.id = id
+  document.head.append(created)
+  return created
+}
