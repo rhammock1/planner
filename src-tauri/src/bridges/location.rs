@@ -31,7 +31,7 @@
 
 use std::cell::OnceCell;
 use std::sync::{mpsc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use objc2::rc::Retained;
 use objc2_core_location::{CLAuthorizationStatus, CLLocationManager};
@@ -44,11 +44,25 @@ const PLACES: f64 = 100.0;
 /// How long a call waits for the main thread to read a property.
 ///
 /// Not how long it waits for a *fix* - nothing waits for that. This is only
-/// how long the hop itself gets before the last known answer is used instead.
+/// how long the hop itself gets.
 const HOP: Duration = Duration::from_secs(1);
 
-/// The last fix, in the ordinary world where things are `Send`.
-static SEEN: Mutex<Option<(f64, f64)>> = Mutex::new(None);
+/// How long a fix stands before CoreLocation is asked for another.
+///
+/// The alarm thread's own period, because that is the fastest anything here is
+/// re-asked. Without it a plugin could call this in a loop, and two things
+/// follow from that which the rounding alone does not prevent: rounding a
+/// *noisy* signal thousands of times reveals where inside the square the true
+/// point sits, and a plugin watching the square change learns when somebody
+/// left the house. One fix per refresh is all a sunset needs.
+const AGAIN: Duration = Duration::from_secs(15 * 60);
+
+/// Where this Mac was, already rounded, and when that was worked out.
+///
+/// Rounded here rather than on the way out, so the finer number is not kept at
+/// all. Nothing downstream can be careless with a precision this does not
+/// hold, and repeated sampling has nothing finer to average.
+static SEEN: Mutex<Option<(Instant, f64, f64)>> = Mutex::new(None);
 
 thread_local! {
     /// The manager, on the main thread and nowhere else.
@@ -63,22 +77,29 @@ pub fn location(app: &AppHandle) -> Result<Value, String> {
     })
     .map_err(|error| format!("could not ask this Mac where it is: {error}"))?;
 
-    // A main thread that is busy is not a failure: whatever was last seen is
-    // still the answer, and if nothing has been, the message below says so.
-    if let Ok(said) = hear.recv_timeout(HOP) {
-        said?;
+    // Answered, or nothing. A hop that ran out is *not* a reason to fall back
+    // on what was last seen: the answer that did not arrive may have been the
+    // refusal that follows somebody switching location services off, and
+    // handing back the last fix would go on saying where this Mac used to be
+    // for as long as the app stayed open.
+    match hear.recv_timeout(HOP) {
+        Ok(said) => said?,
+        Err(_) => {
+            return Err(
+                "Planner could not reach macOS to ask where this Mac is; open the page again in \
+                 a moment"
+                    .into(),
+            )
+        }
     }
 
     let seen = *SEEN.lock().expect("location lock");
-    let Some((latitude, longitude)) = seen else {
+    let Some((_, latitude, longitude)) = seen else {
         return Err(
             "Planner is asking macOS where this Mac is; open the page again in a moment".into(),
         );
     };
-    Ok(json!({
-        "latitude": (latitude * PLACES).round() / PLACES,
-        "longitude": (longitude * PLACES).round() / PLACES,
-    }))
+    Ok(json!({ "latitude": latitude, "longitude": longitude }))
 }
 
 /// The main thread's half: ask for permission if it has not been asked, and
@@ -99,19 +120,31 @@ fn ask_macos() -> Result<(), String> {
             // the desktop is answered with `AuthorizedAlways`, not the value
             // its own name suggests.
             CLAuthorizationStatus::AuthorizedAlways | CLAuthorizationStatus::AuthorizedWhenInUse => {
+                // A fix that is still standing is the answer. Asking again
+                // would light the radios and the menu bar's arrow for nothing:
+                // a Mac that has moved a kilometre since the last quarter hour
+                // has been closed and opened on the way.
+                if let Some((at, _, _)) = *SEEN.lock().expect("location lock") {
+                    if at.elapsed() < AGAIN {
+                        return Ok(());
+                    }
+                }
+
                 // Repeated calls are harmless and this is the only place that
                 // knows the authorization has landed - which, the first time,
                 // is some seconds after it was asked for.
                 unsafe { manager.startUpdatingLocation() };
                 if let Some(fix) = unsafe { manager.location() } {
                     let at = unsafe { fix.coordinate() };
-                    *SEEN.lock().expect("location lock") = Some((at.latitude, at.longitude));
+                    *SEEN.lock().expect("location lock") = Some((
+                        Instant::now(),
+                        (at.latitude * PLACES).round() / PLACES,
+                        (at.longitude * PLACES).round() / PLACES,
+                    ));
                     // Stopped the moment there is one. Left running, this keeps
                     // the radios scanning and the location arrow in the menu bar
                     // lit for as long as the app is open - and what this needs is
-                    // one fix per launch to the nearest kilometre, not a track. A
-                    // Mac that has moved far enough to change a sunset has been
-                    // closed and opened on the way.
+                    // one fix per launch to the nearest kilometre, not a track.
                     unsafe { manager.stopUpdatingLocation() };
                 }
                 Ok(())
@@ -119,10 +152,17 @@ fn ask_macos() -> Result<(), String> {
             // Named, and with the way out named too: a plugin that goes quiet
             // because a system setting is off is a bug report with no first
             // line (spec §8, §6).
-            _ => Err("Planner is not allowed to know where this Mac is. \
-                      System Settings › Privacy & Security › Location Services. \
-                      Or type where you are into the plugin's own setting."
-                .to_string()),
+            //
+            // The last fix goes with it. Permission can be taken back while
+            // the app is running, and a refusal that left the cache standing
+            // would be a refusal only until the next call read around it.
+            _ => {
+                *SEEN.lock().expect("location lock") = None;
+                Err("Planner is not allowed to know where this Mac is. \
+                     System Settings › Privacy & Security › Location Services. \
+                     Or type where you are into the plugin's own setting."
+                    .to_string())
+            }
         }
     })
 }
