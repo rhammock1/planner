@@ -52,6 +52,9 @@ PLANNER_HOME=/tmp/planner-home npm run app
       nothing — being told late is worse than not being told.
 - [ ] Leaving the app running overnight still announces the next morning's
       lines. This is the one the fifteen-minute refresh exists for.
+- [ ] With the second window open, the fifteen-minute refresh reaches it as
+      well as the popover: a plugin's lines and colours follow the clock in
+      both. (Easiest with `dusk` and the machine clock moved past sunset.)
 
 **Windows**
 

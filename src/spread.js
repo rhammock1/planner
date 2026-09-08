@@ -93,6 +93,16 @@ async function start() {
     store.notice(`The footer's tabs will not switch this window: ${message(error)}`)
   }
 
+  // The same fifteen-minute wake the popover hears, for the same reason: it
+  // is what moves a plugin's generation, and this window asks plugins too
+  // (spec §1.4). Not fatal - the window still shows what they said when it
+  // was opened.
+  try {
+    await ipc.onScheduleRefresh(() => { store.refreshPlugins(); draw() })
+  } catch (error) {
+    store.notice(`Plugins will not follow the clock in this window: ${message(error)}`)
+  }
+
   draw()
 }
 
