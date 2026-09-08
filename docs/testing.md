@@ -90,6 +90,30 @@ PLANNER_HOME=/tmp/planner-home npm run app
       answered at once. The door does not sit on the main thread.
 - [ ] A folder in `~/.planner/plugins` named `Ticket Links` is listed in the
       settings pane with the reason and never starts.
+- [ ] With `git-activity` installed and a repository typed into its pane row,
+      ticking `shell.run` and the command line under it makes a
+      `FROM GIT` section appear on the *second* open of the popover, reading
+      `6 commits to org/repo by Someone`. The calendar's section keeps its own
+      heading, and the two are in name order.
+- [ ] The same day in a repository with no commits that day shows no `FROM GIT`
+      section at all — not an empty one.
+- [ ] Changing the repository in the pane restarts the plugin and the line
+      follows on the next open.
+- [ ] Emptying the repository row gives a notice naming the `repo` setting as
+      unset, and no section. The plugin is *not* put away for it however many
+      times the page is drawn — an empty settings row is not a strike.
+- [ ] Pointing it at a folder that is not a repository gives `git`'s own first
+      line of complaint as a notice.
+- [ ] Editing `[plugins.git-activity.run].log` in a text editor by one
+      character, then quitting and reopening the app, shows the command
+      unticked in the pane and no section. (The relaunch is not incidental:
+      the vault is watched, `~/.planner/config.toml` is not.)
+- [ ] With `git-activity` running, the popover opens and the add row accepts
+      typing while `git` is working. A command does not hold the door.
+- [ ] A command that will not finish — point `repo` at a repository and
+      temporarily add `["sleep", "30"]`-style arguments to a copy of the plugin
+      — gives a notice within about five seconds, and `ps` shows nothing left
+      behind.
 - [ ] With `ticket-links` installed, its sentence is unticked in the pane and
       no marker appears. Tick it, and `#4412` on a line grows a marker without
       a restart.

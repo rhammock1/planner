@@ -60,3 +60,7 @@ function compile(source) {
     return null
   }
 }
+
+// A module rather than a script, so this file has a scope of its own: see the
+// comment at the foot of plugins/git-activity/index.js.
+export {}

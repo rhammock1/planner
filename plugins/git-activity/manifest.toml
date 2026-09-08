@@ -1,0 +1,22 @@
+name        = "git-activity"
+version     = "0.1.0"
+description = "One line for a repository that had commits that day"
+entry       = "index.js"
+slots       = ["vault.contribute"]
+
+[contribute]
+heading = "From git"
+
+[permissions]
+capabilities = ["shell.run"]
+
+[permissions.run.log]
+command = ["git", "-C", "{repo}", "-c", "log.showSignature=false", "log", "--since={from} 00:00", "--until={to} 23:59", "--format=%an%x09%s"]
+repo    = "settings.repo"
+from    = "date"
+to      = "date"
+
+[settings.repo]
+label = "Repository"
+kind  = "text"
+hint  = "~/gotab/node"

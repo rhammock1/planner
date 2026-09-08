@@ -11,7 +11,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
+import { readFileSync } from 'node:fs'
+
 import { renderCommand, placeholdersOf } from '../src/core/commands.js'
+import { readManifest } from '../src/core/manifest.js'
 
 test('the reference command renders to the line the spec writes down', () => {
   // Spec §3.2's manifest, rendered to spec §1.6's config line. If this test
@@ -102,4 +105,25 @@ test('a brace that closes nothing is refused', () => {
 test('a placeholder whose name could not be a config key is refused', () => {
   assert.match(placeholdersOf(['{a.b}']).error ?? '', /cannot bind/)
   assert.match(placeholdersOf(['{}']).error ?? '', /cannot bind/)
+})
+
+test("the shipped plugin's command renders to the line the spec writes down", () => {
+  // The fixture spec §7 asks for: the §3.2 manifest, as it actually ships,
+  // rendering to the §1.6 config line byte for byte. A change to either that
+  // is not a change to both shows up here rather than as a plugin that
+  // silently stops being approved on somebody's machine.
+  const read = readManifest(readFileSync(new URL('../plugins/git-activity/manifest.toml', import.meta.url), 'utf8'))
+  assert.equal(read.error, null)
+  assert.deepEqual(read.notices, [])
+  assert.equal(read.run.length, 1)
+  assert.equal(
+    read.run[0]?.line,
+    "git -C {repo=settings.repo} -c log.showSignature=false log " +
+    "'--since={from=date} 00:00' '--until={to=date} 23:59' --format=%an%x09%s",
+  )
+  assert.deepEqual(read.run[0]?.binds, [
+    { name: 'repo', rule: 'setting', key: 'repo' },
+    { name: 'from', rule: 'date', key: '' },
+    { name: 'to', rule: 'date', key: '' },
+  ])
 })
