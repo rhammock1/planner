@@ -157,8 +157,7 @@ returns, the status stays `NotDetermined`, and the plugin looks like it is
 quietly answering nothing. These six are therefore run from the bundle:
 
 ```bash
-tools/rebuild --bundle
-cp -R plugins/dusk "$TMPDIR/planner-home"/plugins/
+PLANNER_HOME="$TMPDIR/planner-home" tools/update --bundle
 PLANNER_HOME="$TMPDIR/planner-home" ~/.cache/planner-target/Planner.app/Contents/MacOS/planner
 ```
 

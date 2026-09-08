@@ -11,6 +11,7 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Added
 
+-   `tools/update` (`npm run update`) installs this checkout's plugins and themes into `~/.planner`, rebuilding the app first if anything has moved since the last one. One command, so the binary and the plugin beside it are never from different days — and it names what it did not touch, because an installed theme *wins* over the app's own copy and a stale one there looks like the app ignoring an edit
 -   A plugin can move the theme's colours (`theme.tokens`). Its rule goes last in the cascade, so a plugin that moves a colour can move it. It is shown the theme's own tokens and asked to *move* those — a plugin that answered with colours of its own would replace a theme rather than warm it. Each colour is ticked on its own, so a manifest that grows its `moves` list in a later version is granted nothing new, and two plugins may not move the same one
 -   `dusk`, the third reference plugin: the page warms after sunset and cools again at dawn, in quarter-hour steps over the hour either side. Sunrise is arithmetic, not a web service — it asks roughly where this Mac is (`macos.location.read`, two decimal places) or takes a `location` you type in. The precedent for the next plugin that thinks it needs the network
 -   The fifteen-minute refresh now reaches every window, so a second window left open follows the clock too

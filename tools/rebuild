@@ -183,4 +183,4 @@ if [ "$bundle" = yes ]; then
   echo
 fi
 echo "It is a menu bar app - look for the icon in the status bar, not for a"
-echo "window. The 13 checks in docs/testing.md are still yours to walk by hand."
+echo "window. The smoke checks in docs/testing.md are still yours to walk by hand."

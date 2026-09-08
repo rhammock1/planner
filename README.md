@@ -54,12 +54,17 @@ recognise is preserved exactly as you wrote it. The full contract is in
 ## Plugins
 
 Calendar and Reminders are plugins rather than features, which is how the
-app stays a planner. `macos-calendar` ships in `plugins/` and puts the day's
-events under your list — read-only, and not counted:
+app stays a planner. Everything in `plugins/` and `themes/` is installed into
+`~/.planner` by one command, which rebuilds the app first if anything has
+changed:
 
 ```bash
-cp -R plugins/macos-calendar ~/.planner/plugins/
+npm run update
 ```
+
+A plugin arrives switched off — a folder sitting in `~/.planner/plugins` is how
+a plugin waits. `macos-calendar` puts the day's events under your list,
+read-only and not counted:
 
 ```toml
 # ~/.planner/config.toml
@@ -73,11 +78,7 @@ you have allowed it.
 
 `git-activity` ships beside it and puts one line under the day for a
 repository that had commits — it is the one that runs a program, so its pane
-shows the whole command line and nothing runs until you have ticked it:
-
-```bash
-cp -R plugins/git-activity ~/.planner/plugins/
-```
+shows the whole command line and nothing runs until you have ticked it.
 
 `dusk` warms the page after sunset. It is the one that shows what a plugin can
 do without the network: sunrise is arithmetic on a date and two numbers.

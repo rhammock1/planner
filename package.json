@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.web.json --noEmit",
     "serve": "node tools/serve.js",
     "rebuild": "tools/rebuild",
+    "update": "tools/update",
     "app": "PATH=\"$HOME/.cargo/bin:$PATH\" CARGO_TARGET_DIR=\"$HOME/.cache/planner-target\" cargo run --manifest-path src-tauri/Cargo.toml"
   },
   "devDependencies": {

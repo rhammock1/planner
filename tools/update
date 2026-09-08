@@ -1,0 +1,236 @@
+#!/bin/bash
+
+##  Planner update script
+##  Robert Hammock <smokeybear> (rhamm1027@gmail.com) 2026
+##  Last Updated: 2026-09-08
+##
+##  Makes what is installed be what is in this checkout: rebuilds the app if
+##  anything has moved since the last time, then copies this checkout's plugins
+##  and themes into ~/.planner. One command, so there is no half-updated state
+##  where the binary is new and the plugin beside it is three days old.
+##
+##  Why they are copied at all rather than read from here:
+##    - ~/.planner/plugins is the only place `list_plugins` looks (plugins.rs).
+##    - ~/.planner/themes is looked at *before* the app's own copy
+##      (settings.rs), which is the sharper edge of the two: a stale theme in
+##      ~/.planner silently wins over an edit made in this checkout, and the
+##      app looks like it ignored the change. Under `npm run app` there is no
+##      bundled copy behind it either - a bare cargo binary has no resource
+##      directory - so for dev that folder is where themes come from, full stop.
+##
+##  Building is left to tools/rebuild, which is where the PATH and target
+##  directory facts this project has to carry are written down.
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+TARGET="$HOME/.cache/planner-target"
+##  Honours the same override the app does, so a throwaway home can be filled
+##  and looked at without touching the real one (settings.rs `planner_dir`).
+INTO="${PLANNER_HOME:-$HOME/.planner}"
+
+##  Touched only after a run that got all the way through. Everything else is
+##  compared against it, which makes "if necessary" mean "since this last
+##  succeeded" rather than "since some file happened to be written" - and a run
+##  that died in the middle is correctly still due. It lives in the build cache
+##  so that clearing the cache also forgets it.
+STAMP="$TARGET/.planner-update"
+
+force=no
+release=no
+bundle=no
+pass=""
+
+for argument in "$@"; do
+  case "$argument" in
+    -q|--quick)   pass="$pass --quick" ;;
+    -f|--force)   force=yes ;;
+    -r|--release) release=yes; pass="$pass --release" ;;
+    -b|--bundle)  bundle=yes; pass="$pass --bundle" ;;
+    -h|--help)
+      echo "Usage: tools/update [-q|--quick] [-f|--force] [-r|--release] [-b|--bundle]"
+      echo
+      echo "  Rebuilds the app if anything has changed, then installs this"
+      echo "  checkout's plugins and themes into $INTO."
+      echo
+      echo "  -q, --quick    skip the test suites when building"
+      echo "  -f, --force    build even if nothing has changed"
+      echo "  -r, --release  build the release profile instead of debug"
+      echo "  -b, --bundle   also assemble and sign Planner.app"
+      exit 0
+      ;;
+    *)
+      echo "update: unknown option $argument" >&2
+      echo "Try: tools/update --help" >&2
+      exit 1
+      ;;
+  esac
+done
+
+cd "$ROOT"
+
+BINARY="$TARGET/debug/planner"
+if [ "$release" = yes ]; then BINARY="$TARGET/release/planner"; fi
+
+##  Everything a build is downstream of.
+##
+##  src/ counts as much as src-tauri/ does: tauri.conf.json sets
+##  "frontendDist": "../src" with no devUrl, so the frontend is inside the
+##  binary and a JavaScript change needs the same rebuild a Rust change does.
+##
+##  plugins/ and themes/ are here for the *checks* rather than the compiler.
+##  tsconfig.web.json type-checks plugins/** against plugins/planner.d.ts, and
+##  a plugin that does not compile is one this script must not go on to install
+##  into ~/.planner - which is why the build runs first and the copy second.
+WATCH="src src-tauri plugins themes test package.json tsconfig.json tsconfig.web.json"
+
+##  src-tauri/target/ is pruned because it is cargo's own output, always newer
+##  than everything, and stale besides - the real build goes to
+##  ~/.cache/planner-target (see tools/rebuild).
+moved() {
+  find $WATCH -path src-tauri/target -prune -o -newer "$STAMP" -print -quit 2>/dev/null
+}
+
+why=""
+if [ "$force" = yes ]; then
+  why="asked for with --force"
+elif [ ! -x "$BINARY" ]; then
+  why="there is no binary at $BINARY yet"
+elif [ ! -f "$STAMP" ]; then
+  why="this is the first update, so nothing is known to be current"
+elif [ "$bundle" = yes ] && [ ! -d "$TARGET/Planner.app" ]; then
+  why="there is no Planner.app yet"
+else
+  changed="$(moved)"
+  if [ -n "$changed" ]; then why="$changed has changed since the last update"; fi
+fi
+
+if [ -n "$why" ]; then
+  echo "==> tools/rebuild$pass"
+  echo "    ($why)"
+  echo
+  # Unquoted on purpose: $pass holds the flags collected above, each one word.
+  "$ROOT/tools/rebuild" $pass
+  echo
+else
+  echo "==> nothing to build"
+  echo "    ($BINARY is newer than everything it is built from;"
+  echo "     tools/update --force builds anyway)"
+  echo
+fi
+
+##  A plugin installed and not named in config.toml is not broken - a folder
+##  sitting switched off is how a plugin waits (core/plugins.js) - but it does
+##  nothing and shows nothing, so the reason is said rather than left to be
+##  guessed at.
+##
+##  Deliberately a search for a table header and not a TOML parse: this project
+##  has one TOML reader and it is in JavaScript (settings.rs). Being wrong here
+##  costs a misleading hint and nothing else, which is why it is phrased as one.
+hint() {
+  local name="$1"
+  if [ ! -f "$INTO/config.toml" ] || ! grep -Fq "[plugins.$name]" "$INTO/config.toml"; then
+    printf ' - switch it on in the settings pane'
+  fi
+}
+
+##  Copies one tree of folders into ~/.planner and says what changed.
+##
+##  A folder at a time, replaced whole: copying over the top would leave a file
+##  this checkout has since deleted sitting in the installed copy and still
+##  being read. What is *not* touched is anything in the destination this
+##  checkout has no folder for - a plugin installed from somewhere else is not
+##  this script's to remove - so those are named at the end and left alone.
+install_tree() {
+  local kind="$1" from="$2" into="$3"
+  local path name state note found=no
+
+  echo "==> $kind -> $into"
+  mkdir -p "$into"
+
+  for path in "$from"/*/; do
+    path="${path%/}"
+    [ -d "$path" ] || continue
+    name="$(basename "$path")"
+    found=yes
+
+    # The rule core/plugins.js already enforces, checked here so a folder that
+    # can never load is refused where it is named rather than turning up as a
+    # notice in the pane. The name becomes a URL host, a window label and a
+    # config.toml table header, so it is not decoration (spec §0.2).
+    if [ "$kind" = plugins ] && ! printf '%s' "$name" | grep -Eq '^[a-z0-9][a-z0-9-]{0,63}$'; then
+      printf '    %-16s refused: the folder name may only be lowercase letters,\n' "$name"
+      printf '    %-16s digits and hyphens, starting with a letter or a digit\n' ""
+      continue
+    fi
+
+    if [ ! -d "$into/$name" ]; then
+      state=installed
+    elif diff -rq "$path" "$into/$name" >/dev/null 2>&1; then
+      state=unchanged
+    else
+      state=updated
+    fi
+
+    if [ "$state" != unchanged ]; then
+      rm -rf "${into:?}/$name"
+      cp -R "$path" "$into/$name"
+    fi
+
+    note=""
+    if [ "$kind" = plugins ]; then note="$(hint "$name")"; fi
+    if [ -n "$note" ]; then
+      printf '    %-16s %-9s%s\n' "$name" "$state" "$note"
+    else
+      printf '    %-16s %s\n' "$name" "$state"
+    fi
+  done
+
+  if [ "$found" = no ]; then echo "    (there are none in $from)"; fi
+  strays "$from" "$into"
+}
+
+##  What is installed that this checkout does not account for. Reported so a
+##  leftover is visible rather than quietly loaded, and left in place because
+##  removing it is the user's call: a folder here may be a plugin installed
+##  from somewhere else entirely.
+strays() {
+  local from="$1" into="$2" path name
+  for path in "$into"/*; do
+    [ -e "$path" ] || continue
+    name="$(basename "$path")"
+    if [ ! -d "$path" ]; then
+      printf '    %-16s a loose file, ignored by the app - delete it\n' "$name"
+    elif [ ! -d "$from/$name" ]; then
+      printf '    %-16s left alone: not in this checkout\n' "$name"
+    fi
+  done
+}
+
+install_tree plugins "$ROOT/plugins" "$INTO/plugins"
+echo
+install_tree themes "$ROOT/themes" "$INTO/themes"
+
+mkdir -p "$TARGET"
+touch "$STAMP"
+
+echo
+##  Only when this run did not build: tools/rebuild has already said all of
+##  this, and saying it twice on one screen reads as two different things.
+if [ -z "$why" ]; then
+  echo "Run it:  $BINARY"
+  if [ -L "$HOME/scripts/bin/planner" ]; then
+    echo "     or: planner"
+  fi
+  if [ "$bundle" = yes ]; then
+    echo "     or: $TARGET/Planner.app/Contents/MacOS/planner"
+    echo "         (the bundle is the one that can ask for a permission)"
+  fi
+  echo
+fi
+##  Said every time, because it is the one thing about this that surprises.
+##  `list_plugins` is called from store.js `open()`, which runs at startup and
+##  after a settings write - not when the popover opens. A folder that arrived
+##  while the app was up is therefore not in the list the pane is drawing from.
+echo "A plugin folder is read when the app starts, so restart it to see one"
+echo "that has just arrived. Themes are read the same way."
