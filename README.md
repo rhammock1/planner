@@ -71,6 +71,17 @@ approved_capabilities = ["macos.calendar.read"]
 macOS asks for calendar access the first time; open the popover again once
 you have allowed it.
 
+`git-activity` ships beside it and puts one line under the day for a
+repository that had commits — it is the one that runs a program, so its pane
+shows the whole command line and nothing runs until you have ticked it:
+
+```bash
+cp -R plugins/git-activity ~/.planner/plugins/
+```
+
+`dusk` warms the page after sunset. It is the one that shows what a plugin can
+do without the network: sunrise is arithmetic on a date and two numbers.
+
 A plugin runs in its own webview with no permissions, may call exactly one
 command, cannot reach the network, and has two seconds to answer anything.
 The API is published in [docs/plugins.md](docs/plugins.md).

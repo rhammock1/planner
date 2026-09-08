@@ -1,7 +1,7 @@
 // @ts-check
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseToml, getPath } from '../src/core/toml.js'
+import { parseToml, getPath, isBareKey } from '../src/core/toml.js'
 
 describe('values', () => {
   test('strings, numbers and booleans', () => {
@@ -116,4 +116,18 @@ describe('keys that mean something to JavaScript', () => {
     parseToml('[__proto__]\npolluted = true\n')
     assert.equal(/** @type {any} */ ({}).polluted, undefined)
   })
+})
+
+test('a bare key is what this app may write back verbatim', () => {
+  // The rule every identifier that becomes a config.toml key obeys: a
+  // settings key, a command name. `tomlEdit` writes a key exactly as given,
+  // and a dotted one would be read back as a path into somebody else's table.
+  assert.equal(isBareKey('pattern'), true)
+  assert.equal(isBareKey('log'), true)
+  assert.equal(isBareKey('menu_bar-count2'), true)
+  assert.equal(isBareKey(''), false)
+  assert.equal(isBareKey('a.b'), false)
+  assert.equal(isBareKey('a b'), false)
+  assert.equal(isBareKey('a"b'), false)
+  assert.equal(isBareKey('a]\n[plugins.other'), false)
 })

@@ -2679,8 +2679,10 @@ version = "0.1.0"
 dependencies = [
  "block2",
  "dirs 5.0.1",
+ "libc",
  "notify",
  "objc2",
+ "objc2-core-location",
  "objc2-event-kit",
  "objc2-foundation",
  "serde",

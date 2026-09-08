@@ -535,6 +535,17 @@
 
 .quick-preview[hidden] { display: none; }
 
+/* The sections a plugin contributed, one per plugin (spec §3.2). A column, so
+   each section keeps the rule above it that separates it from what it is
+   under - the list on one, the section before it on the rest. */
+.givens {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.givens[hidden] { display: none; }
+
 /* What a plugin had to add to the day (addendum §1). Quieter than the list
    above it: this is what is happening to you, not what you decided to do. */
 .given {
@@ -544,6 +555,10 @@
 }
 
 .given[hidden] { display: none; }
+
+/* Between two sections the rule is enough on its own; the second does not
+   also need the breathing room the first takes from the list above it. */
+.given + .given { padding-top: 6px; }
 
 .given-head {
   margin: 0 0 4px;
@@ -791,3 +806,53 @@
 
 /* A sentence, not a capability name: it runs longer than the row is wide. */
 .slot-name { overflow-wrap: anywhere; }
+
+/* A command is the widest thing in this pane and the one most worth reading
+   character by character, so it wraps rather than being cut, and it is set in
+   the same face `config.toml` will show it in. */
+.plugin-command { padding: 2px 0 4px; }
+
+.command-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 0 16px 0 32px;
+}
+
+.command {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-meta);
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.command-name {
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.command-copy {
+  flex: none;
+  padding: 1px 6px;
+  font-family: var(--font-meta);
+  font-size: 10px;
+  color: var(--dim);
+  background: var(--surface);
+  border: 1px solid var(--edge-soft);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* What the holes in the line above will hold. Indented past the checkbox, so
+   it reads as a footnote to the command rather than as another decision. */
+.plugin-bind {
+  padding: 1px 16px 0 56px;
+  font-family: var(--font-meta);
+  font-size: 10.5px;
+  color: var(--edge);
+  overflow-wrap: anywhere;
+}

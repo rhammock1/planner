@@ -2,13 +2,22 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   Merged into the bundle, and embedded in the binary's __TEXT,__info_plist
-  section for `cargo run`, so the same prompt appears in development as in a
-  built app.
+  section for `cargo run`.
 
   macOS refuses to ask at all without a reason written here, and refuses in a
-  way that looks like a plugin quietly returning nothing. Both keys are
-  present because the first is what macOS 14 and later reads and the second is
-  what everything before it reads.
+  way that looks like a plugin quietly returning nothing. Both keys of each
+  pair are present because the first is what macOS 14 and later reads and the
+  second is what everything before it reads.
+
+  Embedded is not the same as trusted, and the location spike is what proved
+  it: cargo builds a linker-signed binary whose `codesign -dv` says
+  `Info.plist=not bound`, under an identifier of `planner-<hash>` rather than
+  io.hammock.planner. TCC will not read a plist that is not sealed into the
+  signature, so `requestWhenInUseAuthorization` under `cargo run` leaves the
+  status at NotDetermined for as long as the app runs - no prompt, no
+  refusal, nothing to see. From a signed .app the same call is answered in
+  under a second. Anything gated on one of these strings is therefore tested
+  from a bundle, never from `npm run app`.
 -->
 <plist version="1.0">
 <dict>
@@ -16,5 +25,9 @@
   <string>Planner shows the day’s events under your list.</string>
   <key>NSCalendarsUsageDescription</key>
   <string>Planner shows the day’s events under your list.</string>
+  <key>NSLocationUsageDescription</key>
+  <string>Planner works out when the sun sets where you are, so the page can warm up in the evening.</string>
+  <key>NSLocationWhenInUseUsageDescription</key>
+  <string>Planner works out when the sun sets where you are, so the page can warm up in the evening.</string>
 </dict>
 </plist>

@@ -23,14 +23,8 @@ function host() {
   let drawn = 0
 
   const deps = {
-    startPlugin: async (
-      /** @type {string} */ name,
-      /** @type {string} */ _entry,
-      /** @type {string[]} */ slots,
-      /** @type {string[]} */ _capabilities,
-      /** @type {string[]} */ _open,
-    ) => {
-      started.push({ name, slots })
+    startPlugin: async (/** @type {import('../src/core/plugins.js').Grant} */ grant) => {
+      started.push({ name: grant.name, slots: grant.slots })
     },
     stopPlugin: async (/** @type {string} */ name) => { stopped.push(name) },
     askPlugins: (/** @type {string} */ slot, /** @type {any} */ _now, /** @type {any} */ params) =>
@@ -57,6 +51,8 @@ function configured(approvedSlots) {
     approvedSlots: approvedSlots ?? ['item.badge'],
     approvedCapabilities: [],
     approvedOpen: [],
+    approvedMoves: [],
+    approvedRun: new Map(),
     settings: new Map(),
   }]])
 }
@@ -274,13 +270,9 @@ function answering() {
   let rounds = 0
 
   const deps = {
-    startPlugin: async (
-      /** @type {string} */ name,
-      /** @type {string} */ _entry,
-      /** @type {string[]} */ _slots,
-      /** @type {string[]} */ _capabilities,
-      /** @type {string[]} */ _open,
-    ) => { up.add(name) },
+    startPlugin: async (/** @type {import('../src/core/plugins.js').Grant} */ grant) => {
+      up.add(grant.name)
+    },
     stopPlugin: async (/** @type {string} */ name) => { up.delete(name) },
     askPlugins: async () => {
       rounds += 1
@@ -371,4 +363,51 @@ test('an answer asked before a plugin started is not kept for the key it missed'
   // Not cached over the running plugin: the next draw asks again.
   assert.deepEqual(asking.answers('item.badge', 'k1', {}), [])
   assert.equal(stub.asked.length, 2)
+})
+
+const RUNNER = `
+entry = "index.js"
+
+[permissions]
+capabilities = ["shell.run"]
+
+[permissions.run.log]
+command = ["git", "-C", "{repo}"]
+repo    = "settings.repo"
+
+[settings.repo]
+label = "Repository"
+kind  = "text"
+`
+
+test('a plugin is started with the commands it was granted', async () => {
+  // The one place the two languages agree about a command, and the shape Rust
+  // deserialises. If this test and `src-tauri/tests/run.rs`'s last case ever
+  // disagree, the seam has drifted.
+  const stub = host()
+  /** @type {any[]} */
+  const given = []
+  const asking = createAsking({
+    ...stub.deps,
+    startPlugin: async (/** @type {any} */ grant) => { given.push(grant) },
+  })
+
+  await asking.sync(
+    [{ name: 'git-activity', manifest: RUNNER }],
+    new Map([['git-activity', {
+      enabled: true,
+      approvedSlots: [],
+      approvedCapabilities: ['shell.run'],
+      approvedOpen: [],
+      approvedMoves: [],
+      approvedRun: new Map([['log', 'git -C {repo=settings.repo}']]),
+      settings: new Map([['repo', '~/gotab/node']]),
+    }]]),
+  )
+
+  assert.deepEqual(given[0]?.run, [{
+    name: 'log',
+    command: ['git', '-C', '{repo}'],
+    binds: [{ name: 'repo', rule: 'setting', key: 'repo', value: '~/gotab/node' }],
+  }])
 })

@@ -13,6 +13,10 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+# For one call: killing a process group. `Child::kill` reaches the child this
+# app started and not whatever that child started, and a command that overran
+# has to leave nothing behind (spec §3.2).
+libc = "0.2"
 tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-notification = "2"
@@ -36,4 +40,13 @@ objc2-event-kit = { version = "0.3", default-features = false, features = [
     "EKTypes",
 ] }
 objc2-foundation = "0.3"
+# Only the two classes this app touches, for the same reason the EventKit
+# dependency above is narrowed: the default feature set drags in geocoding,
+# beacons and region monitoring, none of which a planner has any business
+# linking against.
+objc2-core-location = { version = "0.3", default-features = false, features = [
+    "std",
+    "CLLocation",
+    "CLLocationManager",
+] }
 block2 = "0.6"

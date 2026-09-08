@@ -10,6 +10,7 @@
  */
 
 import { today } from './clock.js'
+import { applyPluginTokens } from './plugins/theming.js'
 import { moveItem } from './core/move.js'
 import { search } from './core/search.js'
 import { badgesFor, openBadge } from './plugins/pageAsking.js'
@@ -92,6 +93,16 @@ async function start() {
     store.notice(`The footer's tabs will not switch this window: ${message(error)}`)
   }
 
+  // The same fifteen-minute wake the popover hears, for the same reason: it
+  // is what moves a plugin's generation, and this window asks plugins too
+  // (spec §1.4). Not fatal - the window still shows what they said when it
+  // was opened.
+  try {
+    await ipc.onScheduleRefresh(() => { store.refreshPlugins(); draw() })
+  } catch (error) {
+    store.notice(`Plugins will not follow the clock in this window: ${message(error)}`)
+  }
+
   draw()
 }
 
@@ -142,13 +153,18 @@ function draw() {
     badgeNotices.push(...marked.notices)
   }
 
+  // The colours the plugins moved, over the theme's own (spec §3.3). This
+  // window asks for itself: the two windows have separate stores and never
+  // talk to each other.
+  const warmed = applyPluginTokens(store)
+
   spreadPage.render({
     view,
     today: today(),
     anchor,
     vault: store.vault(),
     badges,
-    notices: [...store.notices(), ...badgeNotices],
+    notices: [...store.notices(), ...badgeNotices, ...warmed],
   })
 }
 

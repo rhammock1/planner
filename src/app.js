@@ -16,7 +16,7 @@ import { readContributions } from './core/contributions.js'
 import { badgesFor, openBadge } from './plugins/pageAsking.js'
 import { openInEditor, pickVault } from './vaultActions.js'
 import { search } from './core/search.js'
-import { installed } from './core/plugins.js'
+import { applyPluginTokens } from './plugins/theming.js'
 import { today } from './clock.js'
 import { createShowing } from './showing.js'
 import { createStore } from './store.js'
@@ -172,15 +172,28 @@ function draw() {
   // draw, and if this is today's page it is now a different one.
   showing.tick(now)
   const page = showing.page()
+  // One reading of the two files, shared by the pane's ticks and the day's
+  // headings - so a plugin cannot be called one thing in one place and
+  // something else in the other. The store memoizes it, so this costs a
+  // manifest parse only when one of the two files has actually changed.
+  const plugins = store.installed()
+
   // Today's page only, and asked again with a fresh key on every refresh
-  // (addendum §1, spec §1.4).
+  // (spec §1.4).
   const key = `${now}:${now}:${store.pluginGeneration()}`
   const given = page === now
-    ? readContributions(store.pluginAnswers('vault.contribute', key, { from: now, to: now }), page)
-    : { events: [], notices: [] }
+    ? readContributions(
+        store.pluginAnswers('vault.contribute', key, { from: now, to: now }),
+        page,
+        new Map(plugins.map((one) => [one.name, one.heading])),
+      )
+    : { sections: [], notices: [] }
 
   // What the plugins have to say about the lines on this page (spec §1.4).
   const marked = badgesFor(store, page)
+
+  // The colours the plugins moved, over the theme's own (spec §3.3).
+  const warmed = applyPluginTokens(store)
 
   ambient.update(now)
 
@@ -188,7 +201,7 @@ function draw() {
   // changed in a text editor both show up the same way.
   dayPage.settings().render(
     store.config(),
-    installed(store.folders(), store.config().plugins),
+    plugins,
     new Map(store.pluginStates().map((state) => [state.name, state])),
   )
 
@@ -200,14 +213,14 @@ function draw() {
     // Carry-forward is about arriving at today. Looking back at last Tuesday
     // is reading, not triage, so the band stays out of the way there.
     carry: page === now ? unfinished(store.vault(), now, store.config().carryForwardScanDays) : [],
-    events: given.events,
+    sections: given.sections,
     badges: marked.badges,
     // The one thing a notice ever needs pressing for: the app will not put a
     // vault somewhere nobody asked for (spec §8).
     actions: store.vaultExists() ? [] : [{ label: 'Choose a folder…', run: () => { void pickVault(store, ipc) } }],
     // Worked out on the way to the page rather than kept, so redrawing the
     // same contributions does not say the same thing twice.
-    notices: [...store.notices(), ...given.notices, ...marked.notices],
+    notices: [...store.notices(), ...given.notices, ...marked.notices, ...warmed],
   })
 }
 

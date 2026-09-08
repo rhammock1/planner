@@ -10,8 +10,11 @@
 
 import { el } from '../ui/dom.js'
 import { sentenceFor } from '../core/slots.js'
+import { tick } from './tick.js'
+import { commandRow } from './commandRows.js'
+import { writeBack } from './pluginWrite.js'
 
-/** @typedef {import('../core/plugins.js').Installed} Installed */
+/** @typedef {import('../core/installed.js').Installed} Installed */
 /** @typedef {import('../plugins/asking.js').PluginState} PluginState */
 /** @typedef {import('./settingsPanel.js').SettingsHandlers} SettingsHandlers */
 
@@ -49,13 +52,7 @@ function pluginRow(plugin, states, handlers) {
   if (plugin.problem !== null && box instanceof HTMLInputElement) box.disabled = true
   box.addEventListener('change', () => {
     if (box instanceof HTMLInputElement) {
-      handlers.onPlugin(plugin.name, {
-        enabled: box.checked,
-        approvedSlots: plugin.approvedSlots,
-        approvedCapabilities: plugin.approved,
-        approvedOpen: plugin.approvedOpen,
-        settings: plugin.settings,
-      })
+      writeBack(plugin, handlers, { enabled: box.checked })
     }
   })
   line.append(box, el('span', 'setting-label', plugin.name))
@@ -74,14 +71,29 @@ function pluginRow(plugin, states, handlers) {
       sentenceFor(slot),
       plugin.approvedSlots.includes(slot),
       'slot',
-      (on) => handlers.onPlugin(plugin.name, {
-        enabled: plugin.enabled,
-        approvedSlots: toggled(plugin.approvedSlots, slot, on),
-        approvedCapabilities: plugin.approved,
-        approvedOpen: plugin.approvedOpen,
-        settings: plugin.settings,
-      }),
+      (on) => writeBack(plugin, handlers, { approvedSlots: toggled(plugin.approvedSlots, slot, on) }),
     ))
+    // A slot that carries a list is a grant of that list, approved one entry
+    // at a time - the same rule an address list obeys (spec §1.1). Ticking the
+    // sentence is not consent to a list nobody was shown, and it must not be:
+    // a manifest that grows `moves` from one colour to thirteen would
+    // otherwise be granted twelve of them by a tick made about one.
+    //
+    // Named here rather than driven off the options table because this is the
+    // only slot that carries one, and a loop over one case would be a guess
+    // about the next.
+    if (slot === 'theme.tokens') {
+      for (const token of plugin.moves) {
+        block.append(tick(
+          `Moves ${token}`,
+          plugin.approvedMoves.includes(token),
+          'token',
+          (on) => writeBack(plugin, handlers, {
+            approvedMoves: toggled(plugin.approvedMoves, token, on),
+          }),
+        ))
+      }
+    }
   }
 
   // What it asks for, one line each, so granting is a decision per capability
@@ -91,13 +103,7 @@ function pluginRow(plugin, states, handlers) {
       capability,
       plugin.approved.includes(capability),
       'capability',
-      (on) => handlers.onPlugin(plugin.name, {
-        enabled: plugin.enabled,
-        approvedSlots: plugin.approvedSlots,
-        approvedCapabilities: toggled(plugin.approved, capability, on),
-        approvedOpen: plugin.approvedOpen,
-        settings: plugin.settings,
-      }),
+      (on) => writeBack(plugin, handlers, { approvedCapabilities: toggled(plugin.approved, capability, on) }),
     ))
   }
 
@@ -109,15 +115,23 @@ function pluginRow(plugin, states, handlers) {
         address,
         plugin.approvedOpen.includes(address),
         'address',
-        (on) => handlers.onPlugin(plugin.name, {
-          enabled: plugin.enabled,
-          approvedSlots: plugin.approvedSlots,
-          approvedCapabilities: plugin.approved,
-          approvedOpen: toggled(plugin.approvedOpen, address, on),
-          settings: plugin.settings,
-        }),
+        (on) => writeBack(plugin, handlers, { approvedOpen: toggled(plugin.approvedOpen, address, on) }),
       ))
     }
+  }
+
+  // A command is approved by its rendered line, one command at a time: the
+  // reach is the program and its arguments, not the name `shell.run`.
+  //
+  // Both ticks are needed, and the order they are made in does not matter -
+  // so the boxes stay live and the state is said out loud instead. Ticking a
+  // command and stopping there is the easy mistake, because the git line is
+  // the half that looks like the sensitive one.
+  if (plugin.run.length > 0 && !plugin.approved.includes('shell.run')) {
+    block.append(el('div', 'plugin-note', 'shell.run is not ticked, so none of these run.'))
+  }
+  for (const command of plugin.run) {
+    block.append(commandRow(plugin, command, handlers))
   }
 
   // Worth saying out loud: a plugin that asks for nothing is not a plugin
@@ -133,6 +147,15 @@ function pluginRow(plugin, states, handlers) {
     block.append(settingRow(plugin, field, handlers))
   }
 
+  // What the manifest reader had to leave out. These are written for a person
+  // - a command whose binding rule is missing, a setting of a kind this pane
+  // cannot draw - and the pane is the one place they can be acted on. For a
+  // plugin that is switched off they appear nowhere else at all, which is
+  // exactly when somebody is here working out why (spec §6).
+  for (const line of plugin.notices) {
+    block.append(el('div', 'plugin-note', line))
+  }
+
   const state = states.get(plugin.name)
   if (state?.disabled === true) {
     // A judgement about somebody's code should not be cleared by a person who
@@ -146,22 +169,20 @@ function pluginRow(plugin, states, handlers) {
 
 /**
  * @param {Installed} plugin
- * @param {import('../core/manifest.js').SettingsField} field
+ * @param {import('../core/settingsSchema.js').SettingsField} field
  * @param {SettingsHandlers} handlers
  * @returns {HTMLElement}
  */
 function settingRow(plugin, field, handlers) {
   const line = el('label', `setting setting-${field.kind}`)
-  const held = plugin.settings.get(field.key)
+  // The person's value, not the settled one: a default rendered into the box
+  // is a default that looks like something somebody typed, and the next tick
+  // would write it back as exactly that.
+  const held = plugin.held.get(field.key)
 
   /** @param {string|number|boolean} value */
-  const write = (value) => handlers.onPlugin(plugin.name, {
-    enabled: plugin.enabled,
-    approvedSlots: plugin.approvedSlots,
-    approvedCapabilities: plugin.approved,
-    approvedOpen: plugin.approvedOpen,
-    settings: new Map([...plugin.settings, [field.key, value]]),
-  })
+  const write = (value) =>
+    writeBack(plugin, handlers, { settings: new Map([...plugin.held, [field.key, value]]) })
 
   if (field.kind === 'switch') {
     const box = el('input', 'setting-box')
@@ -178,7 +199,11 @@ function settingRow(plugin, field, handlers) {
   const input = el('input', 'setting-field')
   input.setAttribute('type', field.kind === 'count' ? 'number' : 'text')
   if (field.kind === 'count') input.setAttribute('min', '0')
-  if (field.hint !== null) input.setAttribute('placeholder', field.hint)
+  // The manifest's default belongs here rather than in the box: greyed out it
+  // reads as "nothing set, and this is what happens anyway", which is what it
+  // is. The hint wins when there is one - it was written for this row.
+  const empty = field.hint ?? (field.fallback === null ? null : String(field.fallback))
+  if (empty !== null) input.setAttribute('placeholder', empty)
   if (input instanceof HTMLInputElement) input.value = held === undefined ? '' : String(held)
 
   // `change`, not `input`: every one of these writes config.toml and restarts
@@ -201,27 +226,6 @@ function settingRow(plugin, field, handlers) {
   })
 
   line.append(input)
-  return line
-}
-
-/**
- * One checkbox and the sentence it is the answer to.
- *
- * @param {string} label
- * @param {boolean} checked
- * @param {string} kind  for the class, so a slot and a capability can look different
- * @param {(on: boolean) => void} onToggle
- * @returns {HTMLElement}
- */
-function tick(label, checked, kind, onToggle) {
-  const line = el('label', kind)
-  const box = el('input', 'setting-box')
-  box.setAttribute('type', 'checkbox')
-  if (box instanceof HTMLInputElement) box.checked = checked
-  box.addEventListener('change', () => {
-    if (box instanceof HTMLInputElement) onToggle(box.checked)
-  })
-  line.append(box, el('span', `${kind}-name`, label))
   return line
 }
 

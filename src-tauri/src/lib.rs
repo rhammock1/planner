@@ -247,6 +247,16 @@ pub fn run() {
             // The one thread that holds real timers, because a hidden
             // webview's are throttled (spec §5.9).
             notify::hold(app.handle().clone());
+
+            // Off the launch thread and then forgotten about: this runs a
+            // login shell, and a profile that starts an agent or asks a
+            // question takes its whole five seconds. Doing it here rather than
+            // on the first `shell.run` means that wait is over before any
+            // plugin asks; doing it on a thread means a slow profile costs the
+            // launch nothing (spec §3.2).
+            std::thread::spawn(|| {
+                let _ = plugins::spawning::login_path();
+            });
             Ok(())
         })
         .run(tauri::generate_context!())

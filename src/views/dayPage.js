@@ -34,7 +34,7 @@ import { createSettingsPanel } from './settingsPanel.js'
  * @property {Document|null} doc  null when the day has no file yet
  * @property {import('../core/horizon.js').HorizonEntry[]} horizon
  * @property {import('../core/carry.js').CarryGroup[]} carry  empty unless today
- * @property {import('../core/contributions.js').Event[]} events  from plugins; today only
+ * @property {import('../core/contributions.js').Section[]} sections  one per contributing plugin; today only
  * @property {Map<number, import('../core/badges.js').Badge[]>} [badges]  markers, keyed by line index
  * @property {string[]} notices
  * @property {Action[]} actions  offered under the notices; usually none
@@ -260,7 +260,7 @@ export function render(state) {
   page.carry.render(state.carry, state.today)
   page.horizon.render(state.horizon)
   page.items.render(state.doc, state.badges)
-  page.given.render(state.events)
+  page.given.render(state.sections)
   renderNote(page.note, state.doc)
 
   page.foot.render(openCount(state.doc))

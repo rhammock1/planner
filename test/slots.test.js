@@ -7,12 +7,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { SLOTS, isSlot, sentenceFor } from '../src/core/slots.js'
+import { SLOTS, isSlot, sentenceFor, optionsTableOf } from '../src/core/slots.js'
 
 test('the slots that exist are the ones with a consumer', () => {
   // A slot with no consumer is a guess about an API (spec §0). Adding a name
   // here without the plugin that needs it is the mistake this test catches.
-  assert.deepEqual(SLOTS.map((slot) => slot.name), ['vault.contribute', 'item.badge'])
+  assert.deepEqual(SLOTS.map((slot) => slot.name), ['vault.contribute', 'item.badge', 'theme.tokens'])
 })
 
 test('every slot has a sentence a person could tick', () => {
@@ -25,7 +25,9 @@ test('every slot has a sentence a person could tick', () => {
 test('a slot this app does not offer is not a slot', () => {
   assert.equal(isSlot('vault.contribute'), true)
   assert.equal(isSlot('item.badge'), true)
-  assert.equal(isSlot('theme.tokens'), false)
+  assert.equal(isSlot('theme.tokens'), true)
+  // A slot that lands at #8, so this test still has a name that is not one.
+  assert.equal(isSlot('page.section'), false)
   assert.equal(isSlot(''), false)
 })
 
@@ -33,4 +35,13 @@ test('an unknown slot still gets a sentence, because the pane has to draw it', (
   const said = sentenceFor('vault.write')
   assert.match(said, /vault\.write/)
   assert.match(said, /does not offer/)
+})
+
+test('a slot names the table its options live in, or names none', () => {
+  // One convention, not eight keys in five shapes (spec §1.1): the table is
+  // named for the slot's last word, and only a slot that needs to be told
+  // something the question does not carry has one.
+  assert.equal(optionsTableOf('vault.contribute'), 'contribute')
+  assert.equal(optionsTableOf('item.badge'), null)
+  assert.equal(optionsTableOf('theme.tokens'), 'tokens')
 })

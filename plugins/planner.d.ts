@@ -37,6 +37,50 @@ declare namespace Planner {
     events(range: Range): Promise<CalendarEvent[]>
   }
 
+  /** What a command left behind. */
+  interface Ran {
+    /** Its exit code, or null when it overran and was killed. */
+    status: number | null
+    /** Cut at 256 KiB. */
+    stdout: string
+    /** Cut at 4 KiB. */
+    stderr: string
+  }
+
+  interface RunCapability {
+    /**
+     * Runs a command your manifest declared.
+     *
+     * `values` carries one entry per `date` placeholder and nothing else: a
+     * `settings.<key>` placeholder is filled in from the setting, and a value
+     * passed under its name is ignored.
+     *
+     * Rejects if a date is not a `YYYY-MM-DD`, and that rejection is a strike
+     * against your plugin: the manifest is your own file, so a value it would
+     * not accept is not a misunderstanding you could have had.
+     *
+     * Two rejections are *not* strikes, because neither is your doing: a
+     * `settings.<key>` whose setting nobody has filled in, and a `shell.run`
+     * the person has not ticked. Both say so in the message, so you can put
+     * it on the page.
+     */
+    run(name: string, values: Record<string, string>): Promise<Ran>
+  }
+
+  /** Where this Mac is, rounded to two decimal places - about a kilometre. */
+  interface Place {
+    latitude: number
+    longitude: number
+  }
+
+  interface LocationCapability {
+    /**
+     * Rejects while macOS is still asking, and while it has no fix yet. Both
+     * are ordinary: ask again the next time you are asked something.
+     */
+    location(): Promise<Place>
+  }
+
   /** What every question carries: the day and the time it was asked. */
   interface Now {
     /** `YYYY-MM-DD`, local. */
@@ -64,6 +108,20 @@ declare namespace Planner {
     items: Line[]
   }
 
+  /** The question behind the `theme.tokens` slot. The clock, and the colours
+   *  the theme itself set - you are asked to *move* those, and cannot move
+   *  what you were never shown. Not the page: what you do with colour is a
+   *  function of the time of day. */
+  interface TokensQuestion {
+    now: Now
+    /**
+     * Every theme token, as the theme set it, before any plugin was asked.
+     * So two plugins are shown the same colours, and asking twice cannot
+     * drift by reading back your own last answer.
+     */
+    tokens: Record<string, string>
+  }
+
   /** A marker after a line. */
   interface Badge {
     /** The `index` of the line this belongs to, from the question. */
@@ -81,6 +139,8 @@ declare const planner: {
     Planner.Contribution[] | Promise<Planner.Contribution[]>): void
   on(slot: 'item.badge', handler: (question: Planner.BadgeQuestion) =>
     Planner.Badge[] | Promise<Planner.Badge[]>): void
+  on(slot: 'theme.tokens', handler: (question: Planner.TokensQuestion) =>
+    Record<string, string> | Promise<Record<string, string>>): void
 
   /** `vault.contribute` under the name it has always had. */
   onContribute(
@@ -93,6 +153,10 @@ declare const planner: {
    * capability and `config.toml` granted it.
    */
   capability(name: 'macos.calendar.read'): Planner.CalendarCapability
+
+  capability(name: 'shell.run'): Planner.RunCapability
+
+  capability(name: 'macos.location.read'): Planner.LocationCapability
 
   /**
    * This plugin's own settings, as `config.toml` holds them, keyed the way

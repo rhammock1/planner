@@ -77,8 +77,64 @@ const FORBIDDEN = [
   { pattern: /;/, why: 'a semicolon would start another declaration' },
   { pattern: /<|>/, why: 'angle brackets would leave the style element' },
   { pattern: /@import/i, why: 'an import would reach outside the theme' },
-  { pattern: /url\(\s*['"]?\s*(?:[a-z][a-z0-9+.-]*:|\/\/)/i, why: 'a url must be a file in the theme folder' },
+  { pattern: /url\(\s*['"]?\s*(?:[a-z][a-z0-9+.-]*:|\/\/)/i, why: 'a url may only be a file beside the stylesheet, never another site' },
+  { pattern: /\\/, why: 'a backslash could hide a scheme from the rule above it' },
+  { pattern: /\b(?:image-set|cross-fade)\s*\(/i, why: 'this would fetch something, and only a file beside the stylesheet may be fetched' },
+  { pattern: /\/\*/, why: 'a comment would swallow the rest of the style element' },
 ]
+
+/**
+ * Whether a value's own brackets and quotes close by the end of it.
+ *
+ * Not expressible as a pattern, and the rules above do not cover it: `rgb(`
+ * holds no forbidden character, but CSS consumes an unclosed function to the
+ * end of the stylesheet. One value carrying it therefore takes every
+ * declaration after it - and, in a plugin's rule, that means another plugin's
+ * tokens, silently, since the app believes it wrote them. An unclosed quote
+ * does the same to the declaration that follows it.
+ *
+ * No escape handling, because a backslash is already refused above.
+ *
+ * @param {string} value
+ * @returns {boolean}
+ */
+function unbalanced(value) {
+  let depth = 0
+  let quote = ''
+  for (const character of value) {
+    if (quote !== '') {
+      if (character === quote) quote = ''
+      continue
+    }
+    if (character === '"' || character === "'") quote = character
+    else if (character === '(') depth += 1
+    else if (character === ')') {
+      depth -= 1
+      // A stray `)` closes the rule's own function, not one this value opened.
+      if (depth < 0) return true
+    }
+  }
+  return depth !== 0 || quote !== ''
+}
+
+/**
+ * Why a value is refused, or nothing.
+ *
+ * Exported because a plugin's tokens go through exactly the same checks a
+ * theme's do (spec §3.3) - and a second copy of this list is a second thing
+ * to forget to add a rule to.
+ *
+ * @param {string} value
+ * @returns {{why: string}|null}
+ */
+export function forbidden(value) {
+  const rule = FORBIDDEN.find((one) => one.pattern.test(value))
+  if (rule !== undefined) return { why: rule.why }
+  if (unbalanced(value)) {
+    return { why: 'its brackets or quotes do not close, which would swallow what follows' }
+  }
+  return null
+}
 
 /**
  * A fresh copy, so a view that reaches into `theme.tokens` cannot leave the
@@ -161,9 +217,9 @@ function readTokens(table, notices) {
       notices.push(`theme.toml: token ${name} is not a string; using the default`)
       continue
     }
-    const forbidden = FORBIDDEN.find((rule) => rule.pattern.test(value))
-    if (forbidden !== undefined) {
-      notices.push(`theme.toml: token ${name} was refused - ${forbidden.why}`)
+    const refused = forbidden(value)
+    if (refused !== null) {
+      notices.push(`theme.toml: token ${name} was refused - ${refused.why}`)
       continue
     }
     tokens.set(name, value)

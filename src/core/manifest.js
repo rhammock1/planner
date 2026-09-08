@@ -1,21 +1,30 @@
 // @ts-check
 
 /**
- * Reading `manifest.toml` — what a plugin declares about itself.
+ * Reading `manifest.toml` - what a plugin declares about itself.
  *
  * The one place this file is understood. It stays inside what `core/toml.js`
  * parses: bare keys, strings, numbers, booleans, single-line arrays of
  * strings, and `[dotted.table]` headers (spec §1.1).
  *
+ * What a manifest says falls into three parts, and each has a file. Here:
+ * where to start, which questions it answers, and what each of those questions
+ * needs to know that the question itself does not carry. In `permissions.js`:
+ * what it reaches outside itself. In `settingsSchema.js`: its own config.
+ *
  * There are two kinds of wrong. An `error` is a manifest this app cannot act
  * on at all, and the plugin does not start. A `notice` is a manifest it can
- * act on with a part left out — a slot from a later version of the planner,
- * say — and the plugin runs without that part. Neither is ever guessed at.
+ * act on with a part left out - a slot from a later version of the planner,
+ * say - and the plugin runs without that part. Neither is ever guessed at.
  */
 
 import { parseToml } from './toml.js'
-import { isSlot } from './slots.js'
-import { readPrefix } from './urls.js'
+import { isSlot, optionsTableOf } from './slots.js'
+import { readCapabilities, readOpen, readRun } from './permissions.js'
+import { readSettings } from './settingsSchema.js'
+
+/** @typedef {import('./toml.js').TomlValue} TomlValue */
+/** @typedef {import('./settingsSchema.js').SettingsField} SettingsField */
 
 /**
  * @typedef {object} Manifest
@@ -26,26 +35,15 @@ import { readPrefix } from './urls.js'
  *   complaint, since this file already made the first one
  * @property {string[]} capabilities  declared; the config decides the rest
  * @property {string[]} open  addresses this plugin says it may open
+ * @property {import('./permissions.js').RunCommand[]} run  commands this
+ *   plugin says it may run, in name order
+ * @property {Map<string, Record<string, TomlValue>>} options  per declared
+ *   slot, the table named for its last word - what that slot needs to know
+ *   that the question does not carry (spec §1.1)
  * @property {string|null} error  why it cannot run, when it cannot
  * @property {string[]} notices  what was left out, and why
  * @property {SettingsField[]} settings  the plugin's own settings schema
  */
-
-/**
- * @typedef {object} SettingsField
- * @property {string} key  the name in `[plugins.<name>.settings]`
- * @property {string} label  what the pane shows
- * @property {'text'|'count'|'switch'} kind
- * @property {string|null} hint  a placeholder, for a value whose absence means something
- * @property {string|number|boolean|null} fallback  the manifest's default, if it has one
- */
-
-/** What a settings key may be called, because it becomes a `config.toml` key. */
-const IDENTIFIER = /^[A-Za-z0-9_-]+$/
-
-/** The kinds the pane can draw. `path` is not offered: its picker is the
- *  vault's, and no plugin in this design needs a folder. */
-const KINDS = ['text', 'count', 'switch']
 
 /**
  * @param {string} text  the contents of manifest.toml
@@ -53,9 +51,10 @@ const KINDS = ['text', 'count', 'switch']
  */
 export function readManifest(text) {
   /** @param {string} error @returns {Manifest} */
-  const bad = (error) => (
-    { entry: '', slots: [], unofferedSlots: [], capabilities: [], open: [], error, notices: [], settings: [] }
-  )
+  const bad = (error) => ({
+    entry: '', slots: [], unofferedSlots: [], capabilities: [], open: [],
+    run: [], options: new Map(), error, notices: [], settings: [],
+  })
 
   let table
   try {
@@ -89,8 +88,52 @@ export function readManifest(text) {
   const open = readOpen(table['permissions'], notices)
   if (typeof open === 'string') return bad(open)
 
+  const run = readRun(table['permissions'], notices)
+  if (typeof run === 'string') return bad(run)
+
+  const options = readOptions(table, slots, notices)
   const settings = readSettings(table['settings'], notices)
-  return { entry, slots, unofferedSlots, capabilities, open, error: null, notices, settings }
+  return { entry, slots, unofferedSlots, capabilities, open, run, options, error: null, notices, settings }
+}
+
+/**
+ * What a slot needs to know that the question does not carry.
+ *
+ * Read only for a slot the manifest declares, so a table for a question that
+ * will never be put to this plugin is never read - which is what keeps the
+ * pane's ticks and the manifest's tables describing the same thing.
+ *
+ * @param {import('./toml.js').TomlTable} table
+ * @param {string[]} slots  the declared, offered ones
+ * @param {string[]} notices
+ * @returns {Map<string, Record<string, TomlValue>>}
+ */
+function readOptions(table, slots, notices) {
+  /** @type {Map<string, Record<string, TomlValue>>} */
+  const options = new Map()
+
+  for (const slot of slots) {
+    const named = optionsTableOf(slot)
+    if (named === null) continue
+
+    const declared = table[named]
+    if (declared === undefined) continue
+    if (typeof declared !== 'object' || declared === null || Array.isArray(declared)) {
+      notices.push(`manifest.toml has a ${named} key that is not a table of options for ${slot}`)
+      continue
+    }
+
+    /** @type {Record<string, TomlValue>} */
+    const kept = {}
+    for (const [key, value] of Object.entries(/** @type {Record<string, unknown>} */ (declared))) {
+      // A nested table is not an option: every option this design has is a
+      // value, and `[contribute.something]` is a table from a later version.
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) continue
+      kept[key] = /** @type {TomlValue} */ (value)
+    }
+    options.set(slot, kept)
+  }
+  return options
 }
 
 /**
@@ -130,145 +173,56 @@ function readSlots(raw, notices, unofferedSlots) {
 }
 
 /**
- * @param {unknown} permissions
- * @returns {string[]|string} a string is an error
+ * One reader for every slot's options (spec §1.1).
+ *
+ * @param {Manifest} manifest
+ * @param {string} slot
+ * @returns {Record<string, TomlValue>}
  */
-function readCapabilities(permissions) {
-  if (permissions === undefined) return []
-  if (typeof permissions !== 'object' || Array.isArray(permissions)) {
-    return 'manifest.toml has a permissions key that is not a table'
-  }
-
-  const wanted = /** @type {Record<string, unknown>} */ (permissions)['capabilities']
-  if (wanted === undefined) return []
-  if (!Array.isArray(wanted) || wanted.some((one) => typeof one !== 'string')) {
-    return 'manifest.toml lists permissions.capabilities as something other than a list of names'
-  }
-  return /** @type {string[]} */ (wanted)
+export function slotOptions(manifest, slot) {
+  return manifest.options.get(slot) ?? {}
 }
 
 /**
- * The addresses a plugin says it may open.
+ * An option that is text, as a page may show it: one line, cut.
  *
- * Each is checked here rather than at the click, so the pane shows what was
- * approved and a manifest that asks for something impossible says so once
- * instead of failing silently every time a marker is pressed.
+ * A manifest is somebody else's file and a heading is drawn on the day page,
+ * so it obeys the same rule everything a plugin says obeys (spec §1.3).
+ * Missing, or not a string, reads as nothing - which is how a caller says
+ * "then use the plugin's own name" without this reader having an opinion.
  *
- * An entry of the form `settings.<key>` cannot be checked here at all - this
- * reader has no settings values, only the schema - so it is kept verbatim,
- * with only its key checked against the same rule a settings key obeys.
- * `plan()` resolves it once the config's settings have been settled.
- *
- * @param {unknown} permissions
- * @param {string[]} notices
- * @returns {string[]|string} a string is an error
+ * @param {Record<string, TomlValue>} options
+ * @param {string} key
+ * @param {number} longest
+ * @returns {string}
  */
-function readOpen(permissions, notices) {
-  if (typeof permissions !== 'object' || permissions === null || Array.isArray(permissions)) {
-    return []
-  }
-  const table = /** @type {Record<string, unknown>} */ (permissions)['open']
-  if (table === undefined) return []
-  if (typeof table !== 'object' || Array.isArray(table)) {
-    return 'manifest.toml has a permissions.open key that is not a table'
-  }
+export function optionText(options, key, longest) {
+  const raw = options[key]
+  if (typeof raw !== 'string') return ''
+  const line = raw.replace(/\s+/gu, ' ').trim()
+  return line.length <= longest ? line : `${line.slice(0, longest - 1)}…`
+}
 
-  const urls = /** @type {Record<string, unknown>} */ (table)['urls']
-  if (urls === undefined) return []
-  if (!Array.isArray(urls) || urls.some((one) => typeof one !== 'string')) {
-    return 'manifest.toml lists permissions.open.urls as something other than a list of addresses'
-  }
+/**
+ * An option that is a list of names.
+ *
+ * Named twice is named once, the same way `slots` is: every list of names in
+ * this design becomes a set of things approved or moved, and a name appearing
+ * twice does not double anything.
+ *
+ * @param {Record<string, TomlValue>} options
+ * @param {string} key
+ * @returns {string[]}
+ */
+export function optionNames(options, key) {
+  const raw = options[key]
+  if (!Array.isArray(raw)) return []
 
   /** @type {string[]} */
   const kept = []
-  for (const entry of /** @type {string[]} */ (urls)) {
-    if (entry.startsWith('settings.')) {
-      const key = entry.slice('settings.'.length)
-      if (!IDENTIFIER.test(key)) {
-        notices.push(`manifest.toml asks to open ${entry}, whose setting name is not one config.toml could hold`)
-        continue
-      }
-      if (!kept.includes(entry)) kept.push(entry)
-      continue
-    }
-    const read = readPrefix(entry)
-    if (read.error !== null) {
-      notices.push(`manifest.toml asks to open ${read.error}`)
-      continue
-    }
-    if (!kept.includes(read.prefix)) kept.push(read.prefix)
+  for (const one of raw) {
+    if (typeof one !== 'string' || kept.includes(one)) continue
+    kept.push(one)
   }
   return kept
-}
-
-/**
- * A plugin's own settings schema, in the order the manifest declares them.
- *
- * A key that will not do is dropped with a line rather than refusing the whole
- * plugin: the other settings still work, and so does everything the plugin
- * does that does not read the bad one.
- *
- * @param {unknown} raw  the `settings` table
- * @param {string[]} notices
- * @returns {SettingsField[]}
- */
-function readSettings(raw, notices) {
-  if (raw === undefined) return []
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    notices.push('manifest.toml has a settings key that is not a table')
-    return []
-  }
-
-  /** @type {SettingsField[]} */
-  const fields = []
-  for (const [key, declared] of Object.entries(/** @type {Record<string, unknown>} */ (raw))) {
-    if (!IDENTIFIER.test(key)) {
-      notices.push(`manifest.toml declares a setting called ${key}, which cannot be a config.toml key`)
-      continue
-    }
-    if (typeof declared !== 'object' || declared === null || Array.isArray(declared)) {
-      notices.push(`manifest.toml declares ${key} as something other than a table`)
-      continue
-    }
-
-    const one = /** @type {Record<string, unknown>} */ (declared)
-    const label = one['label']
-    if (typeof label !== 'string' || label === '') {
-      notices.push(`manifest.toml gives the setting ${key} no label`)
-      continue
-    }
-
-    const kind = one['kind']
-    if (typeof kind !== 'string' || !KINDS.includes(kind)) {
-      notices.push(`manifest.toml gives the setting ${key} a kind this pane cannot draw: ${String(kind)}`)
-      continue
-    }
-
-    const fallback = one['default']
-    if (fallback !== undefined && !matches(fallback, kind)) {
-      notices.push(`manifest.toml gives the setting ${key} a default that is not a ${kind}`)
-      continue
-    }
-
-    const hint = one['hint']
-    fields.push({
-      key,
-      label,
-      kind: /** @type {'text'|'count'|'switch'} */ (kind),
-      hint: typeof hint === 'string' ? hint : null,
-      fallback: fallback === undefined ? null : /** @type {string|number|boolean} */ (fallback),
-    })
-  }
-  return fields
-}
-
-/**
- * @param {unknown} value
- * @param {string} kind
- * @returns {boolean}
- */
-function matches(value, kind) {
-  if (kind === 'text') return typeof value === 'string'
-  if (kind === 'switch') return typeof value === 'boolean'
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0
 }

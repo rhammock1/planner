@@ -110,7 +110,13 @@ pub fn hold(app: AppHandle) {
         // Asked for after ringing, never before: the frontend drops alarms
         // whose moment has gone, so a set computed now is a set without the
         // ones just rung.
-        if let Err(error) = app.emit_to(crate::tray::POPOVER, REFRESH_EVENT, ()) {
+        // Every window, not only the popover. It is this event that moves a
+        // plugin's generation, and the spread asks plugins too - a spread left
+        // open across sunset would otherwise hold the colours it opened with
+        // (spec §1.4). A plugin's own webview cannot hear it: plugin windows
+        // are absent from `capabilities/default.json`, so they have no
+        // `core:event` at all.
+        if let Err(error) = app.emit(REFRESH_EVENT, ()) {
             eprintln!("planner: could not ask for the schedule again: {error}");
         }
 

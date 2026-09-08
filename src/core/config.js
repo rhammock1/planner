@@ -25,6 +25,11 @@ export { updatePlugin }
  * @property {string[]} approvedSlots
  * @property {string[]} approvedCapabilities
  * @property {string[]} approvedOpen
+ * @property {string[]} approvedMoves  theme tokens the person ticked, one by
+ *   one. A slot that hands over a list is approved by the list, not by the
+ *   slot's name (spec §1.1)
+ * @property {Map<string, string>} approvedRun  command name -> the rendered
+ *   line that was approved (spec §1.6); an empty line is never one
  * @property {Map<string, TomlValue>} settings  the plugin's own settings, unvalidated
  */
 

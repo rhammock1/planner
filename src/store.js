@@ -16,7 +16,8 @@ import { parse } from './core/parse.js'
 import { serialize } from './core/serialize.js'
 import { buildIndex, getPage, withPage } from './core/vaultIndex.js'
 import { DEFAULTS, DEFAULT_CONFIG_TEXT, updateConfig, updatePlugin } from './core/config.js'
-import { installed } from './core/plugins.js'
+import { createGranted } from './plugins/granted.js'
+import { LEDGER } from './core/theme.js'
 import { createWriteQueue } from './writeQueue.js'
 import { createAsking } from './plugins/asking.js'
 import * as ipc from './ipc.js'
@@ -24,6 +25,7 @@ import * as startup from './startup.js'
 import { today, nowTime } from './clock.js'
 
 /** @typedef {import('./core/vaultIndex.js').VaultIndex} VaultIndex */
+/** @typedef {import('./core/installed.js').Installed} Installed */
 /** @typedef {import('./core/model.js').Document} Document */
 
 /**
@@ -39,6 +41,9 @@ import { today, nowTime } from './clock.js'
  * @property {() => number} pluginGeneration
  * @property {() => import('./ipc/host.js').PluginState[]} pluginStates
  * @property {(name: string) => string[]} approvedOpen  addresses a plugin may open, from the pane
+ * @property {() => Installed[]} installed  every plugin the two files describe
+ * @property {() => Map<string, string[]>} pluginMoves  what each plugin was ticked to move
+ * @property {() => Map<string, string>} themeTokens  the theme's own, before any plugin
  * @property {() => VaultIndex} vault
  * @property {() => import('./core/config.js').Config} config
  * @property {() => string[]} notices
@@ -76,6 +81,13 @@ export function createStore() {
    *  pane lists these, so it has to know about the ones that are off.
    *  @type {import('./core/plugins.js').Folder[]} */
   let folders = []
+
+  /** The theme's own tokens, as `applyTheme` resolved them. Ledger's until a
+   *  config has been read, so a `theme.tokens` plugin asked before then is
+   *  shown a complete set rather than nothing.
+   *  @type {Map<string, string>} */
+  let themeTokens = LEDGER.tokens
+
   /** False when the configured folder is not there. The page offers a picker
    *  rather than creating one somewhere nobody asked for (spec §8). */
   let vaultExists = false
@@ -94,6 +106,14 @@ export function createStore() {
     onChanged: () => changed(),
   })
 
+  // What the two files grant each plugin. Getters rather than values, because
+  // all three of these are replaced when the config is read again.
+  const granted = createGranted({
+    folders: () => folders,
+    plugins: () => config.plugins,
+    states: plugins.states,
+  })
+
   /**
    * Reads the config, applies the theme, opens the vault and indexes it.
    *
@@ -109,11 +129,12 @@ export function createStore() {
     home = loaded.home
 
     const themed = await startup.applyTheme(config.theme)
+    themeTokens = themed.tokens
     const opened = await startup.openVault(config.vault, home)
     vaultExists = opened.exists
     // Replaced rather than added to: reopening a vault that is now there
     // should not leave the line saying it was not.
-    notices = [...loaded.notices, ...themed, ...opened.notices]
+    notices = [...loaded.notices, ...themed.notices, ...opened.notices]
 
     const found = await startup.listPlugins()
     folders = found.folders
@@ -208,13 +229,11 @@ export function createStore() {
     pluginGeneration: plugins.generation,
     pluginStates: plugins.states,
 
-    // The same list the pane ticks, computed from the two files rather than
-    // from whatever a window happens to have started a plugin with - so the
-    // spread, which asks plugins but starts none (spec §1.3), gets the same
-    // answer as the popover.
-    approvedOpen: (name) =>
-      installed(folders, config.plugins).find((one) => one.name === name)?.approvedOpen ?? [],
+    approvedOpen: granted.approvedOpen,
+    installed: granted.installed,
+    pluginMoves: granted.moves,
 
+    themeTokens: () => themeTokens,
     vault: () => vault,
     config: () => config,
     notices: () => [...notices, ...pluginNotices, ...plugins.notices()],

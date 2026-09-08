@@ -13,6 +13,7 @@
 import { readConfig as parseConfig, expandHome } from './core/config.js'
 import { readTheme as parseTheme, themeCss, LEDGER } from './core/theme.js'
 import * as ipc from './ipc.js'
+import { styleElement } from './ui/dom.js'
 
 /** @typedef {import('./core/config.js').Config} Config */
 
@@ -29,8 +30,14 @@ export async function loadConfig() {
  * Tokens first, then the theme's own stylesheet, both after the app's CSS so
  * a theme can override anything it sets.
  *
+ * The tokens come back as well as being applied, because a `theme.tokens`
+ * plugin is shown them: a plugin is asked to *move* the theme's colours, and
+ * it cannot move what it was never told (spec §3.3). These are the theme's
+ * own, read before any plugin has answered - so what a plugin is shown never
+ * includes what a plugin did, and asking twice cannot drift.
+ *
  * @param {string} name
- * @returns {Promise<string[]>} notices
+ * @returns {Promise<{tokens: Map<string, string>, notices: string[]}>}
  */
 export async function applyTheme(name) {
   const folder = await ipc.readTheme(name)
@@ -39,7 +46,7 @@ export async function applyTheme(name) {
   styleElement('theme-tokens').textContent = themeCss(result.theme)
   styleElement('theme-css').textContent = folder.css
   document.documentElement.style.colorScheme = result.theme.appearance
-  return result.notices
+  return { tokens: result.theme.tokens, notices: result.notices }
 }
 
 /**
@@ -113,17 +120,4 @@ export async function registerHotkey(accelerator) {
  */
 function message(error) {
   return error instanceof Error ? error.message : String(error)
-}
-
-/**
- * @param {string} id
- * @returns {HTMLStyleElement}
- */
-function styleElement(id) {
-  const existing = document.querySelector(`#${id}`)
-  if (existing instanceof HTMLStyleElement) return existing
-  const created = document.createElement('style')
-  created.id = id
-  document.head.append(created)
-  return created
 }

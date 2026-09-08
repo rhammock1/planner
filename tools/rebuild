@@ -2,7 +2,7 @@
 
 ##  Planner rebuild script
 ##  Robert Hammock <smokeybear> (rhamm1027@gmail.com) 2026
-##  Last Updated: 2026-09-03
+##  Last Updated: 2026-09-08
 ##
 ##  Checks the JavaScript and builds the app, then says what to run.
 ##
@@ -27,16 +27,19 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 
 check=yes
 release=no
+bundle=no
 
 for argument in "$@"; do
   case "$argument" in
     -q|--quick)   check=no ;;
     -r|--release) release=yes ;;
+    -b|--bundle)  bundle=yes ;;
     -h|--help)
-      echo "Usage: tools/rebuild [-q|--quick] [-r|--release]"
+      echo "Usage: tools/rebuild [-q|--quick] [-r|--release] [-b|--bundle]"
       echo
       echo "  -q, --quick    skip the test suites, just build"
       echo "  -r, --release  build the release profile instead of debug"
+      echo "  -b, --bundle   also assemble and ad-hoc sign Planner.app"
       exit 0
       ;;
     *)
@@ -72,6 +75,99 @@ else
   cargo build --manifest-path src-tauri/Cargo.toml
 fi
 
+##  Assembling the .app, which is not the same as building the binary.
+##
+##  Anything gated on a permission has to be tested from here rather than from
+##  the bare binary. cargo produces a linker-signed executable whose embedded
+##  Info.plist is not sealed into the signature - `codesign -dv` says
+##  `Info.plist=not bound` - and TCC will not read an unbound one. The calendar
+##  and location prompts therefore never appear under `npm run app`: the ask
+##  returns, the status stays NotDetermined, and the plugin looks like it is
+##  quietly answering nothing. From here they are answered in under a second.
+##
+##  The keys come from the two files that already hold them, so there is no
+##  third place to keep the identifier in step. The identifier is the part that
+##  matters: TCC remembers a decision against it, not against a path.
+##
+##  Where this and `cargo tauri build` would disagree, if that is ever used:
+##  tauri.conf.json declares resources as "../themes", and Tauri's own bundler
+##  rewrites a resource path that climbs out of the crate root into an `_up_/`
+##  subdirectory. This copies to Contents/Resources/themes, which is where
+##  settings.rs looks. Check that before relying on a bundle from either, and
+##  the fix if they differ is to move themes/ under src-tauri/ so no path has
+##  to climb. This plist is also thinner than Tauri's by CFBundleIconFile,
+##  NSHighResolutionCapable and NSPrincipalClass - none of which a permission
+##  test needs, all of which a bundle handed to somebody would.
+if [ "$bundle" = yes ]; then
+  echo
+  echo "==> Planner.app"
+  APP="$TARGET/Planner.app"
+  rm -rf "$APP"
+  mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+  cp "$BINARY" "$APP/Contents/MacOS/planner"
+  # settings.rs reads themes out of resource_dir(), which for a bundle is here.
+  cp -R "$ROOT/themes" "$APP/Contents/Resources/themes"
+
+  python3 - "$ROOT" "$APP/Contents/Info.plist" <<'PLIST'
+import json, plistlib, sys
+from pathlib import Path
+
+root, out = Path(sys.argv[1]), Path(sys.argv[2])
+conf = json.loads((root / "src-tauri/tauri.conf.json").read_text())
+info = {
+    "CFBundleName": conf["productName"],
+    "CFBundleDisplayName": conf["productName"],
+    "CFBundleIdentifier": conf["identifier"],
+    "CFBundleExecutable": "planner",
+    "CFBundlePackageType": "APPL",
+    "CFBundleInfoDictionaryVersion": "6.0",
+    "CFBundleShortVersionString": conf["version"],
+    "CFBundleVersion": conf["version"],
+    "LSMinimumSystemVersion": conf["bundle"]["macOS"]["minimumSystemVersion"],
+}
+
+# The usage strings, from the one file that holds them - and only those. A
+# blanket update would let that file quietly redefine CFBundleIdentifier, which
+# is the one value TCC remembers a decision against, and the signature would
+# then seal the override in. What is wanted from there is the prose.
+asked = plistlib.loads((root / "src-tauri/Info.plist").read_bytes())
+info.update({
+    name: value for name, value in asked.items() if name.endswith("UsageDescription")
+})
+out.write_bytes(plistlib.dumps(info))
+PLIST
+
+  # Ad-hoc, which is all a local test needs: what TCC wants is a signature the
+  # plist is sealed into, not one anybody has paid for.
+  #
+  # `--options runtime` is not optional here, though. Without the hardened
+  # runtime the executable is not dyld-restricted, so anything running as this
+  # user can DYLD_INSERT_LIBRARIES its way into a process that holds the
+  # calendar and location grants this bundle exists to obtain, and read both
+  # with no prompt. There are no entitlements to reconcile, so it costs
+  # nothing.
+  codesign --force --options runtime --sign - "$APP"
+
+  echo "Bundled: $APP"
+
+  # Said out loud rather than assumed, because an unsealed plist is exactly the
+  # failure this whole step exists to avoid and it is invisible from the app.
+  # A bare cargo binary says `Info.plist=not bound`; a sealed one counts its
+  # entries instead. Asserted the positive way round, so that a wording this
+  # does not recognise reads as a failure rather than as success.
+  #
+  # Read into a variable rather than piped into grep: `set -o pipefail` is on,
+  # and `grep -q` closes the pipe the moment it matches, so codesign takes a
+  # SIGPIPE and the *successful* case is the one that comes back non-zero.
+  sealed="$(codesign -dv "$APP" 2>&1 || true)"
+  case "$sealed" in
+    *"Info.plist entries="*)
+      echo "         the plist is sealed in, so permissions will be asked for" ;;
+    *)
+      echo "         WARNING: the plist is not sealed in - nothing will prompt" >&2 ;;
+  esac
+fi
+
 echo
 echo "Built: $BINARY"
 echo "       $(date -r "$BINARY" '+%Y-%m-%d %H:%M')"
@@ -81,5 +177,10 @@ if [ -L "$HOME/scripts/bin/planner" ]; then
   echo "     or: planner"
 fi
 echo
+if [ "$bundle" = yes ]; then
+  echo "Or the bundle, which is the one that can ask for a permission:"
+  echo "         PLANNER_HOME=\"\$TMPDIR/planner-home\" $APP/Contents/MacOS/planner"
+  echo
+fi
 echo "It is a menu bar app - look for the icon in the status bar, not for a"
 echo "window. The 13 checks in docs/testing.md are still yours to walk by hand."

@@ -107,6 +107,7 @@ that the manifest does not declare is never asked either.
 |---|---|---|
 | `vault.contribute` | Nothing but the range of days. | `{date, time, text}[]` |
 | `item.badge` | `{date, items: [{index, text}]}` — every line the parser understood on the page being drawn, and where it sits. Not its note, not its tokens, not the daily note. | `{index, label, href}[]` |
+| `theme.tokens` | The clock, and `tokens` — every theme token as the theme set it. You are asked to *move* those, and cannot move what you were never shown. Not the page: what you do with colour is a function of the time of day. | `Record<string, string>` — a partial map of theme tokens |
 
 A badge's `label` is one line, cut at 16 characters. Its `index` must be one
 the question sent — the lines may have moved while you were thinking, and a
@@ -115,6 +116,82 @@ plugin.
 
 `href` is opened by the app when somebody clicks the marker. Your plugin is
 not asked anything at that point and does not run at all.
+
+### `theme.tokens`
+
+```toml
+slots = ["theme.tokens"]
+
+[tokens]
+moves = ["paper", "ink"]
+```
+
+```js
+planner.on('theme.tokens', ({ now, tokens }) => ({
+  paper: warmer(tokens.paper),
+  ink: warmer(tokens.ink),
+}))
+```
+
+Return a partial map of theme tokens. The app puts them in a rule of its own,
+last in the cascade — after the theme's tokens and after its `theme.css` — so
+a plugin that moves a colour can move it.
+
+**Move what you were given.** `tokens` carries every theme token as the theme
+set it, before any plugin was asked — so two plugins are shown the same
+colours, and asking twice cannot drift by reading back your own last answer.
+Returning colours of your own instead does not *move* a theme, it replaces it:
+your plugin will look right on the theme you wrote it against and wrong on
+every other. `dusk` ships the transformation rather than the destination, and
+is worth reading for that alone.
+
+You may only move what `[tokens] moves` names, and only names that are theme
+tokens (`docs/themes.md` has the list). A name that is not one is dropped
+before the pane ever shows it.
+
+**Each name in `moves` is ticked on its own**, and `config.toml` holds them as
+`approved_moves`. A slot that hands over a list is approved by the list rather
+than by the slot's name, so a person ticking `theme.tokens` is deciding about
+the colours they can see beside it. Growing `moves` in a later version does not
+grant you the new ones — they appear unticked, and you are refused them until
+somebody says otherwise. Name only what you will actually move.
+
+Values go through the same checks a theme's own values get: no braces, no
+semicolons, no angle brackets, no `@import`, no `url()` with a scheme in it,
+no backslashes, no `image-set()` or `cross-fade()`, and no comments. A value
+longer than 200 characters is dropped rather than cut — a colour cut in half
+is not a shorter colour.
+
+**Two plugins may not move the same token.** If two enabled plugins name the
+same one in `moves`, the first by name keeps it and the second is refused it,
+with a notice naming both. Colour is not a thing two plugins can each have
+half of.
+
+A value whose brackets or quotes do not close is refused as well. CSS consumes
+an unclosed function to the end of the stylesheet, so one such value would take
+every declaration after it — including another plugin's.
+
+You are asked when the popover opens, when the fifteen-minute refresh fires,
+and whenever the quarter hour turns — so a page left open across sunset is
+re-asked four times over the hour. That is the resolution the clock gives you;
+do not build anything that needs a finer one.
+
+### `[contribute] heading`
+
+```toml
+slots = ["vault.contribute"]
+
+[contribute]
+heading = "From git"
+```
+
+What the day page calls your section. Every contributing plugin gets one of
+its own, in name order, so two of them are told apart by what they are rather
+than by which arrived first. One line, cut at 40 characters; with no heading
+the section is titled with your folder's name.
+
+A slot that needs telling something has one table, named for the slot's last
+word, and it is read only when you declare that slot.
 
 ### `shell.open`
 
@@ -153,6 +230,108 @@ rather than falling back to anything wider. This is what lets a person whose
 tickets live on a different host use the plugin at all: the address is theirs,
 typed into the pane, and typing it is the approval.
 
+### `shell.run`
+
+```toml
+[permissions]
+capabilities = ["shell.run"]
+
+[permissions.run.log]
+command = ["git", "-C", "{repo}", "-c", "log.showSignature=false", "log", "--since={from} 00:00", "--until={to} 23:59", "--format=%an%x09%s"]
+repo    = "settings.repo"
+from    = "date"
+to      = "date"
+```
+
+```js
+const { status, stdout, stderr } = await planner.capability('shell.run')
+  .run('log', { from, to })
+```
+
+Every command you may run, declared by name as an **argument list** — never as
+a shell line, because there is no shell. Placeholders are `{name}`, substituted
+inside a single argument, so the list stays the length you wrote it and a bound
+value can never become two arguments.
+
+Each placeholder needs a rule in the same table, and the rule decides where
+its value comes from — which is why you pass `{from, to}` above and not
+`{repo}`:
+
+- `"date"` — **you pass it**, as a `YYYY-MM-DD`. Only you know which day you
+  are answering about.
+- `"settings.<key>"` — **it is filled in for you**, from that setting, and
+  what you pass under that name is ignored. The setting must have been set by
+  the person: a value that is only your manifest's `default` does not bind and
+  the call is refused, because a default is your string and the settings pane
+  is meant to show theirs.
+
+The second of those is why you never have to think about a setting's type. A
+`count` reaches you through `planner.settings` as a number and reaches the
+command line as its digits, and nothing you do decides which.
+
+A leading `~` in a bound value is expanded for you. The program — the first
+element — may not contain a placeholder: the pane shows the rendered line and
+the tick beside it is the approval, and nobody can approve a program they
+cannot see.
+
+**Approval is of the rendered line.** The pane shows each command as one line
+and offers to copy it; `config.toml` holds that line under the command's name
+in `[plugins.<you>.run]`. Change an argument and the manifest renders to a
+different line, which is not the one that was ticked — so it shows up
+unapproved rather than running.
+
+The line is rendered by a rule, so that you and the pane and the person
+pasting it into an editor all produce the same string: arguments joined with
+single spaces, and any argument not made entirely of `A-Za-z0-9_@%+=:,./{}-`
+wrapped in single quotes, with an inner `'` written as `'\''`. Every argument
+must be printable ASCII — a tab and a non-breaking space are drawn as a space
+and would make the line lie about where one argument ends and the next begins.
+
+Each placeholder is written with its rule inside it: `{repo}` bound to
+`settings.repo` renders as `{repo=settings.repo}`. The stored line is the
+approval, so it has to carry everything that decides what runs — otherwise a
+later version of your plugin could keep its arguments, move `{repo}` from
+`settings.repo` to `settings.token`, and keep its tick.
+
+Everything in `argv` is a string, so a `count` setting arrives on the command
+line as its digits. Reading the same setting through `planner.settings` still
+gives you the number — the two are separate paths and neither goes through the
+other.
+
+**What actually runs.** No shell. The program is looked up on the PATH a login
+shell would have; given as a path it must be absolute and outside
+`~/.planner`. The working directory is the home directory and the environment
+is `PATH`, `HOME` and `LANG` and nothing else. Five seconds, then the process
+group is killed. You get `{status, stdout, stderr}` — `status` is null when it
+was killed, `stdout` is cut at 256 KiB and `stderr` at 4 KiB.
+
+**What approval by reading can and cannot do.** The program is fixed and the
+whole line is shown, so nothing runs that a person did not read. But reading is
+the whole of it: plenty of ordinary programs have argument surfaces that amount
+to running something else — `git -c core.sshCommand=…`, `git -c alias.x=!…`,
+`find -exec`, `env`, any interpreter. A manifest may declare those and the line
+will look plausible. The tick is a judgement about a command, not a proof that
+the command is harmless, and this app does not pretend to make it one.
+
+**Both ticks are needed.** `shell.run` is the capability and the line is the
+command; the pane shows them as two boxes and both have to be ticked. Neither
+order is wrong, and the pane says when only one of them is.
+
+**A refused binding is a strike.** The manifest is your own file, so a call
+that does not match what it declared is not a misunderstanding. In practice
+that means a `date` that is not a `YYYY-MM-DD`, or a command name you were
+never granted. Three of those and the plugin is put away for the session.
+
+Two things that are *not* strikes, because neither is your fault: `shell.run`
+not being ticked, and a `settings.<key>` the person has not filled in. Both are
+refused with a reason you can show. And a setting of the wrong type is not
+possible: you do not pass it.
+
+A capability call is not a question and has no two-second deadline of its own —
+but a question does. Do not hold a question open across a `run`: answer with
+what you have, start the run, and answer properly the next time you are asked.
+That is what the fifteen-minute refresh and the popover opening are for.
+
 ### `onContribute`
 
 Called with `{from, to}`, each `YYYY-MM-DD` local, inclusive. Return — or
@@ -176,6 +355,7 @@ how many. It is never guessed at.
 | Capability | Method | Returns |
 |---|---|---|
 | `macos.calendar.read` | `events({from, to})` | `{date, time, text, allDay, status}[]` |
+| `macos.location.read` | `location()` | `{latitude, longitude}` |
 
 `status` is `confirmed`, `tentative`, `cancelled` or `none`. Deciding what to
 do about a cancelled meeting is the plugin's job; the bridge has no opinion.
@@ -187,6 +367,21 @@ allowed it.
 `events` may be asked about at most 62 days at a time. A wider range is
 refused with an error rather than trimmed, because a plugin that asked for a
 decade should find out that it did.
+
+```js
+const { latitude, longitude } = await planner.capability('macos.location.read').location()
+```
+
+`macos.location.read` answers with where this Mac is, rounded to two decimal
+places — about a kilometre, which is what sunrise arithmetic needs and less
+than a plugin needs to know about where somebody lives. There is no finer
+version of this to ask for.
+
+It rejects while macOS is still asking for permission, and again while it has
+no fix yet. Both are ordinary: ask again the next time you are asked
+something. It rejects for good if location services are off, and the message
+says so — which is why `dusk` also has a `location` setting, and why yours
+should too.
 
 ### Settings
 

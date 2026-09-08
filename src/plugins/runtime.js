@@ -59,12 +59,27 @@
     /**
      * Reach something native. Refused unless the manifest asked for this
      * capability and the config granted it.
+     *
+     * One object with every method any capability offers, rather than one per
+     * capability: what is actually reachable is decided on the other side of
+     * `invoke`, against the manifest, and a shape here that pretended
+     * otherwise would only be a second place to keep the list up to date.
      * @param {string} capability
      */
     capability(capability) {
       return {
         /** @param {{from: string, to: string}} params */
         events: (params) => send({ kind: 'capability', capability, method: 'events', params }),
+        /**
+         * Run one of the commands this plugin's manifest declared.
+         * @param {string} name
+         * @param {Record<string, string>} values  one per `date` placeholder;
+         *   a `settings.<key>` one is filled in from the grant
+         */
+        run: (name, values) =>
+          send({ kind: 'capability', capability, method: 'run', params: { name, values } }),
+        /** Where this Mac is, to two decimal places. */
+        location: () => send({ kind: 'capability', capability, method: 'location', params: {} }),
       }
     },
 
@@ -99,7 +114,11 @@
     }
     try {
       const value = await handler(message)
-      await send({ kind: 'reply', id: message.id, value: value ?? [] })
+      // `null`, not `[]`. A handler that falls off the end has nothing to say,
+      // and that is the same nothing whichever slot asked - where `[]` is an
+      // answer, and the wrong shape for a slot that replies with a map. Every
+      // reader treats null as nothing rather than as a plugin misbehaving.
+      await send({ kind: 'reply', id: message.id, value: value ?? null })
     } catch (error) {
       const said = error instanceof Error ? error.message : String(error)
       await send({ kind: 'failed', id: message.id, error: said })

@@ -6,7 +6,7 @@ the part that only an operating system can answer for.
 ## What runs on its own
 
 ```bash
-npm test          # node --test over test/*.js
+npm test          # node --test over test/*.test.js
 npm run typecheck # tsc as a checker; no build step, no emit
 cd src-tauri && cargo test
 npm run serve     # then open test/browser/*.html for the layout checks
@@ -23,7 +23,7 @@ operating system's behaviour rather than this app's. Run against a throwaway
 setup so a mistake costs nothing:
 
 ```bash
-PLANNER_HOME=/tmp/planner-home npm run app
+PLANNER_HOME="$TMPDIR/planner-home" npm run app
 ```
 
 **The menu bar item**
@@ -52,6 +52,9 @@ PLANNER_HOME=/tmp/planner-home npm run app
       nothing — being told late is worse than not being told.
 - [ ] Leaving the app running overnight still announces the next morning's
       lines. This is the one the fifteen-minute refresh exists for.
+- [ ] With the second window open, the fifteen-minute refresh reaches it as
+      well as the popover: a plugin's lines and colours follow the clock in
+      both. (Easiest with `dusk` and the machine clock moved past sunset.)
 
 **Windows**
 
@@ -90,6 +93,30 @@ PLANNER_HOME=/tmp/planner-home npm run app
       answered at once. The door does not sit on the main thread.
 - [ ] A folder in `~/.planner/plugins` named `Ticket Links` is listed in the
       settings pane with the reason and never starts.
+- [ ] With `git-activity` installed and a repository typed into its pane row,
+      ticking `shell.run` and the command line under it makes a
+      `FROM GIT` section appear on the *second* open of the popover, reading
+      `6 commits to org/repo by Someone`. The calendar's section keeps its own
+      heading, and the two are in name order.
+- [ ] The same day in a repository with no commits that day shows no `FROM GIT`
+      section at all — not an empty one.
+- [ ] Changing the repository in the pane restarts the plugin and the line
+      follows on the next open.
+- [ ] Emptying the repository row gives a notice naming the `repo` setting as
+      unset, and no section. The plugin is *not* put away for it however many
+      times the page is drawn — an empty settings row is not a strike.
+- [ ] Pointing it at a folder that is not a repository gives `git`'s own first
+      line of complaint as a notice.
+- [ ] Editing `[plugins.git-activity.run].log` in a text editor by one
+      character, then quitting and reopening the app, shows the command
+      unticked in the pane and no section. (The relaunch is not incidental:
+      the vault is watched, `~/.planner/config.toml` is not.)
+- [ ] With `git-activity` running, the popover opens and the add row accepts
+      typing while `git` is working. A command does not hold the door.
+- [ ] A command that will not finish — point `repo` at a repository and
+      temporarily add `["sleep", "30"]`-style arguments to a copy of the plugin
+      — gives a notice within about five seconds, and `ps` shows nothing left
+      behind.
 - [ ] With `ticket-links` installed, its sentence is unticked in the pane and
       no marker appears. Tick it, and `#4412` on a line grows a marker without
       a restart.
@@ -120,3 +147,38 @@ PLANNER_HOME=/tmp/planner-home npm run app
       answers. The page it is served is not ended by its own settings.
 - [ ] Type a pattern that is not a regular expression: one notice, and the
       rest of the page is unaffected.
+
+**`dusk`, and the one thing that needs a bundle**
+
+macOS will not ask for a permission on behalf of a bare `cargo` binary. It
+embeds `Info.plist` but does not seal it into the signature — `codesign -dv`
+says `Info.plist=not bound` — and TCC ignores an unbound one, so the ask
+returns, the status stays `NotDetermined`, and the plugin looks like it is
+quietly answering nothing. These six are therefore run from the bundle:
+
+```bash
+tools/rebuild --bundle
+cp -R plugins/dusk "$TMPDIR/planner-home"/plugins/
+PLANNER_HOME="$TMPDIR/planner-home" ~/.cache/planner-target/Planner.app/Contents/MacOS/planner
+```
+
+The bundle is signed ad hoc, so its signature changes every time it is built
+and macOS asks again on each rebuild. That is a nuisance rather than a bug —
+and it is also why nothing here leaves a permission granted behind it.
+
+- [ ] With `dusk` switched on and its slot ticked, macOS asks for location the
+      first time; allowing it and reopening the popover warms the page after
+      sunset. Before sunset the page is exactly the theme's own colours.
+- [ ] Setting the machine clock to 21:00 warms it; 16:00 cools it back. Both
+      the popover and the second window, and the second window follows the
+      clock while it is left open.
+- [ ] Refusing location, or turning location services off, gives a notice
+      naming the setting. Typing `35.23,-80.84` into the plugin's row makes it
+      work anyway.
+- [ ] With a `theme.css` that sets `--paper` on `:root`, `dusk` still moves it:
+      a plugin's rule is last.
+- [ ] Two plugins declaring `moves = ["paper"]` — copy `dusk` to a second
+      folder — gives one notice naming both, and only the first by name moves
+      anything.
+- [ ] `dusk` imports `sun.js` from its own folder, which is the check that a
+      plugin may be more than one file.

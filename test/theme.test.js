@@ -2,7 +2,7 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { TOKEN_NAMES, LEDGER, readTheme, themeCss } from '../src/core/theme.js'
+import { TOKEN_NAMES, LEDGER, readTheme, themeCss, forbidden } from '../src/core/theme.js'
 
 const ledgerFile = new URL('../themes/ledger/theme.toml', import.meta.url)
 
@@ -147,4 +147,61 @@ describe('the stylesheet', () => {
       assert.match(themeCss(theme), new RegExp(`--${name}: `))
     }
   })
+})
+
+test('a value carrying a backslash is refused, whatever it spells', () => {
+  // `url(\68ttps://evil/x)` is `url(https://evil/x)` to a CSS parser and is
+  // not `url(` followed by a scheme to the rule above it. A backslash in a
+  // token value has no honest use, so it is refused whole (spec §3.3).
+  const read = readTheme(`
+[tokens]
+paper = "url(\\\\68ttps://evil/x)"
+`)
+  assert.equal(read.theme.tokens.get('paper'), '#FBFAF6')
+  assert.equal(read.notices.length, 1)
+  assert.match(read.notices[0] ?? '', /paper/)
+})
+
+test('a value that fetches without saying url is refused too', () => {
+  // `image-set()` and `cross-fade()` take a bare string and fetch it, so the
+  // `url(` rule does not see them. The CSP would stop the request today, which
+  // is one line in one file away from not being true - and a token that phones
+  // home the first time the page is drawn is exactly what these checks exist
+  // to make impossible without reading the CSP as well (spec §3.3).
+  for (const value of [
+    'image-set("https://evil/x" 1x)',
+    '-webkit-image-set("https://evil/x" 1x)',
+  ]) {
+    assert.match(forbidden(value)?.why ?? '', /fetch/, `${value} was allowed`)
+  }
+  // This one spells the scheme out, so the `url(` rule above reaches it first
+  // and says so. Refused is what matters; which rule got there is not a
+  // promise worth making, and asserting on it would break the moment the list
+  // is reordered.
+  assert.notEqual(forbidden('cross-fade(url("https://evil/x"), red)'), null)
+  // A `cross-fade` that hides the scheme is the case only the new rule sees.
+  assert.match(forbidden('cross-fade("//evil/x", red)')?.why ?? '', /fetch/)
+})
+
+test('a value that opens a comment is refused', () => {
+  // `red /*` comments out the rest of the style element, closing brace and
+  // all, and what comes after it is whatever the next token spells.
+  assert.match(forbidden('red /*')?.why ?? '', /comment/)
+})
+
+test('forbidden says which rule refused a value, and nothing about a good one', () => {
+  assert.equal(forbidden('#F6EEDD'), null)
+  assert.match(forbidden('red; position: fixed')?.why ?? '', /semicolon/)
+  assert.match(forbidden('a\\b')?.why ?? '', /backslash/)
+  // And the ones that must keep working: a gradient, a font stack, a shadow.
+  assert.equal(forbidden('linear-gradient(#fff, #000)'), null)
+  // Nothing forbidden in it, and it eats the rest of the stylesheet: CSS
+  // consumes an unclosed function to the end of the sheet, so one value like
+  // this takes every declaration after it - including another plugin's.
+  assert.match(forbidden('rgb(')?.why ?? '', /do not close/)
+  assert.match(forbidden('"')?.why ?? '', /do not close/)
+  assert.match(forbidden("'")?.why ?? '', /do not close/)
+  assert.match(forbidden('red)')?.why ?? '', /do not close/)
+  assert.equal(forbidden('"SF Mono", ui-monospace, monospace'), null)
+  assert.equal(forbidden('0 1px 2px rgba(0, 0, 0, 0.2)'), null)
 })

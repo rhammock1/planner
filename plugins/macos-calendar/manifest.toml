@@ -4,5 +4,8 @@ description = "Shows the day's events under your list"
 entry = "index.js"
 slots = ["vault.contribute"]
 
+[contribute]
+heading = "On the calendar"
+
 [permissions]
 capabilities = ["macos.calendar.read"]

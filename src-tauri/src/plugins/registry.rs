@@ -8,8 +8,12 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use serde::Serialize;
 use serde_json::Value;
+
+mod records;
+
+pub use records::{Granting, PluginState};
+use records::Grant;
 
 /// How many ungranted requests a plugin gets before it is put away.
 pub const STRIKES: u32 = 3;
@@ -17,36 +21,6 @@ pub const STRIKES: u32 = 3;
 /// What each running plugin was granted, and whether it is still trusted.
 #[derive(Default)]
 pub struct Registry(Mutex<HashMap<String, Grant>>);
-
-struct Grant {
-    /// The file the plugin starts at, from its manifest.
-    entry: String,
-    /// The questions this plugin may be put, worked out in the frontend from
-    /// the manifest and the config: declared and approved.
-    slots: Vec<String>,
-    /// The intersection of what the manifest asked for and what the config
-    /// granted, worked out in the frontend where the one TOML reader lives.
-    capabilities: Vec<String>,
-    /// The addresses this plugin may ask the app to open, agreed entry for
-    /// entry between the manifest and the config.
-    open: Vec<String>,
-    /// This plugin's own settings, checked against its manifest's schema and
-    /// settled by the frontend - the page it is served carries them.
-    settings: Value,
-    /// What the plugin's page said it actually handles, from `ready`. `None`
-    /// until it has said so.
-    handles: Option<Vec<String>>,
-    /// Requests for something never granted. A plugin asking once may have a
-    /// stale manifest; asking repeatedly is not a misunderstanding.
-    strikes: u32,
-    disabled: bool,
-    /// Why it was put away, for the pane to show. A person who switches a
-    /// plugin off and on again does not know what it did (spec §1.2).
-    reason: Option<String>,
-    /// Whether its webview is up. A stop is not a judgement, so it is kept
-    /// apart from `disabled`, which is.
-    running: bool,
-}
 
 impl Registry {
     /// Records what a plugin may reach. Called by the app's own window, which
@@ -59,15 +33,11 @@ impl Registry {
     /// it has said `ready` yet is kept too - a restart clears it (Task 5
     /// calls `stop` first), but a second `grant` on a running plugin must not
     /// make it look as though it never said ready.
-    pub fn grant(
-        &self,
-        name: &str,
-        entry: String,
-        slots: Vec<String>,
-        capabilities: Vec<String>,
-        open: Vec<String>,
-        settings: Value,
-    ) {
+    pub fn grant(&self, granting: Granting) {
+        let Granting {
+            name, entry, slots, capabilities, open, run, asked, asked_run, settings,
+        } = granting;
+        let name = name.as_str();
         let mut held = self.0.lock().expect("registry lock");
         let kept = held
             .get(name)
@@ -80,6 +50,9 @@ impl Registry {
                 slots,
                 capabilities,
                 open,
+                run,
+                asked,
+                asked_run,
                 settings,
                 handles,
                 strikes,
@@ -174,6 +147,46 @@ impl Registry {
             .unwrap_or_default()
     }
 
+    /// What a plugin may run right now.
+    ///
+    /// `running` as well as `!disabled`, for the same reason `may_open` reads
+    /// both: switching a plugin off has to withdraw what it may reach at once.
+    pub fn run_of(&self, name: &str) -> Option<Vec<super::run::Command>> {
+        let held = self.0.lock().expect("registry lock");
+        held.get(name)
+            .filter(|grant| grant.running && !grant.disabled)
+            .map(|grant| grant.run.clone())
+    }
+
+    /// Whether the plugin's own manifest asked for this capability, whatever
+    /// the config then said about it.
+    ///
+    /// The difference between a refusal and a strike, which is why this and
+    /// its sibling below are two functions rather than one taking the list to
+    /// look in as a string. Written that way, any value that was not the
+    /// expected one silently fell through to the capabilities - so a typo
+    /// decided a plugin's fate the wrong way round, and nothing said so.
+    pub fn declared_capability(&self, name: &str, wanted: &str) -> bool {
+        self.declared(name, wanted, false)
+    }
+
+    /// Whether the plugin's own manifest declared this command.
+    ///
+    /// A separate namespace from the capabilities on purpose: a command named
+    /// `shell.run` must not be able to launder itself into the capability of
+    /// the same name.
+    pub fn declared_run(&self, name: &str, wanted: &str) -> bool {
+        self.declared(name, wanted, true)
+    }
+
+    fn declared(&self, name: &str, wanted: &str, among_run: bool) -> bool {
+        let held = self.0.lock().expect("registry lock");
+        held.get(name).is_some_and(|grant| {
+            let list = if among_run { &grant.asked_run } else { &grant.asked };
+            list.iter().any(|one| one == wanted)
+        })
+    }
+
     /// Records a request for something the plugin was not granted, and says
     /// whether that was one too many.
     pub fn strike(&self, name: &str) -> bool {
@@ -229,18 +242,4 @@ impl Registry {
         states.sort_by(|left, right| left.name.cmp(&right.name));
         states
     }
-}
-
-/// What the pane needs to know about a plugin that is not in either file.
-///
-/// The reason is the interesting part. A judgement about how somebody's code
-/// behaved should not be cleared by a person who does not know what it did,
-/// so the switch does not clear it - which makes telling them what it was the
-/// only decent thing left to do (spec §1.2).
-#[derive(Serialize)]
-pub struct PluginState {
-    pub name: String,
-    pub running: bool,
-    pub disabled: bool,
-    pub reason: Option<String>,
 }

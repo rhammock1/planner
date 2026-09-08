@@ -8,7 +8,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { readManifest } from '../src/core/manifest.js'
+import { readManifest, slotOptions, optionText, optionNames } from '../src/core/manifest.js'
 
 test('a manifest says where to start and what it wants', () => {
   const read = readManifest(`
@@ -37,12 +37,12 @@ test('a slot this app does not offer is dropped, and said out loud', () => {
   // still do the parts this version understands.
   const read = readManifest(`
 entry = "index.js"
-slots = ["item.badge", "theme.tokens"]
+slots = ["item.badge", "page.section"]
 `)
   assert.equal(read.error, null)
   assert.deepEqual(read.slots, ['item.badge'])
   assert.equal(read.notices.length, 1)
-  assert.match(read.notices[0] ?? '', /theme\.tokens/)
+  assert.match(read.notices[0] ?? '', /page\.section/)
 })
 
 test('slots in the wrong shape are a fault, not a guess', () => {
@@ -179,4 +179,111 @@ test('a settings key with no label is not a row anybody could read', () => {
 
 test('a manifest with no settings has none', () => {
   assert.deepEqual(readManifest('entry = "i.js"').settings, [])
+})
+
+test('a slot that needs telling something has one table, named for its last word', () => {
+  const read = readManifest(`
+entry = "index.js"
+slots = ["vault.contribute"]
+
+[contribute]
+heading = "From git"
+`)
+  assert.equal(read.error, null)
+  assert.deepEqual(slotOptions(read, 'vault.contribute'), { heading: 'From git' })
+  // A slot that was not declared is not asked, so its table is not read
+  // either - a manifest cannot smuggle options in for a question nobody puts.
+  assert.deepEqual(slotOptions(read, 'item.badge'), {})
+})
+
+test('an options table for a slot the manifest never declared is not read', () => {
+  const read = readManifest(`
+entry = "index.js"
+slots = ["item.badge"]
+
+[contribute]
+heading = "From git"
+`)
+  assert.deepEqual(slotOptions(read, 'vault.contribute'), {})
+})
+
+test('an options key that is not a table is a line, not a refusal', () => {
+  const read = readManifest(`
+entry = "index.js"
+slots = ["vault.contribute"]
+contribute = "From git"
+`)
+  assert.equal(read.error, null)
+  assert.deepEqual(slotOptions(read, 'vault.contribute'), {})
+  assert.equal(read.notices.length, 1)
+  assert.match(read.notices[0] ?? '', /contribute/)
+})
+
+test('an option that is text is one line, cut, and never markup', () => {
+  const long = 'x'.repeat(60)
+  const read = readManifest(`
+entry = "index.js"
+slots = ["vault.contribute"]
+
+[contribute]
+heading = "From\\ngit   log ${long}"
+`)
+  const heading = optionText(slotOptions(read, 'vault.contribute'), 'heading', 40)
+  assert.equal(heading.includes('\n'), false)
+  assert.equal(heading.length, 40)
+  assert.match(heading, /^From git log x+…$/)
+})
+
+test('an option that is missing, or is not text, reads as nothing', () => {
+  const read = readManifest(`
+entry = "index.js"
+slots = ["vault.contribute"]
+
+[contribute]
+heading = 4
+`)
+  assert.equal(optionText(slotOptions(read, 'vault.contribute'), 'heading', 40), '')
+  assert.equal(optionText(slotOptions(read, 'vault.contribute'), 'missing', 40), '')
+})
+
+test('an option that is a list of names keeps only the strings', () => {
+  // `moves` is not one of `vault.contribute`'s options and is not meant to be:
+  // these readers are handed an options table and a key, and know nothing
+  // about which slot has which. The first real `moves` is `theme.tokens`'s, in
+  // PR #6 - written against this, and this is where it is proved.
+  const read = readManifest(`
+entry = "index.js"
+slots = ["vault.contribute"]
+
+[contribute]
+moves = ["paper", "ink", "paper"]
+`)
+  // Declared twice is declared once, the same way `slots` is.
+  assert.deepEqual(optionNames(slotOptions(read, 'vault.contribute'), 'moves'), ['paper', 'ink'])
+  assert.deepEqual(optionNames(slotOptions(read, 'vault.contribute'), 'heading'), [])
+  // A 4 is not a name and is simply not there. Handed to the reader directly,
+  // because `core/toml.js` will not parse a mixed array at all - a manifest
+  // holding one is refused whole, well before this reader is reached.
+  assert.deepEqual(optionNames({ moves: /** @type {any} */ (['paper', 4, 'ink']) }, 'moves'), ['paper', 'ink'])
+})
+
+test('a manifest that declares commands carries them, rendered', () => {
+  const read = readManifest(`
+entry = "index.js"
+
+[permissions]
+capabilities = ["shell.run"]
+
+[permissions.run.log]
+command = ["git", "-C", "{repo}", "log"]
+repo    = "settings.repo"
+`)
+  assert.equal(read.error, null)
+  assert.deepEqual(read.run.map((one) => one.name), ['log'])
+  assert.equal(read.run[0]?.line, 'git -C {repo=settings.repo} log')
+})
+
+test('a permissions.run that is not a table stops the plugin', () => {
+  const read = readManifest('entry = "index.js"\n\n[permissions]\nrun = "git log"\n')
+  assert.match(read.error ?? '', /permissions\.run/)
 })

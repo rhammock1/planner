@@ -22,7 +22,9 @@ pub mod door;
 pub mod host;
 pub mod opening;
 pub mod registry;
+pub mod run;
 pub mod serving;
+pub mod spawning;
 pub mod waiting;
 
 pub use door::Message;
@@ -113,16 +115,8 @@ pub fn list_plugins() -> Vec<Folder> {
 /// Only the app's own windows can reach this: a plugin window is held to
 /// `plugin_message` by the gate, so no plugin can grant itself anything.
 #[tauri::command]
-pub fn start_plugin(
-    app: AppHandle,
-    name: String,
-    entry: String,
-    slots: Vec<String>,
-    capabilities: Vec<String>,
-    open: Vec<String>,
-    settings: Value,
-) -> Result<(), String> {
-    host::start(&app, &name, &entry, slots, capabilities, open, settings)
+pub fn start_plugin(app: AppHandle, grant: registry::Granting) -> Result<(), String> {
+    host::start(&app, grant)
 }
 
 /// Asks every plugin granted a slot what it has to say, and hands back what

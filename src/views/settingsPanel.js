@@ -17,7 +17,7 @@ import { FIELDS } from './settingsFields.js'
 import { createPluginRows } from './pluginRows.js'
 
 /** @typedef {import('../core/config.js').Config} Config */
-/** @typedef {import('../core/plugins.js').Installed} Installed */
+/** @typedef {import('../core/installed.js').Installed} Installed */
 /** @typedef {import('../plugins/asking.js').PluginState} PluginState */
 
 /**
