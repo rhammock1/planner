@@ -37,6 +37,36 @@ declare namespace Planner {
     events(range: Range): Promise<CalendarEvent[]>
   }
 
+  /** What a command left behind. */
+  interface Ran {
+    /** Its exit code, or null when it overran and was killed. */
+    status: number | null
+    /** Cut at 256 KiB. */
+    stdout: string
+    /** Cut at 4 KiB. */
+    stderr: string
+  }
+
+  interface RunCapability {
+    /**
+     * Runs a command your manifest declared.
+     *
+     * `values` carries one entry per `date` placeholder and nothing else: a
+     * `settings.<key>` placeholder is filled in from the setting, and a value
+     * passed under its name is ignored.
+     *
+     * Rejects if a date is not a `YYYY-MM-DD`, and that rejection is a strike
+     * against your plugin: the manifest is your own file, so a value it would
+     * not accept is not a misunderstanding you could have had.
+     *
+     * Two rejections are *not* strikes, because neither is your doing: a
+     * `settings.<key>` whose setting nobody has filled in, and a `shell.run`
+     * the person has not ticked. Both say so in the message, so you can put
+     * it on the page.
+     */
+    run(name: string, values: Record<string, string>): Promise<Ran>
+  }
+
   /** What every question carries: the day and the time it was asked. */
   interface Now {
     /** `YYYY-MM-DD`, local. */
@@ -93,6 +123,8 @@ declare const planner: {
    * capability and `config.toml` granted it.
    */
   capability(name: 'macos.calendar.read'): Planner.CalendarCapability
+
+  capability(name: 'shell.run'): Planner.RunCapability
 
   /**
    * This plugin's own settings, as `config.toml` holds them, keyed the way

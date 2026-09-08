@@ -117,6 +117,16 @@ pub fn planner_dir() -> Option<PathBuf> {
     dirs::home_dir().map(|home| home.join(".planner"))
 }
 
+/// Where `~` points.
+///
+/// The real one, not `PLANNER_HOME`: that variable moves where this app keeps
+/// its own files, and a `~` a person typed into a settings row still means
+/// their home directory. It is the same one `read_config` already hands the
+/// frontend, so the two sides expand a path the same way (spec §3.2).
+pub fn home_dir() -> Option<PathBuf> {
+    dirs::home_dir()
+}
+
 /// Opens a vault page in whatever editor the user actually uses (spec §8).
 ///
 /// The escape hatch. Everything this app does to a file it does through one

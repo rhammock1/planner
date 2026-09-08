@@ -13,9 +13,22 @@ use serde_json::Value;
 ///
 /// One arm per capability, and a capability with no arm is a capability that
 /// does not exist however a manifest asks for it.
-pub fn dispatch(capability: &str, method: &str, params: &Value) -> Result<Value, String> {
+///
+/// The app handle and the caller's name are both here because a capability
+/// that carries a list needs them: `shell.run` has to read the commands *this*
+/// plugin was granted, and a refused binding is a strike against *this* plugin
+/// (spec §3.2). The name is the window label's, never anything the message
+/// claimed to be.
+pub fn dispatch(
+    app: &tauri::AppHandle,
+    plugin: &str,
+    capability: &str,
+    method: &str,
+    params: &Value,
+) -> Result<Value, String> {
     match (capability, method) {
         ("macos.calendar.read", "events") => calendar::events(params),
+        ("shell.run", "run") => crate::plugins::run::call(app, plugin, params),
         _ => Err(format!("no bridge provides {capability}.{method}")),
     }
 }

@@ -207,3 +207,53 @@ fn the_rules_arrive_the_way_the_frontend_sends_them() {
     assert_eq!(read.binds.len(), 2);
     assert!(matches!(read.binds[1].rule, Rule::Date));
 }
+
+use planner_lib::plugins::run::answer;
+
+#[test]
+fn what_a_command_said_reaches_the_plugin_as_three_fields() {
+    let said = answer(planner_lib::plugins::spawning::Finished {
+        status: Some(0),
+        stdout: b"Robert\tone thing\n".to_vec(),
+        stderr: Vec::new(),
+    });
+    assert_eq!(said["status"], serde_json::json!(0));
+    assert_eq!(said["stdout"], serde_json::json!("Robert\tone thing\n"));
+    assert_eq!(said["stderr"], serde_json::json!(""));
+}
+
+#[test]
+fn a_killed_command_has_no_status_at_all() {
+    // Null rather than a number, so "it took too long" and "it exited 0" are
+    // not the same answer to a plugin (spec §6).
+    let said = answer(planner_lib::plugins::spawning::Finished {
+        status: None,
+        stdout: Vec::new(),
+        stderr: b"...".to_vec(),
+    });
+    assert!(said["status"].is_null());
+}
+
+#[test]
+fn a_command_is_handed_exactly_three_variables() {
+    // The whole environment, and the promise `docs/plugins.md` makes. Planner
+    // may have been launched from a terminal holding a token, a proxy and a
+    // `GIT_DIR`; none of them is a plugin's to inherit.
+    let given = planner_lib::plugins::run::environment(Path::new("/Users/someone"));
+    let names: Vec<&str> = given.iter().map(|(name, _)| name.as_str()).collect();
+    assert_eq!(names, vec!["PATH", "HOME", "LANG"]);
+    assert_eq!(given[1].1, "/Users/someone");
+    assert!(given[0].1.contains('/'), "the PATH is not a path: {}", given[0].1);
+}
+
+#[test]
+fn output_that_is_not_text_still_comes_back_as_text() {
+    // A program is not obliged to speak UTF-8, and a plugin is handed a string
+    // either way rather than a call that failed for a reason nobody can act on.
+    let said = answer(planner_lib::plugins::spawning::Finished {
+        status: Some(0),
+        stdout: vec![0xff, 0xfe, b'h', b'i'],
+        stderr: Vec::new(),
+    });
+    assert!(said["stdout"].as_str().expect("not a string").ends_with("hi"));
+}

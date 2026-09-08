@@ -191,8 +191,13 @@ async fn run_capability(
         return Err(format!("{name} is already waiting on a capability"));
     };
 
+    // Cloned into the blocking task: everything alive across an await point
+    // has to be owned by the future, and neither a `State` nor a borrow of the
+    // caller's name can be.
+    let handle = app.clone();
+    let caller = name.to_string();
     let done = tauri::async_runtime::spawn_blocking(move || {
-        crate::bridges::dispatch(&capability, &method, &params)
+        crate::bridges::dispatch(&handle, &caller, &capability, &method, &params)
     })
     .await;
 
