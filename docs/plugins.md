@@ -107,7 +107,7 @@ that the manifest does not declare is never asked either.
 |---|---|---|
 | `vault.contribute` | Nothing but the range of days. | `{date, time, text}[]` |
 | `item.badge` | `{date, items: [{index, text}]}` — every line the parser understood on the page being drawn, and where it sits. Not its note, not its tokens, not the daily note. | `{index, label, href}[]` |
-| `theme.tokens` | Nothing but the clock. What you do with colour is a function of the time of day, and you are not shown the page. | `Record<string, string>` — a partial map of theme tokens |
+| `theme.tokens` | The clock, and `tokens` — every theme token as the theme set it. You are asked to *move* those, and cannot move what you were never shown. Not the page: what you do with colour is a function of the time of day. | `Record<string, string>` — a partial map of theme tokens |
 
 A badge's `label` is one line, cut at 16 characters. Its `index` must be one
 the question sent — the lines may have moved while you were thinking, and a
@@ -127,17 +127,34 @@ moves = ["paper", "ink"]
 ```
 
 ```js
-planner.on('theme.tokens', ({ now }) => ({ paper: '#F6EEDD', ink: '#2A2622' }))
+planner.on('theme.tokens', ({ now, tokens }) => ({
+  paper: warmer(tokens.paper),
+  ink: warmer(tokens.ink),
+}))
 ```
 
 Return a partial map of theme tokens. The app puts them in a rule of its own,
 last in the cascade — after the theme's tokens and after its `theme.css` — so
 a plugin that moves a colour can move it.
 
+**Move what you were given.** `tokens` carries every theme token as the theme
+set it, before any plugin was asked — so two plugins are shown the same
+colours, and asking twice cannot drift by reading back your own last answer.
+Returning colours of your own instead does not *move* a theme, it replaces it:
+your plugin will look right on the theme you wrote it against and wrong on
+every other. `dusk` ships the transformation rather than the destination, and
+is worth reading for that alone.
+
 You may only move what `[tokens] moves` names, and only names that are theme
-tokens (`docs/themes.md` has the list). Anything else is dropped and counted.
-The pane shows the person that list beside the tick, so name only what you
-will actually move.
+tokens (`docs/themes.md` has the list). A name that is not one is dropped
+before the pane ever shows it.
+
+**Each name in `moves` is ticked on its own**, and `config.toml` holds them as
+`approved_moves`. A slot that hands over a list is approved by the list rather
+than by the slot's name, so a person ticking `theme.tokens` is deciding about
+the colours they can see beside it. Growing `moves` in a later version does not
+grant you the new ones — they appear unticked, and you are refused them until
+somebody says otherwise. Name only what you will actually move.
 
 Values go through the same checks a theme's own values get: no braces, no
 semicolons, no angle brackets, no `@import`, no `url()` with a scheme in it,
@@ -149,6 +166,10 @@ is not a shorter colour.
 same one in `moves`, the first by name keeps it and the second is refused it,
 with a notice naming both. Colour is not a thing two plugins can each have
 half of.
+
+A value whose brackets or quotes do not close is refused as well. CSS consumes
+an unclosed function to the end of the stylesheet, so one such value would take
+every declaration after it — including another plugin's.
 
 You are asked when the popover opens, when the fifteen-minute refresh fires,
 and whenever the quarter hour turns — so a page left open across sunset is

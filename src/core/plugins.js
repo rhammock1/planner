@@ -210,21 +210,6 @@ export function signature(start) {
 }
 
 /**
- * Every field `signature` reads.
- *
- * Exported for the one test that matters here: `signature` is written out by
- * hand, and a field added to `Start` and forgotten in it is a plugin that
- * silently keeps running with the grant it had before - which is the one
- * symptom this app promises never to be silent about (spec §1.2). A list this
- * short is easier to keep true than a comment asking somebody to remember.
- *
- * @type {readonly (keyof Start)[]}
- */
-export const SIGNED = Object.freeze([
-  'name', 'entry', 'slots', 'capabilities', 'open', 'run', 'asked', 'askedRun', 'settings',
-])
-
-/**
  * What has to happen for what is running to become what is planned.
  *
  * A restart is the only way anything about a plugin changes: a page that

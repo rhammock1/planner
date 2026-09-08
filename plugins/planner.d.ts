@@ -108,11 +108,18 @@ declare namespace Planner {
     items: Line[]
   }
 
-  /** The question behind the `theme.tokens` slot. Only the clock: what a
-   *  plugin does with colour is a function of the time of day, and it is not
-   *  shown the page. */
+  /** The question behind the `theme.tokens` slot. The clock, and the colours
+   *  the theme itself set - you are asked to *move* those, and cannot move
+   *  what you were never shown. Not the page: what you do with colour is a
+   *  function of the time of day. */
   interface TokensQuestion {
     now: Now
+    /**
+     * Every theme token, as the theme set it, before any plugin was asked.
+     * So two plugins are shown the same colours, and asking twice cannot
+     * drift by reading back your own last answer.
+     */
+    tokens: Record<string, string>
   }
 
   /** A marker after a line. */

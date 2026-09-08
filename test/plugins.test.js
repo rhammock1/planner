@@ -7,7 +7,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { plan, isPluginName, diff, signature, SIGNED } from '../src/core/plugins.js'
+import { plan, isPluginName, diff, signature } from '../src/core/plugins.js'
 
 /** @typedef {import('../src/core/config.js').PluginConfig} PluginConfig */
 
@@ -33,6 +33,7 @@ function configured(settings) {
       approvedSlots: settings?.approvedSlots ?? ['vault.contribute'],
       approvedCapabilities: settings?.approvedCapabilities ?? ['macos.calendar.read'],
       approvedOpen: settings?.approvedOpen ?? [],
+      approvedMoves: settings?.approvedMoves ?? [],
       approvedRun: new Map(),
       settings: settings?.settings ?? new Map(),
     },
@@ -110,7 +111,7 @@ test('a manifest that will not parse stops that plugin and nothing else', () => 
   ]
   const settings = configured()
   settings.set('broken', {
-    enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], approvedRun: new Map(), settings: new Map(),
+    enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], approvedMoves: [], approvedRun: new Map(), settings: new Map(),
   })
 
   const { start, notices } = plan(broken, settings)
@@ -127,7 +128,8 @@ test('a folder whose name is not a plugin name never starts', () => {
   const bad = [{ name: 'Ticket Links', manifest: MANIFEST }]
   const configured = new Map([
     ['Ticket Links', {
-      enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], approvedRun: new Map(), settings: new Map(),
+      enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [],
+    approvedMoves: [], approvedRun: new Map(), settings: new Map(),
     }],
   ])
   const { start, notices } = plan(bad, configured)
@@ -256,6 +258,7 @@ test('the manifest is the ceiling for addresses too', () => {
     configured({
       approvedSlots: [],
       approvedOpen: ['https://github.com/gotab-inc/node/pull/', 'https://evil.example/x/'],
+      approvedMoves: [],
       approvedRun: new Map(),
       approvedCapabilities: [],
     }),
@@ -407,6 +410,7 @@ test('an address named by a setting with a value resolves to the cut prefix', ()
     approvedSlots: [],
     approvedCapabilities: [],
     approvedOpen: ['https://git.example/org/repo/pull/'],
+    approvedMoves: [],
     approvedRun: new Map(),
   })
   const macosCalendar = config.get('macos-calendar')
@@ -423,6 +427,7 @@ test('changing the setting an address depends on changes the signature, so the p
     approvedSlots: [],
     approvedCapabilities: [],
     approvedOpen: ['https://git.example/org/repo/pull/', 'https://other.example/x/'],
+    approvedMoves: [],
     approvedRun: new Map(),
   })
   const macosCalendar = config.get('macos-calendar')
@@ -486,6 +491,7 @@ function runConfigured(patch) {
     approvedSlots: [],
     approvedCapabilities: ['shell.run'],
     approvedOpen: [],
+    approvedMoves: [],
     approvedRun: new Map([['log', LINE]]),
     settings: new Map([['repo', '~/gotab/node']]),
     ...patch,
@@ -604,14 +610,14 @@ test('a plugin restarts when the value bound into a command changes', () => {
 test('a field added to a Start is a field the signature reads', () => {
   // `signature` is written out by hand, so a field added to `Start` and
   // forgotten in it produces a plugin that keeps running with its old grant
-  // and says nothing. This is the guard: `SIGNED` names what the function
-  // reads, and the two below prove it is both complete and honest.
+  // and says nothing.
+  //
+  // The guard is driven off a real `Start` rather than off a list kept beside
+  // it: a list would be a second place to add the field to, and forgetting
+  // *that* is the same bug wearing a different hat.
   const start = plan([{ name: 'git-activity', manifest: RUNNER }], runConfigured()).start[0]
   assert.ok(start !== undefined)
-  assert.deepEqual([...SIGNED].sort(), Object.keys(start).sort())
 
-  // And every one of them actually moves the signature, so `SIGNED` cannot be
-  // kept true by listing a field the function ignores.
   const base = signature(start)
   /** Something of the right shape, so the check is "was it read" and not
    *  "did it throw". @param {unknown} held */
@@ -624,7 +630,7 @@ test('a field added to a Start is a field the signature reads', () => {
     }
     return `${String(held)} other`
   }
-  for (const field of SIGNED) {
+  for (const field of /** @type {(keyof typeof start)[]} */ (Object.keys(start))) {
     const changed = { ...start, [field]: otherwise(start[field]) }
     assert.notEqual(
       signature(/** @type {any} */ (changed)), base,

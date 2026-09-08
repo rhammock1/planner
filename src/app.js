@@ -16,7 +16,6 @@ import { readContributions } from './core/contributions.js'
 import { badgesFor, openBadge } from './plugins/pageAsking.js'
 import { openInEditor, pickVault } from './vaultActions.js'
 import { search } from './core/search.js'
-import { installed } from './core/installed.js'
 import { applyPluginTokens } from './plugins/theming.js'
 import { today } from './clock.js'
 import { createShowing } from './showing.js'
@@ -173,10 +172,11 @@ function draw() {
   // draw, and if this is today's page it is now a different one.
   showing.tick(now)
   const page = showing.page()
-  // One reading of the two files per draw, shared by the pane's ticks and the
-  // day's headings - so a plugin cannot be called one thing in one place and
-  // something else in the other.
-  const plugins = installed(store.folders(), store.config().plugins)
+  // One reading of the two files, shared by the pane's ticks and the day's
+  // headings - so a plugin cannot be called one thing in one place and
+  // something else in the other. The store memoizes it, so this costs a
+  // manifest parse only when one of the two files has actually changed.
+  const plugins = store.installed()
 
   // Today's page only, and asked again with a fresh key on every refresh
   // (spec §1.4).
