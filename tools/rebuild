@@ -27,16 +27,19 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 
 check=yes
 release=no
+bundle=no
 
 for argument in "$@"; do
   case "$argument" in
     -q|--quick)   check=no ;;
     -r|--release) release=yes ;;
+    -b|--bundle)  bundle=yes ;;
     -h|--help)
-      echo "Usage: tools/rebuild [-q|--quick] [-r|--release]"
+      echo "Usage: tools/rebuild [-q|--quick] [-r|--release] [-b|--bundle]"
       echo
       echo "  -q, --quick    skip the test suites, just build"
       echo "  -r, --release  build the release profile instead of debug"
+      echo "  -b, --bundle   also assemble and ad-hoc sign Planner.app"
       exit 0
       ;;
     *)
@@ -72,6 +75,68 @@ else
   cargo build --manifest-path src-tauri/Cargo.toml
 fi
 
+##  Assembling the .app, which is not the same as building the binary.
+##
+##  Anything gated on a permission has to be tested from here rather than from
+##  the bare binary. cargo produces a linker-signed executable whose embedded
+##  Info.plist is not sealed into the signature - `codesign -dv` says
+##  `Info.plist=not bound` - and TCC will not read an unbound one. The calendar
+##  and location prompts therefore never appear under `npm run app`: the ask
+##  returns, the status stays NotDetermined, and the plugin looks like it is
+##  quietly answering nothing. From here they are answered in under a second.
+##
+##  The keys come from the two files that already hold them, so there is no
+##  third place to keep the identifier in step. The identifier is the part that
+##  matters: TCC remembers a decision against it, not against a path.
+if [ "$bundle" = yes ]; then
+  echo
+  echo "==> Planner.app"
+  APP="$TARGET/Planner.app"
+  rm -rf "$APP"
+  mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+  cp "$BINARY" "$APP/Contents/MacOS/planner"
+  # settings.rs reads themes out of resource_dir(), which for a bundle is here.
+  cp -R "$ROOT/themes" "$APP/Contents/Resources/themes"
+
+  python3 - "$ROOT" "$APP/Contents/Info.plist" <<'PLIST'
+import json, plistlib, sys
+from pathlib import Path
+
+root, out = Path(sys.argv[1]), Path(sys.argv[2])
+conf = json.loads((root / "src-tauri/tauri.conf.json").read_text())
+info = {
+    "CFBundleName": conf["productName"],
+    "CFBundleDisplayName": conf["productName"],
+    "CFBundleIdentifier": conf["identifier"],
+    "CFBundleExecutable": "planner",
+    "CFBundlePackageType": "APPL",
+    "CFBundleInfoDictionaryVersion": "6.0",
+    "CFBundleShortVersionString": conf["version"],
+    "CFBundleVersion": conf["version"],
+    "LSMinimumSystemVersion": conf["bundle"]["macOS"]["minimumSystemVersion"],
+}
+# The usage strings, from the one file that holds them. Last, so a key written
+# there wins over anything guessed at above.
+info.update(plistlib.loads((root / "src-tauri/Info.plist").read_bytes()))
+out.write_bytes(plistlib.dumps(info))
+PLIST
+
+  # Ad-hoc, which is all a local test needs: what TCC wants is a signature the
+  # plist is sealed into, not one anybody has paid for.
+  codesign --force --sign - "$APP"
+
+  echo "Bundled: $APP"
+  # Said out loud rather than assumed, because an unbound plist is exactly the
+  # failure this whole step exists to avoid and it is invisible from the app.
+  # `Info.plist=not bound` is what a bare cargo binary says. A sealed one
+  # counts its entries instead, which is the line to want here.
+  if codesign -dv "$APP" 2>&1 | grep -q 'Info.plist=not bound'; then
+    echo "         WARNING: the plist is not bound - nothing will prompt" >&2
+  else
+    echo "         the plist is sealed in, so permissions will be asked for"
+  fi
+fi
+
 echo
 echo "Built: $BINARY"
 echo "       $(date -r "$BINARY" '+%Y-%m-%d %H:%M')"
@@ -81,5 +146,10 @@ if [ -L "$HOME/scripts/bin/planner" ]; then
   echo "     or: planner"
 fi
 echo
+if [ "$bundle" = yes ]; then
+  echo "Or the bundle, which is the one that can ask for a permission:"
+  echo "         PLANNER_HOME=/tmp/planner-home $APP/Contents/MacOS/planner"
+  echo
+fi
 echo "It is a menu bar app - look for the icon in the status bar, not for a"
 echo "window. The 13 checks in docs/testing.md are still yours to walk by hand."
