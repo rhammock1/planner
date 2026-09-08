@@ -170,9 +170,19 @@ async fn run_capability(
     {
         let registry = app.state::<Registry>();
         if !registry.permits(name, &capability) {
-            eprintln!("planner: {name} asked for {capability}, which it was not granted");
+            // Declared and not ticked is a decision nobody has made yet, and
+            // charging a strike for it bricks a correctly-written plugin on
+            // the day it is installed - which is the one day it is certain to
+            // hit this. `docs/plugins.md` promises as much. Only a capability
+            // the plugin's own manifest never declared is a strike (spec §1.2).
+            if registry.declared(name, "capability", &capability) {
+                return Err(format!(
+                    "{name} was not granted {capability}; it has not been ticked in settings"
+                ));
+            }
+            eprintln!("planner: {name} asked for {capability}, which its manifest never declared");
             if registry.strike(name) {
-                super::host::put_away(app, name, "asked three times for something it was not granted");
+                super::host::put_away(app, name, "asked three times for something it never declared");
             }
             return Err(format!("{name} was not granted {capability}"));
         }

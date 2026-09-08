@@ -35,7 +35,24 @@ import { settled, resolveOpen, personSet, resolveRun } from './pluginSettings.js
  * @property {string[]} open  addresses granted: declared and approved
  * @property {import('./pluginSettings.js').GrantedCommand[]} run  granted:
  *   declared and approved as written
+ * @property {string[]} asked  capabilities the manifest declares, approved or
+ *   not. Rust needs the difference: asking for something you declared and the
+ *   person has not ticked is a decision nobody has made yet, and asking for
+ *   something you never declared is a plugin that is not what it said it was.
+ *   Only the second is a strike (spec §1.2).
+ * @property {string[]} askedRun  command names the manifest declares, ticked
+ *   or not, for the same reason
  * @property {Map<string, TomlValue>} settings  checked against the manifest's schema
+ */
+
+/**
+ * A `Start` as it crosses into Rust: the same record with its settings as a
+ * plain object, because JSON has no `Map`.
+ *
+ * Named separately from `Start` so the seam has a shape rather than a
+ * parameter list. Adding a field is one edit here and one in `plan()`.
+ *
+ * @typedef {Omit<Start, 'settings'> & {settings: Record<string, unknown>}} Grant
  */
 
 /** @typedef {{name: string, manifest: string}} Folder */
@@ -146,6 +163,8 @@ export function plan(folders, configured) {
       capabilities,
       open: both(resolvedOpen, settings.approvedOpen),
       run,
+      asked: read.capabilities,
+      askedRun: read.run.map((one) => one.name),
       settings: pluginSettings,
     })
   }
@@ -184,9 +203,26 @@ export function signature(start) {
           bind.rule === 'setting' ? bind.value : null,
         ]),
       ]),
+    [...start.asked].sort(),
+    [...start.askedRun].sort(),
     [...start.settings].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
   ])
 }
+
+/**
+ * Every field `signature` reads.
+ *
+ * Exported for the one test that matters here: `signature` is written out by
+ * hand, and a field added to `Start` and forgotten in it is a plugin that
+ * silently keeps running with the grant it had before - which is the one
+ * symptom this app promises never to be silent about (spec §1.2). A list this
+ * short is easier to keep true than a comment asking somebody to remember.
+ *
+ * @type {readonly (keyof Start)[]}
+ */
+export const SIGNED = Object.freeze([
+  'name', 'entry', 'slots', 'capabilities', 'open', 'run', 'asked', 'askedRun', 'settings',
+])
 
 /**
  * What has to happen for what is running to become what is planned.

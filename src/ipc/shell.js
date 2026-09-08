@@ -145,17 +145,11 @@ export async function listPlugins() {
  * Only the app's own windows can reach this command; a plugin is held to
  * `plugin_message` by the gate in Rust, so none can grant itself anything.
  *
- * @param {string} name
- * @param {string} entry
- * @param {string[]} slots
- * @param {string[]} capabilities
- * @param {string[]} open
- * @param {unknown[]} run
- * @param {Record<string, unknown>} settings
+ * @param {import('../core/plugins.js').Grant} grant
  * @returns {Promise<void>}
  */
-export async function startPlugin(name, entry, slots, capabilities, open, run, settings) {
-  return (await getHost()).startPlugin(name, entry, slots, capabilities, open, run, settings)
+export async function startPlugin(grant) {
+  return (await getHost()).startPlugin(grant)
 }
 
 /**

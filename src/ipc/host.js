@@ -37,7 +37,7 @@
  * @property {(page: string, text: string) => Promise<void>} writePage
  * @property {(handler: (page: string) => void) => void|Promise<void>} onVaultChanged
  * @property {() => Promise<{name: string, manifest: string}[]>} listPlugins
- * @property {(name: string, entry: string, slots: string[], capabilities: string[], open: string[], run: unknown[], settings: Record<string, unknown>) => Promise<void>} startPlugin
+ * @property {(grant: import('../core/plugins.js').Grant) => Promise<void>} startPlugin
  * @property {(name: string) => Promise<void>} stopPlugin
  * @property {(slot: string, now: Now, params: Record<string, unknown>) => Promise<Answers>} askPlugins
  * @property {() => Promise<PluginState[]>} pluginStates
@@ -124,8 +124,7 @@ function tauriHost() {
     openSpread: (view) => invoke('open_spread', { view }),
     spreadView: () => invoke('spread_view'),
     listPlugins: () => invoke('list_plugins'),
-    startPlugin: (name, entry, slots, capabilities, open, run, settings) =>
-      invoke('start_plugin', { name, entry, slots, capabilities, open, run, settings }),
+    startPlugin: (grant) => invoke('start_plugin', { grant }),
     stopPlugin: (name) => invoke('stop_plugin', { name }),
     askPlugins: (slot, now, params) => invoke('ask_plugins', { slot, now, params }),
     pluginStates: () => invoke('plugin_states'),

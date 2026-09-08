@@ -18,6 +18,26 @@ pub const STRIKES: u32 = 3;
 #[derive(Default)]
 pub struct Registry(Mutex<HashMap<String, Grant>>);
 
+/// What the frontend hands over to start a plugin, as one record.
+///
+/// One shape rather than a parameter list, because this grew a field twice in
+/// one phase and each time that meant the same edit in eight places - four of
+/// them in the other language. `plan()` in `core/plugins.js` builds it; every
+/// field here is a decision that file already made.
+#[derive(serde::Deserialize, Default)]
+pub struct Granting {
+    pub name: String,
+    pub entry: String,
+    pub slots: Vec<String>,
+    pub capabilities: Vec<String>,
+    pub open: Vec<String>,
+    pub run: Vec<super::run::Command>,
+    pub asked: Vec<String>,
+    #[serde(rename = "askedRun")]
+    pub asked_run: Vec<String>,
+    pub settings: Value,
+}
+
 struct Grant {
     /// The file the plugin starts at, from its manifest.
     entry: String,
@@ -34,6 +54,16 @@ struct Grant {
     /// manifest and the config, with every placeholder's rule already
     /// settled by the frontend.
     run: Vec<super::run::Command>,
+    /// What the manifest *asked* for, approved or not - capabilities, and the
+    /// names of the commands it declares.
+    ///
+    /// Kept because a refusal has to know which of two things it is. Asking
+    /// for something you declared and the person has not ticked is a decision
+    /// nobody has made yet; asking for something you never declared is a
+    /// plugin that is not what it said it was. Only the second earns a strike
+    /// (spec §1.2).
+    asked: Vec<String>,
+    asked_run: Vec<String>,
     /// This plugin's own settings, checked against its manifest's schema and
     /// settled by the frontend - the page it is served carries them.
     settings: Value,
@@ -63,16 +93,11 @@ impl Registry {
     /// it has said `ready` yet is kept too - a restart clears it (Task 5
     /// calls `stop` first), but a second `grant` on a running plugin must not
     /// make it look as though it never said ready.
-    pub fn grant(
-        &self,
-        name: &str,
-        entry: String,
-        slots: Vec<String>,
-        capabilities: Vec<String>,
-        open: Vec<String>,
-        run: Vec<super::run::Command>,
-        settings: Value,
-    ) {
+    pub fn grant(&self, granting: Granting) {
+        let Granting {
+            name, entry, slots, capabilities, open, run, asked, asked_run, settings,
+        } = granting;
+        let name = name.as_str();
         let mut held = self.0.lock().expect("registry lock");
         let kept = held
             .get(name)
@@ -86,6 +111,8 @@ impl Registry {
                 capabilities,
                 open,
                 run,
+                asked,
+                asked_run,
                 settings,
                 handles,
                 strikes,
@@ -184,12 +211,25 @@ impl Registry {
     ///
     /// `running` as well as `!disabled`, for the same reason `may_open` reads
     /// both: switching a plugin off has to withdraw what it may reach at once.
-    pub fn run_of(&self, name: &str) -> Vec<super::run::Command> {
+    pub fn run_of(&self, name: &str) -> Option<Vec<super::run::Command>> {
         let held = self.0.lock().expect("registry lock");
         held.get(name)
             .filter(|grant| grant.running && !grant.disabled)
             .map(|grant| grant.run.clone())
-            .unwrap_or_default()
+    }
+
+    /// Whether the plugin's own manifest declared this, whatever the config
+    /// then said about it.
+    ///
+    /// The difference between a refusal and a strike. `kind` is `"capability"`
+    /// or `"run"`, because the two lists are separate namespaces and a command
+    /// called `shell.run` should not launder itself into a capability.
+    pub fn declared(&self, name: &str, kind: &str, wanted: &str) -> bool {
+        let held = self.0.lock().expect("registry lock");
+        held.get(name).is_some_and(|grant| {
+            let list = if kind == "run" { &grant.asked_run } else { &grant.asked };
+            list.iter().any(|one| one == wanted)
+        })
     }
 
     /// Records a request for something the plugin was not granted, and says

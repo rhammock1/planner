@@ -23,14 +23,8 @@ function host() {
   let drawn = 0
 
   const deps = {
-    startPlugin: async (
-      /** @type {string} */ name,
-      /** @type {string} */ _entry,
-      /** @type {string[]} */ slots,
-      /** @type {string[]} */ _capabilities,
-      /** @type {string[]} */ _open,
-    ) => {
-      started.push({ name, slots })
+    startPlugin: async (/** @type {import('../src/core/plugins.js').Grant} */ grant) => {
+      started.push({ name: grant.name, slots: grant.slots })
     },
     stopPlugin: async (/** @type {string} */ name) => { stopped.push(name) },
     askPlugins: (/** @type {string} */ slot, /** @type {any} */ _now, /** @type {any} */ params) =>
@@ -275,13 +269,9 @@ function answering() {
   let rounds = 0
 
   const deps = {
-    startPlugin: async (
-      /** @type {string} */ name,
-      /** @type {string} */ _entry,
-      /** @type {string[]} */ _slots,
-      /** @type {string[]} */ _capabilities,
-      /** @type {string[]} */ _open,
-    ) => { up.add(name) },
+    startPlugin: async (/** @type {import('../src/core/plugins.js').Grant} */ grant) => {
+      up.add(grant.name)
+    },
     stopPlugin: async (/** @type {string} */ name) => { up.delete(name) },
     askPlugins: async () => {
       rounds += 1
@@ -394,11 +384,11 @@ test('a plugin is started with the commands it was granted', async () => {
   // deserialises. If this test and `src-tauri/tests/run.rs`'s last case ever
   // disagree, the seam has drifted.
   const stub = host()
-  /** @type {any[][]} */
+  /** @type {any[]} */
   const given = []
   const asking = createAsking({
     ...stub.deps,
-    startPlugin: async (/** @type {any[]} */ ...args) => { given.push(args) },
+    startPlugin: async (/** @type {any} */ grant) => { given.push(grant) },
   })
 
   await asking.sync(
@@ -413,7 +403,7 @@ test('a plugin is started with the commands it was granted', async () => {
     }]]),
   )
 
-  assert.deepEqual(given[0]?.[5], [{
+  assert.deepEqual(given[0]?.run, [{
     name: 'log',
     command: ['git', '-C', '{repo}'],
     binds: [{ name: 'repo', rule: 'setting', key: 'repo', value: '~/gotab/node' }],

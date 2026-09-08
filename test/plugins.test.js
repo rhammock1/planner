@@ -7,7 +7,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { plan, isPluginName, diff, signature } from '../src/core/plugins.js'
+import { plan, isPluginName, diff, signature, SIGNED } from '../src/core/plugins.js'
 
 /** @typedef {import('../src/core/config.js').PluginConfig} PluginConfig */
 
@@ -55,6 +55,8 @@ test('a plugin the config enables starts with what both files agree on', () => {
       capabilities: ['macos.calendar.read'],
       open: [],
       run: [],
+      asked: ['macos.calendar.read'],
+      askedRun: [],
       settings: new Map(),
     },
   ])
@@ -272,6 +274,8 @@ function started(over) {
     capabilities: over?.capabilities ?? ['shell.open'],
     open: over?.open ?? [],
     run: over?.run ?? [],
+    asked: over?.asked ?? ['shell.open'],
+    askedRun: over?.askedRun ?? [],
     settings: over?.settings ?? new Map(),
   }
 }
@@ -580,7 +584,7 @@ test('a plugin restarts when the value bound into a command changes', () => {
   // deleted, which is not a test of the run clause.
   const base = {
     name: 'git-activity', entry: 'index.js',
-    slots: [], capabilities: [], open: [], settings: new Map(),
+    slots: [], capabilities: [], open: [], asked: [], askedRun: [], settings: new Map(),
   }
   /** @param {string|null} value */
   const bound = (value) => ({
@@ -595,4 +599,36 @@ test('a plugin restarts when the value bound into a command changes', () => {
   })
   assert.notEqual(signature(bound('~/gotab/node')), signature(bound('~/elsewhere')))
   assert.notEqual(signature(bound('~/gotab/node')), signature(bound(null)))
+})
+
+test('a field added to a Start is a field the signature reads', () => {
+  // `signature` is written out by hand, so a field added to `Start` and
+  // forgotten in it produces a plugin that keeps running with its old grant
+  // and says nothing. This is the guard: `SIGNED` names what the function
+  // reads, and the two below prove it is both complete and honest.
+  const start = plan([{ name: 'git-activity', manifest: RUNNER }], runConfigured()).start[0]
+  assert.ok(start !== undefined)
+  assert.deepEqual([...SIGNED].sort(), Object.keys(start).sort())
+
+  // And every one of them actually moves the signature, so `SIGNED` cannot be
+  // kept true by listing a field the function ignores.
+  const base = signature(start)
+  /** Something of the right shape, so the check is "was it read" and not
+   *  "did it throw". @param {unknown} held */
+  const otherwise = (held) => {
+    if (held instanceof Map) return new Map([...held, ['other', 'value']])
+    if (Array.isArray(held)) {
+      return held.length > 0 && typeof held[0] === 'object'
+        ? [...held, { name: 'other', command: ['other'], binds: [] }]
+        : [...held, 'other']
+    }
+    return `${String(held)} other`
+  }
+  for (const field of SIGNED) {
+    const changed = { ...start, [field]: otherwise(start[field]) }
+    assert.notEqual(
+      signature(/** @type {any} */ (changed)), base,
+      `signature does not read ${field}`,
+    )
+  }
 })

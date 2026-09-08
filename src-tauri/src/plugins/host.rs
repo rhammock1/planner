@@ -41,16 +41,13 @@ const NO_WEBRTC: &str = include_str!("../../../src/plugins/noWebRTC.js");
 ///
 /// The window is never shown and has no decorations. It exists to run
 /// JavaScript somewhere that is not the app.
-pub fn start(
-    app: &AppHandle,
-    name: &str,
-    entry: &str,
-    slots: Vec<String>,
-    capabilities: Vec<String>,
-    open: Vec<String>,
-    run: Vec<super::run::Command>,
-    settings: Value,
-) -> Result<(), String> {
+pub fn start(app: &AppHandle, granting: super::registry::Granting) -> Result<(), String> {
+    // Only the name is wanted here. The entry file and the settings are read
+    // back out of the registry by `serving.rs` when the page is built, which
+    // is why they are not unpacked: this function starts a window, and what
+    // that window is served is the grant's business.
+    let name = granting.name.clone();
+    let name = name.as_str();
     let label = format!("{WINDOW_PREFIX}{name}");
     if app.get_webview_window(&label).is_some() {
         // Loud rather than silent. A start that quietly does nothing is a
@@ -60,7 +57,7 @@ pub fn start(
     }
 
     let registry = app.state::<Registry>();
-    registry.grant(name, entry.to_string(), slots, capabilities, open, run, settings);
+    registry.grant(granting);
 
     let url = Url::parse(&format!("plugin://{name}/index.html"))
         .map_err(|error| format!("{name} has a name that cannot be a URL: {error}"))?;

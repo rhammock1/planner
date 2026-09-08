@@ -19,22 +19,46 @@ use super::{bind, Rule};
 
 /// `shell.run`'s one method (spec §3.2).
 ///
-/// Everything the frontend worked out arrives in the grant; everything about
-/// it is checked again here, because this is the last line before a process
-/// exists. A call that does not match what the manifest declared is a strike:
-/// the manifest is the plugin's own file, so a mismatch is not a
-/// misunderstanding it could have had.
+/// Everything the frontend worked out arrives in the grant; the argument list
+/// is derived again here, because this is the last line before a process
+/// exists.
+///
+/// A strike is charged for one thing only: asking for something the plugin's
+/// own manifest never declared, or sending a value that manifest would not
+/// accept. Everything else a call can run into - not ticked, not running, a
+/// setting nobody filled in, a grant this app built wrong - is a state of the
+/// config or of the app, and charging a plugin for those puts a
+/// correctly-written one away for the session with a reason pointing at the
+/// wrong half of somebody's setup (spec §1.2, §6).
 ///
 /// `params` is `{name, values: {placeholder: value}}`.
 pub fn call(app: &AppHandle, plugin: &str, params: &Value) -> Result<Value, String> {
     let wanted = params.get("name").and_then(Value::as_str).unwrap_or("");
     let values = params.get("values").cloned().unwrap_or(Value::Null);
 
-    let Some(command) = app.state::<Registry>().run_of(plugin).into_iter().find(|one| one.name == wanted) else {
+    let registry = app.state::<Registry>();
+
+    // Switched off, or restarting because a setting changed while this call
+    // was in the air. Never a strike: the plugin did nothing, the app moved
+    // underneath it - the same reason `opening.rs` refuses a stale badge
+    // without one.
+    let Some(granted) = registry.run_of(plugin) else {
+        return Err(format!("{plugin} is not running"));
+    };
+
+    let Some(command) = granted.into_iter().find(|one| one.name == wanted) else {
+        // Declared and not ticked is a decision nobody has made yet. Never
+        // declared is a plugin that is not what its manifest said it was, and
+        // only that is worth a strike.
+        if registry.declared(plugin, "run", wanted) {
+            return Err(format!(
+                "{plugin} may not run {wanted} until it is ticked in settings"
+            ));
+        }
         return Err(struck(
             app, plugin,
             format!("{plugin} may not run {wanted}"),
-            "asked three times to run something it was not granted",
+            "asked three times to run something it never declared",
         ));
     };
 
@@ -52,22 +76,35 @@ pub fn call(app: &AppHandle, plugin: &str, params: &Value) -> Result<Value, Stri
         ));
     }
 
+    // The one part of a call the plugin actually supplies, checked here so the
+    // refusal lands on the right party. `bind` refuses six different things
+    // and five of them come out of the grant this app built - striking a
+    // plugin for those would be charging it for our own mistake.
+    for one in &command.binds {
+        if !matches!(one.rule, Rule::Date) {
+            continue;
+        }
+        let given = values.get(&one.name).and_then(Value::as_str);
+        if !given.is_some_and(super::is_day) {
+            return Err(struck(
+                app, plugin,
+                format!(
+                    "{plugin}: {{{}}} must be a day, and {} is not one",
+                    one.name,
+                    given.unwrap_or("nothing"),
+                ),
+                "sent a value three times that was not a day",
+            ));
+        }
+    }
+
     let home = crate::settings::home_dir().ok_or("this Mac has no home directory")?;
-    let args = match bind(&command, &values, &home) {
-        Ok(args) => args,
-        Err(refusal) => return Err(struck(
-            app, plugin,
-            format!("{plugin}: {refusal}"),
-            "sent a day three times that was not a day",
-        )),
-    };
+    // Whatever is left for `bind` to refuse is this app's own doing, so it is
+    // reported and not charged.
+    let args = bind(&command, &values, &home).map_err(|refusal| format!("{plugin}: {refusal}"))?;
 
     let Some((program, rest)) = args.split_first() else {
-        return Err(struck(
-            app, plugin,
-            format!("{plugin}: {wanted} has nothing to run"),
-            "declared a command with nothing in it",
-        ));
+        return Err(format!("{plugin}: {wanted} has nothing to run"));
     };
     // Not a strike: a machine without `git` on its PATH is not a plugin
     // behaving badly, and the person is the one who can do something about it.

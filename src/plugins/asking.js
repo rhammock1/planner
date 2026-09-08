@@ -43,7 +43,7 @@ const REMEMBERED = 32
 
 /**
  * @typedef {object} AskingDeps
- * @property {(name: string, entry: string, slots: string[], capabilities: string[], open: string[], run: unknown[], settings: Record<string, unknown>) => Promise<void>} startPlugin
+ * @property {(grant: import('../core/plugins.js').Grant) => Promise<void>} startPlugin
  * @property {(name: string) => Promise<void>} stopPlugin
  * @property {(slot: string, now: {date: string, time: string}, params: Record<string, unknown>) => Promise<{answers: Answer[], notices: string[]}>} askPlugins
  * @property {() => Promise<PluginState[]>} pluginStates
@@ -130,10 +130,10 @@ export function createAsking(deps) {
     for (const one of change.start) {
       if (stuck.has(one.name)) continue
       try {
-        await deps.startPlugin(
-          one.name, one.entry, one.slots, one.capabilities, one.open, one.run,
-          Object.fromEntries(one.settings),
-        )
+        // The whole record, as one thing. It grew a field twice in this phase
+        // and each time that was seven edits across four files; the fields a
+        // plugin is started with are one decision and travel as one (spec §7).
+        await deps.startPlugin({ ...one, settings: Object.fromEntries(one.settings) })
         running.set(one.name, signature(one))
       } catch (error) {
         failures.push(`Could not start ${one.name}: ${message(error)}`)

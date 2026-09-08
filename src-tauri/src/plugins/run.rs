@@ -182,7 +182,11 @@ fn expand(value: &str, home: &Path) -> String {
 }
 
 /// `YYYY-MM-DD`, and nothing that merely starts like one.
-fn is_day(value: &str) -> bool {
+///
+/// Visible to `calling.rs`, which checks the dates a call carries *before*
+/// binding, so that a bad one can be told apart from the five other things
+/// `bind` refuses - all of which come out of the grant rather than the call.
+pub(super) fn is_day(value: &str) -> bool {
     let bytes = value.as_bytes();
     if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
         return false;
