@@ -19,8 +19,8 @@
  * page you are looking at.
  */
 
-import { readManifest, slotOptions, optionText } from './manifest.js'
-import { settled, resolveOpen } from './pluginSettings.js'
+import { readManifest } from './manifest.js'
+import { settled, resolveOpen, personSet, resolveRun } from './pluginSettings.js'
 
 /** @typedef {import('./config.js').PluginConfig} PluginConfig */
 /** @typedef {import('./settingsSchema.js').SettingsField} SettingsField */
@@ -33,29 +33,12 @@ import { settled, resolveOpen } from './pluginSettings.js'
  * @property {string[]} slots  granted: declared and approved
  * @property {string[]} capabilities  granted: asked for and approved
  * @property {string[]} open  addresses granted: declared and approved
+ * @property {import('./pluginSettings.js').GrantedCommand[]} run  granted:
+ *   declared and approved as written
  * @property {Map<string, TomlValue>} settings  checked against the manifest's schema
  */
 
 /** @typedef {{name: string, manifest: string}} Folder */
-
-/**
- * A plugin as the settings pane needs to show it.
- *
- * @typedef {object} Installed
- * @property {string} name
- * @property {boolean} enabled
- * @property {string[]} slots  slots the manifest declares
- * @property {string[]} approvedSlots  of those, the ones config.toml allows
- * @property {string[]} asked  capabilities the manifest asks for
- * @property {string[]} approved  of those, the ones config.toml has allowed
- * @property {string[]} open  addresses the manifest declares
- * @property {string[]} approvedOpen  of those, the ones config.toml allows
- * @property {string} heading  what the day page calls this plugin's section:
- *   its `[contribute] heading`, cut to one line at 40, or its own name
- * @property {string|null} problem  why it cannot run, when it cannot
- * @property {SettingsField[]} schema  the settings the manifest declares
- * @property {Map<string, TomlValue>} settings  the settled values, checked against schema
- */
 
 /**
  * What a plugin folder may be called.
@@ -67,12 +50,8 @@ import { settled, resolveOpen } from './pluginSettings.js'
  */
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/
 
-/** A heading sits above a list in a narrow popover. Longer than this is a
- *  sentence, and a sentence is not a heading (spec §1.3). */
-const HEADING = 40
-
 /** Said the same way in both places a folder is refused for its name. */
-const BAD_NAME =
+export const BAD_NAME =
   'the folder name may only be lowercase letters, digits and hyphens, starting with a letter or a digit'
 
 /**
@@ -81,56 +60,6 @@ const BAD_NAME =
  */
 export function isPluginName(name) {
   return NAME.test(name)
-}
-
-/**
- * Every plugin folder on disk, settled against the config (spec §7).
- * @param {Folder[]} folders
- * @param {Map<string, PluginConfig>} configured
- * @returns {Installed[]}
- */
-export function installed(folders, configured) {
-  return folders.map((folder) => {
-    const configEntry = configured.get(folder.name)
-    const enabled = configEntry?.enabled === true
-
-    // Before the manifest is read: a folder that cannot be a plugin has not
-    // earned a reading of anything else it says.
-    if (!isPluginName(folder.name)) {
-      return {
-        name: folder.name,
-        enabled,
-        slots: [], approvedSlots: [], asked: [], approved: [], open: [], approvedOpen: [],
-        heading: folder.name,
-        problem: BAD_NAME,
-        schema: [],
-        settings: new Map(),
-      }
-    }
-
-    const read = readManifest(folder.manifest)
-    const settings = settled(folder.name, read.settings, configEntry?.settings ?? new Map(), [])
-    // An unset settings-derived entry resolves to nothing, so it is simply
-    // not offered rather than shown as the literal `settings.<key>` string.
-    const open = resolveOpen(folder.name, read.open, settings, [])
-    return {
-      name: folder.name,
-      enabled,
-      slots: read.slots,
-      approvedSlots: both(read.slots, configEntry?.approvedSlots),
-      asked: read.capabilities,
-      approved: both(read.capabilities, configEntry?.approvedCapabilities),
-      open,
-      approvedOpen: both(open, configEntry?.approvedOpen),
-      // The manifest's, when it has one. A plugin that never contributes
-      // never has this drawn - and a null would only mean every reader had to
-      // check for one.
-      heading: optionText(slotOptions(read, 'vault.contribute'), 'heading', HEADING) || folder.name,
-      problem: read.error,
-      schema: read.settings,
-      settings,
-    }
-  })
 }
 
 /**
@@ -180,12 +109,43 @@ export function plan(folders, configured) {
     const resolvedOpen = resolveOpen(folder.name, read.open, pluginSettings, notices)
     disagreements(folder.name, 'address', resolvedOpen, settings.approvedOpen, notices)
 
+    const capabilities = both(read.capabilities, settings.approvedCapabilities)
+
+    // Approved by the line the manifest renders to now, not by the name of a
+    // command - which is what makes a changed argument show up unapproved
+    // rather than running under yesterday's tick (spec §1.6).
+    //
+    // Gated on the capability as well as the line, because Rust checks the
+    // capability first and *that* refusal is a strike: three asks and the
+    // plugin is put away for the session (spec §1.2). Ticking the git command
+    // and leaving the plain `shell.run` box alone is the reasonable instinct -
+    // the specific line looks like the sensitive one - so it must not be the
+    // one that bricks a plugin.
+    const run = capabilities.includes('shell.run')
+      ? resolveRun(
+          folder.name,
+          read.run,
+          settings.approvedRun,
+          personSet(read.settings, settings.settings),
+          notices,
+        )
+      : []
+    if (!capabilities.includes('shell.run')) {
+      // Only when there is something to say: a plugin with no ticked command
+      // and no `shell.run` has nothing wrong with it.
+      const ticked = read.run.filter((one) => settings.approvedRun.get(one.name) === one.line)
+      if (ticked.length > 0) {
+        notices.push(`${folder.name} has ${ticked.length === 1 ? 'a command' : 'commands'} approved but not shell.run, so it may not run anything`)
+      }
+    }
+
     start.push({
       name: folder.name,
       entry: read.entry,
       slots: both(read.slots, settings.approvedSlots),
-      capabilities: both(read.capabilities, settings.approvedCapabilities),
+      capabilities,
       open: both(resolvedOpen, settings.approvedOpen),
+      run,
       settings: pluginSettings,
     })
   }
@@ -209,6 +169,21 @@ export function signature(start) {
     [...start.slots].sort(),
     [...start.capabilities].sort(),
     [...start.open].sort(),
+    // Written out by hand rather than handed whole to `JSON.stringify`: a
+    // command's shape is this app's and a key order is not a promise, but a
+    // restart on a changed command is.
+    [...start.run]
+      .sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))
+      .map((one) => [
+        one.name,
+        one.command,
+        one.binds.map((bind) => [
+          bind.name,
+          bind.rule,
+          bind.rule === 'setting' ? bind.key : '',
+          bind.rule === 'setting' ? bind.value : null,
+        ]),
+      ]),
     [...start.settings].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
   ])
 }
@@ -253,11 +228,15 @@ export function diff(running, planned) {
 /**
  * The intersection, in the manifest's order: the manifest is the ceiling, so
  * what it does not ask for cannot be granted however the config is written.
+ *
+ * Exported for `installed.js`, which asks the same question of the same two
+ * files and must answer it the same way.
+ *
  * @param {string[]} asked
  * @param {string[]|undefined} approved
  * @returns {string[]}
  */
-function both(asked, approved) {
+export function both(asked, approved) {
   const allowed = approved ?? []
   return asked.filter((one) => allowed.includes(one))
 }

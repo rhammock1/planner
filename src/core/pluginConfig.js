@@ -40,6 +40,10 @@ export function updatePlugin(text, name, settings) {
     { path: ['plugins', name, 'approved_slots'], value: settings.approvedSlots },
     { path: ['plugins', name, 'approved_capabilities'], value: settings.approvedCapabilities },
     { path: ['plugins', name, 'approved_open'], value: settings.approvedOpen },
+    ...[...settings.approvedRun].map(([command, line]) => ({
+      path: ['plugins', name, 'run', command],
+      value: line,
+    })),
     ...[...settings.settings].map(([key, value]) => ({
       path: ['plugins', name, 'settings', key],
       value,
@@ -81,6 +85,7 @@ export function readPlugins(table, notices) {
       approvedCapabilities:
         readNames(name, 'approved_capabilities', entry['approved_capabilities'], notices),
       approvedOpen: readNames(name, 'approved_open', entry['approved_open'], notices),
+      approvedRun: readLines(entry['run']),
       settings: readSettings(entry['settings']),
     })
   }
@@ -109,6 +114,33 @@ function readSettings(raw) {
     // A nested table is not a setting: the schema has three kinds and none of
     // them is a table.
     if (typeof value === 'object' && !Array.isArray(value)) continue
+    held.set(key, value)
+  }
+  return held
+}
+
+/**
+ * The commands a plugin has been approved to run, as the lines that were
+ * approved (spec §1.6).
+ *
+ * Not checked against anything here: this module knows nothing about any
+ * manifest. `plan()` compares each line with what the manifest now renders
+ * to, which is where both halves are in the same room.
+ *
+ * A Map, for the same reason the settings are one: the keys are names
+ * somebody else chose.
+ *
+ * @param {TomlValue|TomlTable|undefined} raw
+ * @returns {Map<string, string>}
+ */
+function readLines(raw) {
+  /** @type {Map<string, string>} */
+  const held = new Map()
+  if (typeof raw !== 'object' || raw === undefined || Array.isArray(raw)) return held
+  for (const [key, value] of Object.entries(raw)) {
+    // Only a line. A number or a table under here is not an approval of
+    // anything, and treating it as one would be inventing consent.
+    if (typeof value !== 'string') continue
     held.set(key, value)
   }
   return held

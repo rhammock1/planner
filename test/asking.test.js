@@ -57,6 +57,7 @@ function configured(approvedSlots) {
     approvedSlots: approvedSlots ?? ['item.badge'],
     approvedCapabilities: [],
     approvedOpen: [],
+    approvedRun: new Map(),
     settings: new Map(),
   }]])
 }

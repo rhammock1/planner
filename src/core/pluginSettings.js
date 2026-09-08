@@ -16,6 +16,18 @@ import { resolvePrefix } from './urls.js'
 /** @typedef {import('./toml.js').TomlValue} TomlValue */
 
 /**
+ * @typedef {{name: string, rule: 'date'}
+ *   | {name: string, rule: 'setting', key: string, value: string|null}} GrantedBind
+ */
+
+/**
+ * @typedef {object} GrantedCommand
+ * @property {string} name
+ * @property {string[]} command
+ * @property {GrantedBind[]} binds
+ */
+
+/**
  * The manifest is the ceiling here too: a key in `config.toml` the manifest
  * never declared is a typo, not a permission, and is not handed over. A value
  * of the wrong kind is dropped with a line and the default used, because a
@@ -46,6 +58,99 @@ export function settled(name, schema, held, notices) {
     if (field.fallback !== null) settings.set(field.key, field.fallback)
   }
   return settings
+}
+
+/**
+ * The settings the *person* set, as opposed to the ones the manifest defaults
+ * to (spec §3.2).
+ *
+ * The distinction matters in exactly one place: binding a value into a command
+ * that will be run. A default is the author's string, and approving a command
+ * whose arguments come from the author is approving whatever the author writes
+ * next. So a default does not bind, and this is the reader that tells the two
+ * apart - the same kind check `settled` makes, without the fallback.
+ *
+ * @param {SettingsField[]} schema
+ * @param {Map<string, TomlValue>} held
+ * @returns {Map<string, TomlValue>}
+ */
+export function personSet(schema, held) {
+  /** @type {Map<string, TomlValue>} */
+  const set = new Map()
+  for (const field of schema) {
+    const value = held.get(field.key)
+    if (value !== undefined && kindOf(value) === field.kind) set.set(field.key, value)
+  }
+  return set
+}
+
+/**
+ * The commands a plugin is granted, with every placeholder's rule settled.
+ *
+ * Approval is by the rendered line, entry for entry: a manifest that changed
+ * an argument renders to a different line, and a different line is not the
+ * one that was ticked (spec §1.6).
+ *
+ * A `settings.<key>` rule carries the value it will be bound to, or null when
+ * the person has not set one. That value is the whole of what Rust uses - the
+ * call says nothing about a setting - so this is where a command's arguments
+ * are actually decided (spec §3.2, as amended in this plan).
+ *
+ * Null rather than dropping the command: the command is still what was
+ * approved, and it is the *call* that is refused - which is what lets the
+ * refusal name the setting that is missing.
+ *
+ * @param {string} name
+ * @param {import('./permissions.js').RunCommand[]} declared
+ * @param {Map<string, string>} approvedRun
+ * @param {Map<string, TomlValue>} set  what the person set, from `personSet`
+ * @param {string[]} notices
+ * @returns {GrantedCommand[]}
+ */
+export function resolveRun(name, declared, approvedRun, set, notices) {
+  /** @type {GrantedCommand[]} */
+  const granted = []
+
+  for (const command of declared) {
+    if (approvedRun.get(command.name) !== command.line) {
+      notices.push(`${name} asks to run ${command.name}, which config.toml has not approved as it is now written`)
+      continue
+    }
+    granted.push({
+      name: command.name,
+      command: command.command,
+      binds: command.binds.map((bind) => bind.rule === 'date'
+        ? { name: bind.name, rule: /** @type {'date'} */ ('date') }
+        : {
+            name: bind.name,
+            rule: /** @type {'setting'} */ ('setting'),
+            key: bind.key,
+            value: valueOf(set.get(bind.key)),
+          }),
+    })
+  }
+  return granted
+}
+
+/**
+ * What a setting looks like on a command line.
+ *
+ * Exported because `installed.js` shows the person the same string this binds,
+ * and two copies of "what the value will be" that could drift apart is the one
+ * thing the pane must not have.
+ *
+ * A `count` arrives as a number and leaves as its digits: every argument is a
+ * string by the time it reaches `argv`, and a plugin reading the same setting
+ * through `planner.settings` still gets the number. The two are separate
+ * paths and a plugin never has to reconcile them, which is the point of
+ * binding from the grant rather than from the call.
+ *
+ * @param {TomlValue|undefined} value
+ * @returns {string|null}
+ */
+export function valueOf(value) {
+  if (value === undefined) return null
+  return String(value)
 }
 
 /**

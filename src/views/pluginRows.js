@@ -11,7 +11,7 @@
 import { el } from '../ui/dom.js'
 import { sentenceFor } from '../core/slots.js'
 
-/** @typedef {import('../core/plugins.js').Installed} Installed */
+/** @typedef {import('../core/installed.js').Installed} Installed */
 /** @typedef {import('../plugins/asking.js').PluginState} PluginState */
 /** @typedef {import('./settingsPanel.js').SettingsHandlers} SettingsHandlers */
 
@@ -54,6 +54,7 @@ function pluginRow(plugin, states, handlers) {
         approvedSlots: plugin.approvedSlots,
         approvedCapabilities: plugin.approved,
         approvedOpen: plugin.approvedOpen,
+        approvedRun: plugin.approvedRun,
         settings: plugin.settings,
       })
     }
@@ -79,6 +80,7 @@ function pluginRow(plugin, states, handlers) {
         approvedSlots: toggled(plugin.approvedSlots, slot, on),
         approvedCapabilities: plugin.approved,
         approvedOpen: plugin.approvedOpen,
+        approvedRun: plugin.approvedRun,
         settings: plugin.settings,
       }),
     ))
@@ -96,6 +98,7 @@ function pluginRow(plugin, states, handlers) {
         approvedSlots: plugin.approvedSlots,
         approvedCapabilities: toggled(plugin.approved, capability, on),
         approvedOpen: plugin.approvedOpen,
+        approvedRun: plugin.approvedRun,
         settings: plugin.settings,
       }),
     ))
@@ -114,6 +117,7 @@ function pluginRow(plugin, states, handlers) {
           approvedSlots: plugin.approvedSlots,
           approvedCapabilities: plugin.approved,
           approvedOpen: toggled(plugin.approvedOpen, address, on),
+          approvedRun: plugin.approvedRun,
           settings: plugin.settings,
         }),
       ))
@@ -160,6 +164,7 @@ function settingRow(plugin, field, handlers) {
     approvedSlots: plugin.approvedSlots,
     approvedCapabilities: plugin.approved,
     approvedOpen: plugin.approvedOpen,
+    approvedRun: plugin.approvedRun,
     settings: new Map([...plugin.settings, [field.key, value]]),
   })
 

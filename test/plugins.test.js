@@ -7,7 +7,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { plan, installed, isPluginName, diff, signature } from '../src/core/plugins.js'
+import { plan, isPluginName, diff, signature } from '../src/core/plugins.js'
 
 /** @typedef {import('../src/core/config.js').PluginConfig} PluginConfig */
 
@@ -33,6 +33,7 @@ function configured(settings) {
       approvedSlots: settings?.approvedSlots ?? ['vault.contribute'],
       approvedCapabilities: settings?.approvedCapabilities ?? ['macos.calendar.read'],
       approvedOpen: settings?.approvedOpen ?? [],
+      approvedRun: new Map(),
       settings: settings?.settings ?? new Map(),
     },
   ]])
@@ -53,6 +54,7 @@ test('a plugin the config enables starts with what both files agree on', () => {
       slots: ['vault.contribute'],
       capabilities: ['macos.calendar.read'],
       open: [],
+      run: [],
       settings: new Map(),
     },
   ])
@@ -106,7 +108,7 @@ test('a manifest that will not parse stops that plugin and nothing else', () => 
   ]
   const settings = configured()
   settings.set('broken', {
-    enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], settings: new Map(),
+    enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], approvedRun: new Map(), settings: new Map(),
   })
 
   const { start, notices } = plan(broken, settings)
@@ -119,78 +121,11 @@ test('a manifest that will not parse stops that plugin and nothing else', () => 
 // The settings pane lists what is there, on or off - a folder that is
 // switched off is exactly the one you opened the pane to switch on.
 
-test('a plugin that is switched off is still listed', () => {
-  assert.deepEqual(installed(folders(), configured({ enabled: false })), [{
-    name: 'macos-calendar',
-    enabled: false,
-    slots: ['vault.contribute'],
-    approvedSlots: ['vault.contribute'],
-    asked: ['macos.calendar.read'],
-    approved: ['macos.calendar.read'],
-    open: [],
-    approvedOpen: [],
-    heading: 'macos-calendar',
-    problem: null,
-    schema: [],
-    settings: new Map(),
-  }])
-})
-
-test('a plugin the config has never heard of is listed as off and ungranted', () => {
-  assert.deepEqual(installed(folders(), new Map()), [{
-    name: 'macos-calendar',
-    enabled: false,
-    slots: ['vault.contribute'],
-    approvedSlots: [],
-    asked: ['macos.calendar.read'],
-    approved: [],
-    open: [],
-    approvedOpen: [],
-    heading: 'macos-calendar',
-    problem: null,
-    schema: [],
-    settings: new Map(),
-  }])
-})
-
-// The manifest is the ceiling, so a tick for something the plugin never asked
-// for would be showing a permission that does not exist.
-test('a capability the config approves but the manifest does not ask for is not shown as granted', () => {
-  const settings = configured({ approvedCapabilities: ['macos.calendar.read', 'macos.reminders.read'] })
-  assert.deepEqual(installed(folders(), settings)[0]?.approved, ['macos.calendar.read'])
-})
-
-test('a manifest that cannot be read says why, instead of listing nothing', () => {
-  const one = installed(folders('entry = '), configured())[0]
-  assert.equal(one?.name, 'macos-calendar')
-  assert.ok(one?.problem !== null && one?.problem !== undefined, 'no reason was given')
-  assert.deepEqual(one?.asked, [])
-})
-
-test('nothing installed is an empty list, not an error', () => {
-  assert.deepEqual(installed([], configured()), [])
-})
-
-test('a folder whose name is not a plugin name is listed with the problem', () => {
-  const bad = [{ name: 'x]\n[plugins.other', manifest: MANIFEST }]
-  const [one] = installed(bad, new Map())
-
-  assert.equal(one?.name, 'x]\n[plugins.other')
-  assert.equal(
-    one?.problem,
-    'the folder name may only be lowercase letters, digits and hyphens, starting with a letter or a digit',
-  )
-  // The manifest is not read at all: a name that could rewrite config.toml
-  // has not earned a reading of anything else it says.
-  assert.deepEqual(one?.asked, [])
-  assert.deepEqual(one?.approved, [])
-})
-
 test('a folder whose name is not a plugin name never starts', () => {
   const bad = [{ name: 'Ticket Links', manifest: MANIFEST }]
   const configured = new Map([
     ['Ticket Links', {
-      enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], settings: new Map(),
+      enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], approvedRun: new Map(), settings: new Map(),
     }],
   ])
   const { start, notices } = plan(bad, configured)
@@ -288,17 +223,6 @@ test('a slot the manifest never mentions is still a config mistake worth a notic
   ])
 })
 
-test('the pane is shown what a plugin asks to be shown', () => {
-  const [listed] = installed(folders(), configured({ approvedSlots: [] }))
-  assert.deepEqual(listed?.slots, ['vault.contribute'])
-  assert.deepEqual(listed?.approvedSlots, [])
-})
-
-test('an approved slot the manifest does not ask for is not shown as granted', () => {
-  const [listed] = installed(folders(), configured({ approvedSlots: ['item.badge'] }))
-  assert.deepEqual(listed?.approvedSlots, [])
-})
-
 const OPENS = `
 entry = "index.js"
 [permissions.open]
@@ -330,18 +254,13 @@ test('the manifest is the ceiling for addresses too', () => {
     configured({
       approvedSlots: [],
       approvedOpen: ['https://github.com/gotab-inc/node/pull/', 'https://evil.example/x/'],
+      approvedRun: new Map(),
       approvedCapabilities: [],
     }),
   )
   assert.deepEqual(start[0]?.open, ['https://github.com/gotab-inc/node/pull/'])
   assert.equal(notices.length, 1)
   assert.match(notices[0] ?? '', /evil\.example/)
-})
-
-test('the pane is shown what a plugin asks to open', () => {
-  const [listed] = installed(folders(OPENS), configured({ approvedSlots: [], approvedCapabilities: [] }))
-  assert.deepEqual(listed?.open, ['https://github.com/gotab-inc/node/pull/'])
-  assert.deepEqual(listed?.approvedOpen, [])
 })
 
 /** @param {Partial<import('../src/core/plugins.js').Start>} [over] */
@@ -352,6 +271,7 @@ function started(over) {
     slots: over?.slots ?? ['item.badge'],
     capabilities: over?.capabilities ?? ['shell.open'],
     open: over?.open ?? [],
+    run: over?.run ?? [],
     settings: over?.settings ?? new Map(),
   }
 }
@@ -483,6 +403,7 @@ test('an address named by a setting with a value resolves to the cut prefix', ()
     approvedSlots: [],
     approvedCapabilities: [],
     approvedOpen: ['https://git.example/org/repo/pull/'],
+    approvedRun: new Map(),
   })
   const macosCalendar = config.get('macos-calendar')
   assert.ok(macosCalendar)
@@ -498,6 +419,7 @@ test('changing the setting an address depends on changes the signature, so the p
     approvedSlots: [],
     approvedCapabilities: [],
     approvedOpen: ['https://git.example/org/repo/pull/', 'https://other.example/x/'],
+    approvedRun: new Map(),
   })
   const macosCalendar = config.get('macos-calendar')
   assert.ok(macosCalendar)
@@ -528,32 +450,149 @@ test('changing a setting changes the signature, so the plugin restarts', () => {
   assert.notEqual(before, signature(second))
 })
 
-test('a contributing plugin is listed with the heading it asked for', () => {
-  const folders = [{
-    name: 'git-activity',
-    manifest: `
+const RUNNER = `
 entry = "index.js"
-slots = ["vault.contribute"]
 
-[contribute]
-heading = "From git"
-`,
-  }]
-  const [one] = installed(folders, new Map())
-  assert.equal(one?.heading, 'From git')
+[permissions]
+capabilities = ["shell.run"]
+
+[permissions.run.log]
+command = ["git", "-C", "{repo}", "log", "--since={from} 00:00"]
+repo    = "settings.repo"
+from    = "date"
+
+[settings.repo]
+label = "Repository"
+kind  = "text"
+`
+
+const LINE = "git -C {repo=settings.repo} log '--since={from=date} 00:00'"
+
+/**
+ * `configured` above is the calendar's; this one is the runner's. Two
+ * manifests with different settings and different approvals cannot share a
+ * fixture without one of them being written in terms of the other's defaults.
+ *
+ * @param {Partial<import('../src/core/config.js').PluginConfig>} [patch]
+ * @returns {Map<string, import('../src/core/config.js').PluginConfig>}
+ */
+function runConfigured(patch) {
+  return new Map([['git-activity', {
+    enabled: true,
+    approvedSlots: [],
+    approvedCapabilities: ['shell.run'],
+    approvedOpen: [],
+    approvedRun: new Map([['log', LINE]]),
+    settings: new Map([['repo', '~/gotab/node']]),
+    ...patch,
+  }]])
+}
+
+test('a command approved as written is granted, with its bindings settled', () => {
+  const result = plan([{ name: 'git-activity', manifest: RUNNER }], runConfigured())
+  const [start] = result.start
+  assert.deepEqual(start?.run, [{
+    name: 'log',
+    command: ['git', '-C', '{repo}', 'log', '--since={from} 00:00'],
+    binds: [
+      { name: 'repo', rule: 'setting', key: 'repo', value: '~/gotab/node' },
+      { name: 'from', rule: 'date' },
+    ],
+  }])
 })
 
-test('a contributing plugin with no heading is listed under its own name', () => {
-  const folders = [{ name: 'macos-calendar', manifest: 'entry = "index.js"\nslots = ["vault.contribute"]\n' }]
-  const [one] = installed(folders, new Map())
-  assert.equal(one?.heading, 'macos-calendar')
+test('a command whose line no longer matches the manifest is not granted', () => {
+  const result = plan(
+    [{ name: 'git-activity', manifest: RUNNER }],
+    runConfigured({ approvedRun: new Map([['log', 'git -C {repo} log']]) }),
+  )
+  assert.deepEqual(result.start[0]?.run, [])
+  assert.equal(result.notices.length, 1)
+  assert.match(result.notices[0] ?? '', /log/)
 })
 
-test('a plugin that does not contribute still has a heading, and it is its name', () => {
-  // The pane and the day page both read one list. A plugin that never
-  // contributes never has its heading drawn, and a null here would only mean
-  // every reader had to check for it.
-  const folders = [{ name: 'ticket-links', manifest: 'entry = "index.js"\nslots = ["item.badge"]\n' }]
-  const [one] = installed(folders, new Map())
-  assert.equal(one?.heading, 'ticket-links')
+test('a command nobody approved is not granted', () => {
+  const result = plan(
+    [{ name: 'git-activity', manifest: RUNNER }],
+    runConfigured({ approvedRun: new Map() }),
+  )
+  assert.deepEqual(result.start[0]?.run, [])
+})
+
+test('a setting that is only the manifest default does not bind', () => {
+  // A default is the author's string, and the pane is meant to show the
+  // person's. The command is still granted - it is the call that is refused,
+  // in Rust, which is what lets the pane say the setting is not set.
+  const withDefault = RUNNER.replace('kind  = "text"', 'kind  = "text"\ndefault = "~/somewhere"')
+  const result = plan(
+    [{ name: 'git-activity', manifest: withDefault }],
+    runConfigured({ settings: new Map() }),
+  )
+  assert.deepEqual(result.start[0]?.run[0]?.binds[0], {
+    name: 'repo', rule: 'setting', key: 'repo', value: null,
+  })
+  // The default still reaches the plugin's own `planner.settings`; it is only
+  // binding a command that it cannot do.
+  assert.equal(result.start[0]?.settings.get('repo'), '~/somewhere')
+})
+
+test('a setting of the wrong kind is not a value the person set', () => {
+  const result = plan(
+    [{ name: 'git-activity', manifest: RUNNER }],
+    runConfigured({ settings: new Map([['repo', 4]]) }),
+  )
+  // Narrowed rather than optional-chained: `GrantedBind` is a union and only
+  // its `setting` half has a value, so `binds[0]?.value` is an error on the
+  // other half rather than a null.
+  const bound = result.start[0]?.run[0]?.binds[0]
+  assert.ok(bound !== undefined && bound.rule === 'setting')
+  assert.equal(bound.value, null)
+})
+
+test('a command ticked without shell.run grants nothing, and says so', () => {
+  // The trap this closes: Rust checks the capability before it looks at the
+  // command, and that refusal is a strike. Somebody who ticks the git command
+  // and leaves the plain `shell.run` box alone - which is the reasonable
+  // instinct, the specific line looking like the sensitive one - would
+  // otherwise see a ✓ in the pane and get their plugin put away on the third
+  // ask (spec §1.2).
+  const result = plan(
+    [{ name: 'git-activity', manifest: RUNNER }],
+    runConfigured({ approvedCapabilities: [] }),
+  )
+  assert.deepEqual(result.start[0]?.run, [])
+  assert.ok(result.notices.some((line) => /shell\.run/.test(line)))
+})
+
+test('a plugin restarts when a command it may run changes', () => {
+  const one = plan([{ name: 'git-activity', manifest: RUNNER }], runConfigured())
+  const two = plan([{ name: 'git-activity', manifest: RUNNER }], runConfigured({ approvedRun: new Map() }))
+  const first = one.start[0]
+  const second = two.start[0]
+  assert.ok(first !== undefined && second !== undefined)
+  assert.notEqual(signature(first), signature(second))
+})
+
+test('a plugin restarts when the value bound into a command changes', () => {
+  // Against `signature` directly rather than through `plan`, because two
+  // configs that differ in a setting already differ in `start.settings` - so
+  // the same test written through `plan` would pass with the run clause
+  // deleted, which is not a test of the run clause.
+  const base = {
+    name: 'git-activity', entry: 'index.js',
+    slots: [], capabilities: [], open: [], settings: new Map(),
+  }
+  /** @param {string|null} value */
+  const bound = (value) => ({
+    ...base,
+    run: [{
+      name: 'log',
+      command: ['git', '-C', '{repo}'],
+      binds: [{
+        name: 'repo', rule: /** @type {'setting'} */ ('setting'), key: 'repo', value,
+      }],
+    }],
+  })
+  assert.notEqual(signature(bound('~/gotab/node')), signature(bound('~/elsewhere')))
+  assert.notEqual(signature(bound('~/gotab/node')), signature(bound(null)))
 })

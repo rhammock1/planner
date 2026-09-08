@@ -25,6 +25,8 @@ export { updatePlugin }
  * @property {string[]} approvedSlots
  * @property {string[]} approvedCapabilities
  * @property {string[]} approvedOpen
+ * @property {Map<string, string>} approvedRun  command name -> the rendered
+ *   line that was approved (spec §1.6); an empty line is never one
  * @property {Map<string, TomlValue>} settings  the plugin's own settings, unvalidated
  */
 
