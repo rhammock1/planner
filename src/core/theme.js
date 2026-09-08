@@ -78,7 +78,24 @@ const FORBIDDEN = [
   { pattern: /<|>/, why: 'angle brackets would leave the style element' },
   { pattern: /@import/i, why: 'an import would reach outside the theme' },
   { pattern: /url\(\s*['"]?\s*(?:[a-z][a-z0-9+.-]*:|\/\/)/i, why: 'a url must be a file in the theme folder' },
+  { pattern: /\\/, why: 'a backslash could hide a scheme from the rule above it' },
+  { pattern: /\b(?:image-set|cross-fade)\s*\(/i, why: 'this would fetch something, and a url must be a file in the theme folder' },
+  { pattern: /\/\*/, why: 'a comment would swallow the rest of the style element' },
 ]
+
+/**
+ * Which rule refuses a value, or nothing.
+ *
+ * Exported because a plugin's tokens go through exactly the same checks a
+ * theme's do (spec §3.3) - and a second copy of this list is a second thing
+ * to forget to add a rule to.
+ *
+ * @param {string} value
+ * @returns {{pattern: RegExp, why: string}|null}
+ */
+export function forbidden(value) {
+  return FORBIDDEN.find((rule) => rule.pattern.test(value)) ?? null
+}
 
 /**
  * A fresh copy, so a view that reaches into `theme.tokens` cannot leave the
@@ -161,9 +178,9 @@ function readTokens(table, notices) {
       notices.push(`theme.toml: token ${name} is not a string; using the default`)
       continue
     }
-    const forbidden = FORBIDDEN.find((rule) => rule.pattern.test(value))
-    if (forbidden !== undefined) {
-      notices.push(`theme.toml: token ${name} was refused - ${forbidden.why}`)
+    const refused = forbidden(value)
+    if (refused !== null) {
+      notices.push(`theme.toml: token ${name} was refused - ${refused.why}`)
       continue
     }
     tokens.set(name, value)

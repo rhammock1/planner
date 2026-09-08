@@ -149,6 +149,7 @@ test('a plugin that is switched off is still listed', () => {
     run: [],
     approvedRun: new Map(),
     heading: 'macos-calendar',
+    moves: [],
     problem: null,
     schema: [],
     settings: new Map(),
@@ -168,6 +169,7 @@ test('a plugin the config has never heard of is listed as off and ungranted', ()
     run: [],
     approvedRun: new Map(),
     heading: 'macos-calendar',
+    moves: [],
     problem: null,
     schema: [],
     settings: new Map(),
@@ -252,4 +254,23 @@ test('a plugin that does not contribute still has a heading, and it is its name'
   const folders = [{ name: 'ticket-links', manifest: 'entry = "index.js"\nslots = ["item.badge"]\n' }]
   const [one] = installed(folders, new Map())
   assert.equal(one?.heading, 'ticket-links')
+})
+
+test('a plugin that moves colours is listed with the ones it named', () => {
+  const [one] = installed([{
+    name: 'dusk',
+    manifest: `
+entry = "index.js"
+slots = ["theme.tokens"]
+
+[tokens]
+moves = ["paper", "ink"]
+`,
+  }], new Map())
+  assert.deepEqual(one?.moves, ['paper', 'ink'])
+})
+
+test('a plugin that moves nothing has an empty list, not a missing one', () => {
+  const [one] = installed([{ name: 'ticket-links', manifest: 'entry = "index.js"\n' }], new Map())
+  assert.deepEqual(one?.moves, [])
 })

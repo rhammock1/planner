@@ -189,14 +189,14 @@ test('the manifest is the ceiling for slots too', () => {
 test('a slot this planner does not offer never reaches the config', () => {
   const manifest = `
 entry = "index.js"
-slots = ["vault.contribute", "theme.tokens"]
+slots = ["vault.contribute", "page.section"]
 `
   const { start, notices } = plan(
     folders(manifest),
     // This manifest declares no permissions, so approvedCapabilities is
     // dropped to [] here - otherwise the default capability in configured()
     // would add its own, unrelated disagreement to notices.
-    configured({ approvedSlots: ['vault.contribute', 'theme.tokens'], approvedCapabilities: [] }),
+    configured({ approvedSlots: ['vault.contribute', 'page.section'], approvedCapabilities: [] }),
   )
   assert.deepEqual(start[0]?.slots, ['vault.contribute'])
   // Exactly one line for theme.tokens - the manifest's own notice. Nothing
@@ -204,7 +204,7 @@ slots = ["vault.contribute", "theme.tokens"]
   // because a slot this app has never heard of is not the person's mistake -
   // and a second notice would directly contradict the first.
   assert.deepEqual(notices, [
-    'macos-calendar: manifest.toml asks for the theme.tokens slot, which this planner does not offer',
+    'macos-calendar: manifest.toml asks for the page.section slot, which this planner does not offer',
   ])
 })
 

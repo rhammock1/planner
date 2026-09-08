@@ -14,7 +14,7 @@
  * is a line beside that folder rather than a page of complaints.
  */
 
-import { readManifest, slotOptions, optionText } from './manifest.js'
+import { readManifest, slotOptions, optionText, optionNames } from './manifest.js'
 import { settled, resolveOpen, personSet, valueOf } from './pluginSettings.js'
 import { isPluginName, BAD_NAME, both } from './plugins.js'
 
@@ -65,6 +65,7 @@ const HEADING = 40
  * @property {Map<string, string>} approvedRun  the raw table, so writing one
  *   tick back does not throw away the others
  * @property {string} heading  what the day page calls this plugin's section
+ * @property {string[]} moves  the theme tokens this plugin says it moves
  * @property {string|null} problem  why it cannot run, when it cannot
  * @property {SettingsField[]} schema  the settings the manifest declares
  * @property {Map<string, TomlValue>} settings  the settled values
@@ -91,6 +92,7 @@ export function installed(folders, configured) {
         run: [],
         approvedRun,
         heading: folder.name,
+        moves: [],
         problem: BAD_NAME,
         schema: [],
         settings: new Map(),
@@ -131,6 +133,7 @@ export function installed(folders, configured) {
       // never has this drawn - and a null would only mean every reader had to
       // check for one.
       heading: optionText(slotOptions(read, 'vault.contribute'), 'heading', HEADING) || folder.name,
+      moves: optionNames(slotOptions(read, 'theme.tokens'), 'moves'),
       problem: read.error,
       schema: read.settings,
       settings,

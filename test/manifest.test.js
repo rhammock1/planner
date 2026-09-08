@@ -37,12 +37,12 @@ test('a slot this app does not offer is dropped, and said out loud', () => {
   // still do the parts this version understands.
   const read = readManifest(`
 entry = "index.js"
-slots = ["item.badge", "theme.tokens"]
+slots = ["item.badge", "page.section"]
 `)
   assert.equal(read.error, null)
   assert.deepEqual(read.slots, ['item.badge'])
   assert.equal(read.notices.length, 1)
-  assert.match(read.notices[0] ?? '', /theme\.tokens/)
+  assert.match(read.notices[0] ?? '', /page\.section/)
 })
 
 test('slots in the wrong shape are a fault, not a guess', () => {

@@ -32,6 +32,11 @@ export const SLOTS = [
     sentence: 'Is shown the text of every line on a page you look at, and can put a marker after one.',
     options: null,
   },
+  {
+    name: 'theme.tokens',
+    sentence: 'Moves colours over the theme.',
+    options: 'tokens',
+  },
 ]
 
 const BY_NAME = new Map(SLOTS.map((slot) => [slot.name, slot]))

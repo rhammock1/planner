@@ -94,6 +94,13 @@ declare namespace Planner {
     items: Line[]
   }
 
+  /** The question behind the `theme.tokens` slot. Only the clock: what a
+   *  plugin does with colour is a function of the time of day, and it is not
+   *  shown the page. */
+  interface TokensQuestion {
+    now: Now
+  }
+
   /** A marker after a line. */
   interface Badge {
     /** The `index` of the line this belongs to, from the question. */
@@ -111,6 +118,8 @@ declare const planner: {
     Planner.Contribution[] | Promise<Planner.Contribution[]>): void
   on(slot: 'item.badge', handler: (question: Planner.BadgeQuestion) =>
     Planner.Badge[] | Promise<Planner.Badge[]>): void
+  on(slot: 'theme.tokens', handler: (question: Planner.TokensQuestion) =>
+    Record<string, string> | Promise<Record<string, string>>): void
 
   /** `vault.contribute` under the name it has always had. */
   onContribute(

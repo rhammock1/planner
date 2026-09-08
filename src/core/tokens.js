@@ -1,0 +1,170 @@
+// @ts-check
+
+/**
+ * What a plugin may do to the theme's colours (spec §3.3).
+ *
+ * A plugin returns a partial map of tokens and the app puts them in a rule of
+ * its own, last in the cascade - so a plugin that moves colour can move it,
+ * over a `theme.css` that set the same token on `:root` itself.
+ *
+ * Which makes this the reader that has to be strict. Everything here arrived
+ * from somebody else's code and lands inside a CSS rule this app writes, so
+ * every value goes through the same checks a theme's own values get, and two
+ * more on top: a plugin may only move what its manifest said it would move,
+ * and no two plugins may move the same thing.
+ */
+
+import { TOKEN_NAMES, forbidden } from './theme.js'
+
+/** A colour, a font stack or a gradient. Longer than this is not one. */
+const LONGEST = 200
+
+/** The alarm thread wakes every fifteen minutes, so that is the resolution a
+ *  clock-driven slot gets: `dusk` steps rather than drifting (spec §1.4). */
+const QUARTER = 15
+
+/**
+ * The key that makes an old answer wrong.
+ *
+ * Generation-forced (spec §1.4): the counter moves when the popover opens and
+ * when the schedule refreshes, so a page pinned across sunset is re-asked four
+ * times over the hour rather than holding the answer it opened with.
+ *
+ * @param {{date: string, time: string}} now
+ * @param {number} generation
+ * @returns {string}
+ */
+export function tokenKey(now, generation) {
+  const [hour, minute] = now.time.split(':')
+  const stepped = Math.floor(Number(minute ?? 0) / QUARTER) * QUARTER
+  return `${now.date}:${hour ?? '00'}:${String(stepped).padStart(2, '0')}:${generation}`
+}
+
+/**
+ * The tokens the plugins moved, settled.
+ *
+ * @param {{plugin: string, value: unknown}[]} answers  in plugin-name order
+ * @param {Map<string, string[]>} moves  per plugin, what its manifest declared
+ * @returns {{tokens: Map<string, string>, notices: string[]}}
+ */
+export function readPluginTokens(answers, moves) {
+  /** @type {string[]} */
+  const notices = []
+  const claims = claimed(moves, notices)
+
+  /** @type {Map<string, string>} */
+  const tokens = new Map()
+
+  for (const answer of answers) {
+    if (typeof answer.value !== 'object' || answer.value === null || Array.isArray(answer.value)) {
+      notices.push(`${answer.plugin} returned something that is not a map of tokens`)
+      continue
+    }
+
+    // Two counters rather than one, because they are two different sentences.
+    // A plugin that sent `{paper: 4}` *may* move `paper`, and telling it that
+    // it may not would send its author looking at the manifest instead of at
+    // the 4.
+    let notMine = 0
+    let unusable = 0
+    for (const [name, raw] of Object.entries(/** @type {Record<string, unknown>} */ (answer.value))) {
+      // The claim is what decides, not the answer: a plugin that declared a
+      // token holds it whether or not it happened to answer this time, so the
+      // page does not change colour depending on who was slow.
+      if (claims.get(name) !== answer.plugin) {
+        notMine += 1
+        continue
+      }
+      const value = flatten(raw)
+      if (value === '') {
+        unusable += 1
+        continue
+      }
+      const refused = forbidden(value)
+      if (refused !== null) {
+        notices.push(`${answer.plugin}'s ${name} was refused - ${refused.why}`)
+        continue
+      }
+      tokens.set(name, value)
+    }
+
+    // Counted, not listed, and at most one notice each per answer (spec §6).
+    if (notMine > 0) {
+      notices.push(`${answer.plugin} sent ${notMine} ${notMine === 1 ? 'token' : 'tokens'} it may not move`)
+    }
+    if (unusable > 0) {
+      notices.push(`${answer.plugin} sent ${unusable} ${unusable === 1 ? 'value' : 'values'} this app could not use`)
+    }
+  }
+
+  return { tokens: sorted(tokens), notices }
+}
+
+/**
+ * Who holds each token, and what to say about the ones two plugins wanted.
+ *
+ * In name order, so which of two overlapping plugins wins is the same on every
+ * launch. Colour is not a thing two plugins can each have half of, and the
+ * second one is told rather than quietly overwritten.
+ *
+ * @param {Map<string, string[]>} moves
+ * @param {string[]} notices
+ * @returns {Map<string, string>} token -> the plugin that may move it
+ */
+function claimed(moves, notices) {
+  /** @type {Map<string, string>} */
+  const claims = new Map()
+
+  for (const plugin of [...moves.keys()].sort()) {
+    for (const name of moves.get(plugin) ?? []) {
+      // A name from a theme this version has never heard of is not a token,
+      // and is not worth a line: the pane already shows what was declared.
+      if (!TOKEN_NAMES.includes(name)) continue
+      const first = claims.get(name)
+      if (first !== undefined) {
+        notices.push(`${first} and ${plugin} both move ${name}; only ${first} does`)
+        continue
+      }
+      claims.set(name, plugin)
+    }
+  }
+  return claims
+}
+
+/**
+ * One rule, setting every moved token on `:root`.
+ *
+ * Empty for nothing moved, so the style element holds nothing rather than an
+ * empty rule - absent rather than empty, the same way a section is.
+ *
+ * @param {Map<string, string>} tokens
+ * @returns {string}
+ */
+export function pluginTokensCss(tokens) {
+  if (tokens.size === 0) return ''
+  const lines = [':root {']
+  for (const [name, value] of sorted(tokens)) lines.push(`  --${name}: ${value};`)
+  lines.push('}', '')
+  return lines.join('\n')
+}
+
+/**
+ * @param {unknown} raw
+ * @returns {string}
+ */
+function flatten(raw) {
+  if (typeof raw !== 'string') return ''
+  const line = raw.replace(/\s+/gu, ' ').trim()
+  return line.length <= LONGEST ? line : ''
+}
+
+/**
+ * By name, so the same set of tokens produces the same stylesheet twice - a
+ * rule that reshuffles is a diff nobody can read.
+ *
+ * @param {Map<string, string>} tokens
+ * @returns {Map<string, string>}
+ */
+function sorted(tokens) {
+  return new Map([...tokens].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)))
+}

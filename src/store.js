@@ -39,6 +39,7 @@ import { today, nowTime } from './clock.js'
  * @property {() => number} pluginGeneration
  * @property {() => import('./ipc/host.js').PluginState[]} pluginStates
  * @property {(name: string) => string[]} approvedOpen  addresses a plugin may open, from the pane
+ * @property {() => Map<string, string[]>} pluginMoves  what each plugin may move
  * @property {() => VaultIndex} vault
  * @property {() => import('./core/config.js').Config} config
  * @property {() => string[]} notices
@@ -76,6 +77,10 @@ export function createStore() {
    *  pane lists these, so it has to know about the ones that are off.
    *  @type {import('./core/plugins.js').Folder[]} */
   let folders = []
+
+  /** What `pluginMoves()` last worked out, and what it worked it out from.
+   *  @type {{folders: unknown, plugins: unknown, moves: Map<string, string[]>}|null} */
+  let moves = null
   /** False when the configured folder is not there. The page offers a picker
    *  rather than creating one somewhere nobody asked for (spec §8). */
   let vaultExists = false
@@ -214,6 +219,30 @@ export function createStore() {
     // answer as the popover.
     approvedOpen: (name) =>
       installed(folders, config.plugins).find((one) => one.name === name)?.approvedOpen ?? [],
+
+    // Enabled *and* ticked for the slot. A claim is what stops another plugin
+    // moving the same colour, so a plugin that is switched off holding one
+    // would leave the running plugin refused a token, with a notice naming a
+    // plugin that is not even up (spec §3.3).
+    //
+    // Cached on the two things it is derived from, because `installed()` reads
+    // and parses every manifest in the folder and this is called on every draw
+    // of the day page - which is every keystroke in the add row. Both are
+    // replaced wholesale when they change, so identity is the whole test.
+    pluginMoves: () => {
+      if (moves === null || moves.folders !== folders || moves.plugins !== config.plugins) {
+        moves = {
+          folders,
+          plugins: config.plugins,
+          moves: new Map(
+            installed(folders, config.plugins)
+              .filter((one) => one.enabled && one.approvedSlots.includes('theme.tokens'))
+              .map((one) => [one.name, one.moves]),
+          ),
+        }
+      }
+      return moves.moves
+    },
 
     vault: () => vault,
     config: () => config,
