@@ -2682,6 +2682,7 @@ dependencies = [
  "libc",
  "notify",
  "objc2",
+ "objc2-core-location",
  "objc2-event-kit",
  "objc2-foundation",
  "serde",
