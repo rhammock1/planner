@@ -30,6 +30,10 @@ struct Grant {
     /// The addresses this plugin may ask the app to open, agreed entry for
     /// entry between the manifest and the config.
     open: Vec<String>,
+    /// The commands this plugin may run, agreed line for line between the
+    /// manifest and the config, with every placeholder's rule already
+    /// settled by the frontend.
+    run: Vec<super::run::Command>,
     /// This plugin's own settings, checked against its manifest's schema and
     /// settled by the frontend - the page it is served carries them.
     settings: Value,
@@ -66,6 +70,7 @@ impl Registry {
         slots: Vec<String>,
         capabilities: Vec<String>,
         open: Vec<String>,
+        run: Vec<super::run::Command>,
         settings: Value,
     ) {
         let mut held = self.0.lock().expect("registry lock");
@@ -80,6 +85,7 @@ impl Registry {
                 slots,
                 capabilities,
                 open,
+                run,
                 settings,
                 handles,
                 strikes,
@@ -171,6 +177,18 @@ impl Registry {
         held.get(name)
             .filter(|grant| grant.running && !grant.disabled)
             .map(|grant| grant.open.clone())
+            .unwrap_or_default()
+    }
+
+    /// What a plugin may run right now.
+    ///
+    /// `running` as well as `!disabled`, for the same reason `may_open` reads
+    /// both: switching a plugin off has to withdraw what it may reach at once.
+    pub fn run_of(&self, name: &str) -> Vec<super::run::Command> {
+        let held = self.0.lock().expect("registry lock");
+        held.get(name)
+            .filter(|grant| grant.running && !grant.disabled)
+            .map(|grant| grant.run.clone())
             .unwrap_or_default()
     }
 

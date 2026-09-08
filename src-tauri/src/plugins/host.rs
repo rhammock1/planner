@@ -48,6 +48,7 @@ pub fn start(
     slots: Vec<String>,
     capabilities: Vec<String>,
     open: Vec<String>,
+    run: Vec<super::run::Command>,
     settings: Value,
 ) -> Result<(), String> {
     let label = format!("{WINDOW_PREFIX}{name}");
@@ -59,7 +60,7 @@ pub fn start(
     }
 
     let registry = app.state::<Registry>();
-    registry.grant(name, entry.to_string(), slots, capabilities, open, settings);
+    registry.grant(name, entry.to_string(), slots, capabilities, open, run, settings);
 
     let url = Url::parse(&format!("plugin://{name}/index.html"))
         .map_err(|error| format!("{name} has a name that cannot be a URL: {error}"))?;

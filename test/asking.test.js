@@ -373,3 +373,49 @@ test('an answer asked before a plugin started is not kept for the key it missed'
   assert.deepEqual(asking.answers('item.badge', 'k1', {}), [])
   assert.equal(stub.asked.length, 2)
 })
+
+const RUNNER = `
+entry = "index.js"
+
+[permissions]
+capabilities = ["shell.run"]
+
+[permissions.run.log]
+command = ["git", "-C", "{repo}"]
+repo    = "settings.repo"
+
+[settings.repo]
+label = "Repository"
+kind  = "text"
+`
+
+test('a plugin is started with the commands it was granted', async () => {
+  // The one place the two languages agree about a command, and the shape Rust
+  // deserialises. If this test and `src-tauri/tests/run.rs`'s last case ever
+  // disagree, the seam has drifted.
+  const stub = host()
+  /** @type {any[][]} */
+  const given = []
+  const asking = createAsking({
+    ...stub.deps,
+    startPlugin: async (/** @type {any[]} */ ...args) => { given.push(args) },
+  })
+
+  await asking.sync(
+    [{ name: 'git-activity', manifest: RUNNER }],
+    new Map([['git-activity', {
+      enabled: true,
+      approvedSlots: [],
+      approvedCapabilities: ['shell.run'],
+      approvedOpen: [],
+      approvedRun: new Map([['log', 'git -C {repo=settings.repo}']]),
+      settings: new Map([['repo', '~/gotab/node']]),
+    }]]),
+  )
+
+  assert.deepEqual(given[0]?.[5], [{
+    name: 'log',
+    command: ['git', '-C', '{repo}'],
+    binds: [{ name: 'repo', rule: 'setting', key: 'repo', value: '~/gotab/node' }],
+  }])
+})

@@ -150,11 +150,12 @@ export async function listPlugins() {
  * @param {string[]} slots
  * @param {string[]} capabilities
  * @param {string[]} open
+ * @param {unknown[]} run
  * @param {Record<string, unknown>} settings
  * @returns {Promise<void>}
  */
-export async function startPlugin(name, entry, slots, capabilities, open, settings) {
-  return (await getHost()).startPlugin(name, entry, slots, capabilities, open, settings)
+export async function startPlugin(name, entry, slots, capabilities, open, run, settings) {
+  return (await getHost()).startPlugin(name, entry, slots, capabilities, open, run, settings)
 }
 
 /**

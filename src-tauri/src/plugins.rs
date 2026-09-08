@@ -22,6 +22,7 @@ pub mod door;
 pub mod host;
 pub mod opening;
 pub mod registry;
+pub mod run;
 pub mod serving;
 pub mod waiting;
 
@@ -120,9 +121,10 @@ pub fn start_plugin(
     slots: Vec<String>,
     capabilities: Vec<String>,
     open: Vec<String>,
+    run: Vec<run::Command>,
     settings: Value,
 ) -> Result<(), String> {
-    host::start(&app, &name, &entry, slots, capabilities, open, settings)
+    host::start(&app, &name, &entry, slots, capabilities, open, run, settings)
 }
 
 /// Asks every plugin granted a slot what it has to say, and hands back what
