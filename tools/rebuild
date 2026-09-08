@@ -115,26 +115,47 @@ info = {
     "CFBundleVersion": conf["version"],
     "LSMinimumSystemVersion": conf["bundle"]["macOS"]["minimumSystemVersion"],
 }
-# The usage strings, from the one file that holds them. Last, so a key written
-# there wins over anything guessed at above.
-info.update(plistlib.loads((root / "src-tauri/Info.plist").read_bytes()))
+
+# The usage strings, from the one file that holds them - and only those. A
+# blanket update would let that file quietly redefine CFBundleIdentifier, which
+# is the one value TCC remembers a decision against, and the signature would
+# then seal the override in. What is wanted from there is the prose.
+asked = plistlib.loads((root / "src-tauri/Info.plist").read_bytes())
+info.update({
+    name: value for name, value in asked.items() if name.endswith("UsageDescription")
+})
 out.write_bytes(plistlib.dumps(info))
 PLIST
 
   # Ad-hoc, which is all a local test needs: what TCC wants is a signature the
   # plist is sealed into, not one anybody has paid for.
-  codesign --force --sign - "$APP"
+  #
+  # `--options runtime` is not optional here, though. Without the hardened
+  # runtime the executable is not dyld-restricted, so anything running as this
+  # user can DYLD_INSERT_LIBRARIES its way into a process that holds the
+  # calendar and location grants this bundle exists to obtain, and read both
+  # with no prompt. There are no entitlements to reconcile, so it costs
+  # nothing.
+  codesign --force --options runtime --sign - "$APP"
 
   echo "Bundled: $APP"
-  # Said out loud rather than assumed, because an unbound plist is exactly the
+
+  # Said out loud rather than assumed, because an unsealed plist is exactly the
   # failure this whole step exists to avoid and it is invisible from the app.
-  # `Info.plist=not bound` is what a bare cargo binary says. A sealed one
-  # counts its entries instead, which is the line to want here.
-  if codesign -dv "$APP" 2>&1 | grep -q 'Info.plist=not bound'; then
-    echo "         WARNING: the plist is not bound - nothing will prompt" >&2
-  else
-    echo "         the plist is sealed in, so permissions will be asked for"
-  fi
+  # A bare cargo binary says `Info.plist=not bound`; a sealed one counts its
+  # entries instead. Asserted the positive way round, so that a wording this
+  # does not recognise reads as a failure rather than as success.
+  #
+  # Read into a variable rather than piped into grep: `set -o pipefail` is on,
+  # and `grep -q` closes the pipe the moment it matches, so codesign takes a
+  # SIGPIPE and the *successful* case is the one that comes back non-zero.
+  sealed="$(codesign -dv "$APP" 2>&1 || true)"
+  case "$sealed" in
+    *"Info.plist entries="*)
+      echo "         the plist is sealed in, so permissions will be asked for" ;;
+    *)
+      echo "         WARNING: the plist is not sealed in - nothing will prompt" >&2 ;;
+  esac
 fi
 
 echo
@@ -148,7 +169,7 @@ fi
 echo
 if [ "$bundle" = yes ]; then
   echo "Or the bundle, which is the one that can ask for a permission:"
-  echo "         PLANNER_HOME=/tmp/planner-home $APP/Contents/MacOS/planner"
+  echo "         PLANNER_HOME=\"\$TMPDIR/planner-home\" $APP/Contents/MacOS/planner"
   echo
 fi
 echo "It is a menu bar app - look for the icon in the status bar, not for a"

@@ -23,7 +23,7 @@ operating system's behaviour rather than this app's. Run against a throwaway
 setup so a mistake costs nothing:
 
 ```bash
-PLANNER_HOME=/tmp/planner-home npm run app
+PLANNER_HOME="$TMPDIR/planner-home" npm run app
 ```
 
 **The menu bar item**
@@ -158,8 +158,8 @@ quietly answering nothing. These six are therefore run from the bundle:
 
 ```bash
 tools/rebuild --bundle
-cp -R plugins/dusk /tmp/planner-home/plugins/
-PLANNER_HOME=/tmp/planner-home ~/.cache/planner-target/Planner.app/Contents/MacOS/planner
+cp -R plugins/dusk "$TMPDIR/planner-home"/plugins/
+PLANNER_HOME="$TMPDIR/planner-home" ~/.cache/planner-target/Planner.app/Contents/MacOS/planner
 ```
 
 The bundle is signed ad hoc, so its signature changes every time it is built
