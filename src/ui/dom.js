@@ -52,12 +52,26 @@ export function clear(parent) {
 }
 
 /**
+ * The order these sheets sit in, last one winning (spec §3.3).
+ *
+ * Written down rather than left to whoever asks first. The three used to be
+ * appended in creation order, which made the cascade a fact about the order
+ * four files happen to run in - and a plugin that could not move a colour
+ * because a sheet was created a moment early would look like a plugin that
+ * had simply answered nothing.
+ *
+ * Not `@layer`, which would say the same thing in one line: the app's floor is
+ * macOS 11, whose WebKit does not know the rule, and a browser that skips a
+ * `@layer` block skips the theme with it. A silent loss of every colour is a
+ * worse trade than a list.
+ */
+const SHEETS = ['theme-tokens', 'theme-css', 'theme-plugin']
+
+/**
  * The one style element with a given id, made if it is not there yet.
  *
- * Appended in creation order and never moved, which is what makes the cascade
- * a matter of *when* each one is first asked for: `theme-tokens`, then
- * `theme-css`, then `theme-plugin` (spec §3.3). Startup asks for the first two
- * before the first draw, and a plugin's tokens can only arrive after one.
+ * A new one is put in its place in `SHEETS` rather than at the end, so asking
+ * for them out of order still cascades in order.
  *
  * @param {string} id
  * @returns {HTMLStyleElement}
@@ -67,6 +81,14 @@ export function styleElement(id) {
   if (existing instanceof HTMLStyleElement) return existing
   const created = document.createElement('style')
   created.id = id
-  document.head.append(created)
+
+  // The first sheet that belongs after this one, if it is already there.
+  const after = SHEETS.slice(SHEETS.indexOf(id) + 1)
+  const next = SHEETS.indexOf(id) === -1
+    ? null
+    : after.map((one) => document.querySelector(`#${one}`)).find((one) => one !== null) ?? null
+
+  if (next === null) document.head.append(created)
+  else next.before(created)
   return created
 }

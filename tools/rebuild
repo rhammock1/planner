@@ -2,7 +2,7 @@
 
 ##  Planner rebuild script
 ##  Robert Hammock <smokeybear> (rhamm1027@gmail.com) 2026
-##  Last Updated: 2026-09-03
+##  Last Updated: 2026-09-08
 ##
 ##  Checks the JavaScript and builds the app, then says what to run.
 ##
@@ -88,6 +88,16 @@ fi
 ##  The keys come from the two files that already hold them, so there is no
 ##  third place to keep the identifier in step. The identifier is the part that
 ##  matters: TCC remembers a decision against it, not against a path.
+##
+##  Where this and `cargo tauri build` would disagree, if that is ever used:
+##  tauri.conf.json declares resources as "../themes", and Tauri's own bundler
+##  rewrites a resource path that climbs out of the crate root into an `_up_/`
+##  subdirectory. This copies to Contents/Resources/themes, which is where
+##  settings.rs looks. Check that before relying on a bundle from either, and
+##  the fix if they differ is to move themes/ under src-tauri/ so no path has
+##  to climb. This plist is also thinner than Tauri's by CFBundleIconFile,
+##  NSHighResolutionCapable and NSPrincipalClass - none of which a permission
+##  test needs, all of which a bundle handed to somebody would.
 if [ "$bundle" = yes ]; then
   echo
   echo "==> Planner.app"

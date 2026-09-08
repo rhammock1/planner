@@ -54,13 +54,18 @@ export function sunEvents(date, latitude, longitude) {
     Math.sin(rad(2 * anomaly)) * (0.019993 - 0.000101 * t) +
     Math.sin(rad(3 * anomaly)) * 0.000289
 
+  // The longitude of the ascending node of the moon's orbit, which is what
+  // both the aberration correction and the tilt's nutation term are measured
+  // against. Named because it appears in both, and a pair of magic numbers
+  // that must stay equal is a pair that will not.
+  const node = rad(125.04 - 1934.136 * t)
+
   // The apparent longitude: the true one, less aberration and nutation.
-  const apparent =
-    meanLongitude + centre - 0.00569 - 0.00478 * Math.sin(rad(125.04 - 1934.136 * t))
+  const apparent = meanLongitude + centre - 0.00569 - 0.00478 * Math.sin(node)
 
   const meanTilt =
     23 + (26 + (21.448 - t * (46.815 + t * (0.00059 - t * 0.001813))) / 60) / 60
-  const tilt = meanTilt + 0.00256 * Math.cos(rad(125.04 - 1934.136 * t))
+  const tilt = meanTilt + 0.00256 * Math.cos(node)
 
   const declination = Math.asin(Math.sin(rad(tilt)) * Math.sin(rad(apparent)))
 

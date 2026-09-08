@@ -13,8 +13,25 @@ import { styleElement } from '../../src/ui/dom.js'
 import { themeCss } from '../../src/core/theme.js'
 import { pluginTokensCss } from '../../src/core/tokens.js'
 
+check('the sheets cascade in order however they are asked for', () => {
+  // The order used to be a fact about which file ran first, and this file
+  // establishing it by hand was the reason the test could not fail: it built
+  // the arrangement it was checking. So the plugin's sheet is asked for
+  // *first* here, which is the arrangement nothing in the app produces and
+  // exactly the one a future reordering would.
+  styleElement('theme-plugin')
+  styleElement('theme-css')
+  styleElement('theme-tokens')
+
+  const ids = [...document.head.querySelectorAll('style[id]')].map((one) => one.id)
+  equal(
+    ids.join(' '),
+    'theme-tokens theme-css theme-plugin',
+    'the sheets are not in cascade order',
+  )
+})
+
 check('a plugin wins over the theme, and over the theme stylesheet', () => {
-  // In the order startup asks for them, which is the order they are appended.
   styleElement('theme-tokens').textContent = themeCss({
     name: 'Ledger', author: 'x', appearance: 'light',
     tokens: new Map([['paper', '#FBFAF6']]),
