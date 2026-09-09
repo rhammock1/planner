@@ -68,16 +68,17 @@ the largest grant this API will ever make, which is why it is last.
    consumer, and a schema with nothing to configure is the same guess an empty
    slot is.
 3. **Search providers.** `search.provide`, so ⌘F groups hits by whose they
-   are. The first consumers are outside the vault; the lasting one is the
-   notes below, whose files the vault search does not read.
+   are. Landed in phase three with `meeting-notes`, its real consumer, rather
+   than here: a consumer manufactured for a slot is the guess the rule at the
+   top of this section forbids.
 
 **Run.** Still nothing written to the vault. What is new is a clock, and one
 reach outside the sandbox.
 
-4. **`planner.refresh()`.** The host pulls, on popover open, for a range, and
-   that is the whole of it. Fine for a calendar, wrong for anything with a
-   clock in it. Rate-limited: a plugin that calls it in a loop redraws the
-   page in a loop.
+4. **`planner.refresh()`.** Designed and not built. Neither `git-activity` nor
+   `dusk` needed it in the end — one answers from a cache and the other is
+   asked again whenever the schedule moves — so it has no consumer, and the
+   design is recorded in the phases spec §3.1 so it is not designed twice.
 5. **`git-activity`** — where the day went, at a glance, and not a work log:
    the day already has one and it is the daily note you write yourself. One
    line, `pushed 6 commits to gotab-inc/node` or `20 commits by claude in
@@ -95,7 +96,8 @@ reach outside the sandbox.
    next plugin that thinks it does.
 
 **Write.** Beside your day file, never into it: [docs/format.md](docs/format.md)
-is a contract and a plugin is not a party to it.
+is a contract and a plugin is not a party to it. Sidecars, `page.section` and
+`meeting-notes` have landed; `task-notes` (#9) has not.
 
 7. **Sidecar files.** A plugin gets a name next to the day it belongs to —
    `2026/09/2026-09-01.meeting-with-daryoush.md` — same folder, same date
