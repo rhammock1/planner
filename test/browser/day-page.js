@@ -52,6 +52,8 @@ function show(count, events, notices, actions) {
     onRemove: async () => true,
     onBadge: () => {},
     onDailyNote: async () => true,
+    onBlock: async () => true,
+    onOpenSidecar: () => {},
     onAdd: async () => true,
     onCarry: () => {},
     onPin: () => {},
@@ -74,6 +76,8 @@ function show(count, events, notices, actions) {
         text: `Meeting number ${at + 1}`,
       })),
     }],
+    blocks: [],
+    sidecarText: () => null,
     notices: notices ?? [],
     actions: actions ?? [],
   })
@@ -103,6 +107,8 @@ function handlersFor() {
     onRemove: async () => true,
     onBadge: () => {},
     onDailyNote: async () => true,
+    onBlock: async () => true,
+    onOpenSidecar: () => {},
     onAdd: async () => true,
     onCarry: () => {},
     onPin: () => {},
@@ -214,7 +220,7 @@ check('a day with nothing contributed shows no section at all', () => {
 check('contributed events appear under the list and above the note', () => {
   show(3, 2)
   const order = [...stage.querySelectorAll('.page > *')].map((part) => part.className)
-  equal(order.join(' '), 'page-head notice-band carry horizon items add givens note page-foot search settings', 'the section is in the wrong place')
+  equal(order.join(' '), 'page-head notice-band carry horizon items add day-sections note page-foot search settings', 'the section is in the wrong place')
   equal(stage.querySelectorAll('.given-item').length, 2, 'the events did not appear')
 })
 
@@ -437,6 +443,8 @@ check('two plugins get two headed sections, and the footer stays put', () => {
       { plugin: 'git-activity', heading: 'From git', events: [{ time: null, text: '6 commits to gotab-inc/node' }] },
       { plugin: 'macos-calendar', heading: 'On the calendar', events: [{ time: '09:30', text: 'Standup' }] },
     ],
+    blocks: [],
+    sidecarText: () => null,
     notices: [],
     actions: [],
   })

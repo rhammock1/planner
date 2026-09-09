@@ -49,6 +49,11 @@ async function start() {
     },
     onCarry: (decisions) => { void carry(decisions) },
     onBadge: (plugin, href) => { void openBadge(store, plugin, href) },
+    // A block has nothing to write to yet: no plugin asks for one until the
+    // next task wires up the sidecar files themselves, so state.blocks below
+    // is always empty and neither handler is ever actually called.
+    onBlock: () => Promise.resolve(false),
+    onOpenSidecar: () => {},
     onPin: (next) => { void pin(next) },
     onOpenSpread: (view) => { void openSpread(view) },
     onSearch: (query) => search(store.vault(), query),
@@ -215,6 +220,9 @@ function draw() {
     // is reading, not triage, so the band stays out of the way there.
     carry: page === now ? unfinished(store.vault(), now, store.config().carryForwardScanDays) : [],
     sections: given.sections,
+    // Nothing asks for a block yet - that is the next task's wiring.
+    blocks: [],
+    sidecarText: () => null,
     badges: marked.badges,
     // The one thing a notice ever needs pressing for: the app will not put a
     // vault somewhere nobody asked for (spec §8).
