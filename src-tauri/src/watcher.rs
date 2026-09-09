@@ -125,7 +125,7 @@ fn changes(app: AppHandle, root: PathBuf) -> impl Fn(notify::Result<notify::Even
             }
 
             let text = std::fs::read_to_string(&path).unwrap_or_default();
-            let state = app.state::<crate::SharedVault>();
+            let state = app.state::<crate::vault::SharedVault>();
             let is_echo = state
                 .lock()
                 .map(|vault| vault.echoes.is_echo(&path, &text))

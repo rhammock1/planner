@@ -154,7 +154,7 @@ function tauriHost() {
     writeSidecar: (date, suffix, text) => invoke('write_sidecar', { date, suffix, text }),
     // Same shape as `onVaultChanged`: unwrapped and coerced here rather than
     // handed the raw payload, so a malformed event cannot hand the rest of
-    // the app anything but a string.
+    // the app anything but a pair.
     onSidecarChanged: (handler) =>
       tauri.event.listen('sidecar:changed', (/** @type {any} */ event) => {
         handler({
