@@ -14,6 +14,10 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
+/// Files beside a day. Its own module because the rule has four parts and
+/// this file is already at its length (spec §4.1).
+pub mod sidecars;
+
 /// The back page's key. A date names every other page.
 pub const SOMEDAY: &str = "someday";
 
@@ -92,7 +96,7 @@ pub fn page_for_path(root: &Path, path: &Path) -> Option<String> {
     Some(date.to_string())
 }
 
-fn is_date(text: &str) -> bool {
+pub(crate) fn is_date(text: &str) -> bool {
     text.len() == 10
         && text.as_bytes()[4] == b'-'
         && text.as_bytes()[7] == b'-'
@@ -143,25 +147,32 @@ pub fn read_page(root: &Path, page: &str) -> Option<String> {
     fs::read_to_string(path_for_page(root, page)).ok()
 }
 
-/// Writes a page atomically: a temporary file in the same directory, flushed,
+/// Writes a page atomically. See `write_atomic`.
+pub fn write_page(root: &Path, page: &str, text: &str) -> std::io::Result<()> {
+    write_atomic(&path_for_page(root, page), text)
+}
+
+/// Writes a file atomically: a temporary file in the same directory, flushed,
 /// then renamed over the target. A rename within one filesystem is atomic, so
 /// a crash or a full disk leaves the previous file exactly as it was - which
 /// is the whole of spec §8's promise that a failed write destroys nothing.
-pub fn write_page(root: &Path, page: &str, text: &str) -> std::io::Result<()> {
-    let path = path_for_page(root, page);
+///
+/// Shared by a page and a sidecar, because the promise is about the vault and
+/// not about which of the two kinds of file is being written.
+pub fn write_atomic(path: &Path, text: &str) -> std::io::Result<()> {
     let parent = path.parent().ok_or_else(|| {
-        std::io::Error::new(std::io::ErrorKind::InvalidInput, "page has no directory")
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "that file has no directory")
     })?;
     fs::create_dir_all(parent)?;
 
-    let temporary = parent.join(format!(".{}.tmp", file_name(&path)));
+    let temporary = parent.join(format!(".{}.tmp", file_name(path)));
     {
         let mut file = fs::File::create(&temporary)?;
         file.write_all(text.as_bytes())?;
         file.sync_all()?;
     }
 
-    match fs::rename(&temporary, &path) {
+    match fs::rename(&temporary, path) {
         Ok(()) => Ok(()),
         Err(error) => {
             let _ = fs::remove_file(&temporary);
