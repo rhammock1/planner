@@ -81,18 +81,26 @@ pub fn read(app: &tauri::AppHandle, plugin: &str, params: &Value) -> Result<Valu
 
     let prefixes = app.state::<Registry>().prefixes_of(plugin);
     if !owned(&prefixes, &suffix) {
-        // The same sentence for a file that is not there and a file that is not
-        // yours: which of the two it is is not a plugin's business, and a
-        // message that distinguished them would answer a question about
-        // somebody else's notes (spec §4.1).
-        return Err(format!("there is no {suffix} on {date}"));
+        // Not yours - see `no_such`.
+        return Err(no_such(&date, &suffix));
     }
 
     let Some(root) = crate::vault::root(app) else { return Err("no vault is open".into()) };
     match sidecars::read(&root, &date, &suffix) {
         Some(text) => Ok(Value::from(text)),
-        None => Err(format!("there is no {suffix} on {date}")),
+        None => Err(no_such(&date, &suffix)),
     }
+}
+
+/// The sentence a plugin gets for a sidecar it cannot have.
+///
+/// One function, called from both refusals, because the two must be
+/// indistinguishable and two `format!` calls that merely happen to match
+/// are one careless edit away from not matching. A file that is not there
+/// and a file that is not yours read the same, deliberately: which of the
+/// two it is is not a plugin's business (spec §4.1).
+fn no_such(date: &str, suffix: &str) -> String {
+    format!("there is no {suffix} on {date}")
 }
 
 /// One string parameter, or a message saying which one was missing.
