@@ -355,6 +355,50 @@ but a question does. Do not hold a question open across a `run`: answer with
 what you have, start the run, and answer properly the next time you are asked.
 That is what the fifteen-minute refresh and the popover opening are for.
 
+### `vault.sidecar.read`
+
+A file beside a day, named for the day and for you:
+
+```
+~/Planner/2026/09/2026-09-01.meeting-standup.md
+```
+
+Declare the prefixes you own. A suffix is yours when it *is* one of your
+prefixes, or begins with one of them and a hyphen:
+
+```toml
+[permissions]
+capabilities = ["vault.sidecar.read"]
+
+[sidecars]
+prefixes = ["meeting"]
+```
+
+A prefix is lowercase words joined by single hyphens, at most 15 characters —
+short, because your prefix and a title have to fit in 64 together. Two enabled
+plugins cannot own the same prefix: the second in name order loses that claim
+and keeps its others, and the settings pane says so.
+
+```js
+const notes = planner.capability('vault.sidecar.read')
+
+const mine = await notes.list({ from: '2026-08-01', to: '2026-09-30' })
+// [{ date: '2026-09-01', suffix: 'meeting-standup', title: 'Standup' }]
+
+const text = await notes.read('2026-09-01', 'meeting-standup')
+```
+
+`list` takes a range because a call per day is sixty calls: ask for the window
+you need in one. A range wider than 366 days is refused, and a listing is cut
+at 500 with the newest kept. `read` rejects for a file that is not there and
+for a suffix that is not yours, with the same sentence — neither is a strike.
+
+**You cannot write one.** There is no `vault.sidecar.write`. You *name* a
+sidecar — through `page.section`, or through `item.action` — and the app opens
+a block on the day page that the person types into, and the app writes it. A
+plugin relaying keystrokes back through the door to write what the app already
+has is not a feature this API is missing.
+
 ### `onContribute`
 
 Called with `{from, to}`, each `YYYY-MM-DD` local, inclusive. Return — or

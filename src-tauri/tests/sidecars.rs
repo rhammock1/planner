@@ -142,3 +142,24 @@ fn an_echo_is_about_a_file_rather_than_about_a_day() {
     assert!(echoes.is_echo(&side, "# Standup\n"));
     assert!(!echoes.is_echo(&side, "# Standup\n\nedited elsewhere\n"));
 }
+
+#[test]
+fn a_plugin_is_shown_only_the_sidecars_its_prefixes_own() {
+    let root = vault("scoped");
+    sidecars::write(&root, "2026-09-01", "meeting-standup", "# Standup\n").unwrap();
+    sidecars::write(&root, "2026-09-01", "note-review", "# Review\n").unwrap();
+
+    let all = sidecars::list(&root, "2026-09-01", "2026-09-01");
+    assert_eq!(all.len(), 2, "the app itself sees both");
+
+    // The scoping is `owns`: the prefix itself, or the prefix and a hyphen.
+    let mine: Vec<&sidecars::Sidecar> = all
+        .iter()
+        .filter(|one| planner_lib::bridges::sidecars::owned(&["meeting".to_string()], &one.suffix))
+        .collect();
+    assert_eq!(mine.len(), 1);
+    assert_eq!(mine[0].suffix, "meeting-standup");
+
+    assert!(!planner_lib::bridges::sidecars::owned(&["meeting".to_string()], "meetings-elsewhere"));
+    assert!(planner_lib::bridges::sidecars::owned(&["meeting".to_string()], "meeting"));
+}

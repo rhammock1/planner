@@ -28,6 +28,30 @@ A `someday.md` file may carry a daily note; it is preserved like any other.
 
     Shipped the retry fix.
 
+## A file beside a day
+
+A plugin may ask for a file of its own next to a day, and you type into it:
+
+    2026/09/2026-09-01.md                       the day
+    2026/09/2026-09-01.meeting-standup.md       a file beside it
+
+Same folder, same date, then a `.` and a **suffix**: lowercase letters, digits
+and single hyphens, at most 64 characters. The part before the first hyphen is
+a **prefix**, and a plugin owns the suffixes beginning with the prefixes it
+declared — two plugins cannot own the same one.
+
+Such a file is **never parsed**. It is free text, LF, one trailing newline,
+never reflowed; nothing in it means anything to this app, and none of the four
+tokens work in it. It is not a day: it holds no items, it is not counted, it
+never carries forward, and it does not appear in the week or the month. The
+only thing the app ever reads inside one is its first `# ` line, to have
+something to call it in a list.
+
+The back page has no date, and so has no files beside it.
+
+A plugin never writes one of these. It names one; the app writes it, atomically,
+the same way it writes a day.
+
 ## Checkbox states
 
 | Token | Meaning                  |

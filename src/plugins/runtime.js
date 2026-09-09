@@ -80,6 +80,20 @@
           send({ kind: 'capability', capability, method: 'run', params: { name, values } }),
         /** Where this Mac is, to two decimal places. */
         location: () => send({ kind: 'capability', capability, method: 'location', params: {} }),
+        /**
+         * Every sidecar of yours between two dates, inclusive.
+         * @param {{from: string, to: string}} params
+         */
+        list: (params) => send({ kind: 'capability', capability, method: 'list', params }),
+        /**
+         * One of your sidecars, as text. Rejects for a file that is not there
+         * and for a file that is not yours, with the same sentence: which of
+         * the two it is is not yours to know.
+         * @param {string} date
+         * @param {string} suffix
+         */
+        read: (date, suffix) =>
+          send({ kind: 'capability', capability, method: 'read', params: { date, suffix } }),
       }
     },
 

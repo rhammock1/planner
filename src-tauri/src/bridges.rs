@@ -7,6 +7,7 @@
 
 pub mod calendar;
 pub mod location;
+pub mod sidecars;
 
 use serde_json::Value;
 
@@ -31,6 +32,8 @@ pub fn dispatch(
         ("macos.calendar.read", "events") => calendar::events(params),
         ("macos.location.read", "location") => location::location(app),
         ("shell.run", "run") => crate::plugins::run::call(app, plugin, params),
+        ("vault.sidecar.read", "list") => sidecars::list(app, plugin, params),
+        ("vault.sidecar.read", "read") => sidecars::read(app, plugin, params),
         _ => Err(format!("no bridge provides {capability}.{method}")),
     }
 }

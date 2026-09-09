@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::vault_io::{self, Echoes, PageFile};
 use crate::watcher;
@@ -31,6 +31,12 @@ pub(crate) struct Vault {
 }
 
 pub(crate) type SharedVault = Mutex<Vault>;
+
+/// The open vault's root, for a bridge that has an `AppHandle` and no `State`
+/// argument of its own.
+pub(crate) fn root(app: &AppHandle) -> Option<PathBuf> {
+    app.state::<SharedVault>().lock().expect("vault lock").root.clone()
+}
 
 #[derive(Serialize)]
 pub(crate) struct VaultStatus {
