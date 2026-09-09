@@ -1,0 +1,17 @@
+name        = "meeting-notes"
+version     = "0.0.1"
+description = "The notes kept beside a day, listed under it"
+entry       = "index.js"
+slots       = ["vault.contribute"]
+
+[contribute]
+heading = "Notes"
+
+# One line, because `core/toml.js` reads single-line arrays and nothing else.
+[permissions]
+capabilities = ["vault.sidecar.read"]
+
+# Every file this plugin may see begins `meeting`. Nothing else may name one,
+# and it may name nothing else.
+[sidecars]
+prefixes = ["meeting"]
