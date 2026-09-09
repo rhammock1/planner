@@ -43,6 +43,11 @@ export const SLOTS = [
     options: null,
   },
   {
+    name: 'item.action',
+    sentence: 'Is shown the text of a line you pick, and can open a page of its own about it.',
+    options: 'action',
+  },
+  {
     name: 'search.provide',
     sentence: 'Is shown what you type into ⌘F, and can answer alongside the vault.',
     options: null,
