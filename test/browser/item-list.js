@@ -15,6 +15,7 @@ import { parse } from '../../src/core/parse.js'
 import { serialize } from '../../src/core/serialize.js'
 import { setItemState, removeItem } from '../../src/core/edit.js'
 import { createItemList } from '../../src/views/itemList.js'
+import { indexOf, textOf } from '../../src/views/itemRow.js'
 
 const found = document.querySelector('#stage')
 if (!(found instanceof HTMLElement)) throw new Error('no stage')
@@ -136,6 +137,34 @@ check('Shift+Enter opens the note and the caret lands in it', () => {
   const note = row.querySelector('.item-note')
   ok(note instanceof HTMLElement && !note.hidden, 'the note stayed hidden')
   equal(document.activeElement, note, 'the caret is not in the note')
+})
+
+check('textOf reads the line a row shows, from the row', () => {
+  mount()
+  const row = lineSaying('Second')
+  equal(textOf(row), 'Second', 'the row says the line it drew')
+  equal(indexOf(row), 2, 'and knows where that line sits in the file')
+})
+
+check('textOf reads what is on screen, not what was last rendered', () => {
+  // Decision 4: a line holding the caret is not written back by updateRow, so
+  // the document is behind by whatever is half-typed. A note opened on a
+  // half-typed line is about the words in front of you.
+  mount()
+  const row = lineSaying('Second')
+  const line = row.querySelector('.item-text')
+  if (!(line instanceof HTMLElement)) throw new Error('no text')
+  line.focus()
+  line.textContent = 'Second thoughts about the retry'
+
+  equal(textOf(line), 'Second thoughts about the retry', 'the half-typed words are what comes back')
+})
+
+check('textOf on something that is not in a row is nothing', () => {
+  mount()
+  const loose = document.createElement('div')
+  stage.append(loose)
+  ok(textOf(loose) === null, 'a div outside any row names no line')
 })
 
 report()

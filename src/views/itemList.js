@@ -12,6 +12,7 @@
 import { patchList } from '../ui/keyedList.js'
 import { el, setText } from '../ui/dom.js'
 import { drawBadges, badgeClicked } from './itemBadges.js'
+import { indexOf } from './itemRow.js'
 
 /** @typedef {import('../core/model.js').Document} Document */
 /** @typedef {import('../core/model.js').Item} Item */
@@ -223,23 +224,6 @@ function caretToEnd(element) {
   const selection = element.ownerDocument.defaultView?.getSelection()
   selection?.removeAllRanges()
   selection?.addRange(range)
-}
-
-/**
- * The node index a row addresses, from the key the list patcher wrote.
- *
- * Exported because moving a line between days happens above any one list: the
- * week view reads the index off the row it is given, rather than keeping a
- * second copy of what the rows mean.
- *
- * @param {HTMLElement} within
- * @returns {number|null}
- */
-export function indexOf(within) {
-  const row = within.closest('.item')
-  if (!(row instanceof HTMLElement)) return null
-  const index = Number(row.dataset['key']?.split(':')[1])
-  return Number.isInteger(index) ? index : null
 }
 
 /**
