@@ -1,4 +1,12 @@
 // @ts-check
+// This reference is program-wide, not file-scoped: once any file included
+// under `tsconfig.web.json` pulls in `@types/node`, its ambient globals
+// (`process`, `Buffer`, `require`, and the rest) resolve for every file in
+// that program, not just this one - TypeScript has no way to bring in
+// `@types/node`'s `node:test` and `node:assert/strict` module declarations
+// without its global ones too. Accepted anyway: the alternative, adding
+// `"node"` to that program's `"types"`, leaks the same globals but
+// permanently, where this leaves with the file that needs it.
 /// <reference types="node" />
 
 /**
