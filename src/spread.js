@@ -48,7 +48,19 @@ async function start() {
       draw()
     },
     onMove: (from, index, to) => { void move(from, index, to) },
-    onBadge: (plugin, href) => { void openBadge(store, plugin, href) },
+    onBadge: (plugin, href) => {
+      const ref = readRef(href)
+      // A note of somebody's, and this window cannot show one: it draws weeks
+      // and months, and a block lives on a day page. So it does what a
+      // provider's hit does here - moves to the week that day sits in, and
+      // leaves opening it to the popover (spec §4.3).
+      if (ref !== null) {
+        anchor = ref.date
+        draw()
+        return
+      }
+      void openBadge(store, plugin, href)
+    },
     onAnchor: (next) => {
       // '' is how a view says "back to now" without holding a clock itself.
       anchor = next === '' ? today() : next

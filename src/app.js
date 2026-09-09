@@ -13,9 +13,9 @@
 import { horizon } from './core/horizon.js'
 import { unfinished, carryForward } from './core/carry.js'
 import { readContributions } from './core/contributions.js'
-import { badgesFor, sectionsFor, providedFor, openBadge } from './plugins/pageAsking.js'
+import { badgesFor, sectionsFor, providedFor } from './plugins/pageAsking.js'
 import { openInEditor, pickVault } from './vaultActions.js'
-import { openSidecar, followHit } from './sidecarActions.js'
+import { openSidecar, followHit, noteOnLine, openMarker } from './sidecarActions.js'
 import { search } from './core/search.js'
 import { applyPluginTokens } from './plugins/theming.js'
 import { today } from './clock.js'
@@ -52,7 +52,7 @@ async function start() {
       draw()
     },
     onCarry: (decisions) => { void carry(decisions) },
-    onBadge: (plugin, href) => { void openBadge(store, plugin, href) },
+    onBadge: (plugin, href) => { void openMarker(surface, plugin, href) },
     // The block's own day, not `showing.page()`, which has moved on by the time a leaving block flushes.
     onBlock: (date, suffix, text) => store.changeSidecar(date, suffix, text),
     onOpenSidecar: (block) => { void openSidecar(surface, block) },
@@ -113,6 +113,20 @@ async function start() {
     if (event.key === 'e' && (event.metaKey || event.ctrlKey)) {
       event.preventDefault()
       void openInEditor(store, ipc, showing.page())
+    }
+    // A page of your own about the line you are on (spec §4.3). Shift is what
+    // keeps it off ⌘N, which belongs to a new window everywhere on this
+    // platform. `key` is uppercase while Shift is held, so it is lowercased
+    // rather than compared to 'n' and silently never matching.
+    if (event.key.toLowerCase() === 'n' && event.shiftKey && (event.metaKey || event.ctrlKey)) {
+      const line = dayPage.focusedLine()
+      // Nothing is prevented when no line has the caret: the chord meant
+      // nothing here, and swallowing it would swallow it from whatever it
+      // might mean to the field that does have focus.
+      if (line === null) return
+      event.preventDefault()
+      void noteOnLine(surface, line)
+      return
     }
   })
 
