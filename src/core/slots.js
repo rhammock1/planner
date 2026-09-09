@@ -37,6 +37,11 @@ export const SLOTS = [
     sentence: 'Moves colours over the theme.',
     options: 'tokens',
   },
+  {
+    name: 'page.section',
+    sentence: "Adds a block under the day, kept in a file beside the day's.",
+    options: null,
+  },
 ]
 
 const BY_NAME = new Map(SLOTS.map((slot) => [slot.name, slot]))
