@@ -58,6 +58,8 @@ const SETTLE = 800
  * @property {ReturnType<typeof setTimeout>|null} timer
  * @property {string|null} arrived  text that came from disk while the caret
  *   was in this block, waiting for it to leave
+ * @property {string} was  what the block said when the caret arrived, so
+ *   `focusout` can tell whether anything was actually typed
  */
 
 /**
@@ -212,6 +214,12 @@ function makeEditor(handlers, held, write) {
   const section = el('section', 'block')
   section.append(head, body)
 
+  // Remembered so `focusout` can tell whether anything was actually typed.
+  body.addEventListener('focusin', () => {
+    const holding = held.get(section.dataset['key'] ?? '')
+    if (holding !== undefined) holding.was = body.textContent ?? ''
+  })
+
   body.addEventListener('input', () => {
     const key = section.dataset['key'] ?? ''
     const holding = held.get(key)
@@ -222,14 +230,31 @@ function makeEditor(handlers, held, write) {
 
   body.addEventListener('focusout', () => {
     const key = section.dataset['key'] ?? ''
-    void write(key, body).then(() => {
-      // Whatever arrived from disk while the caret was here has been waiting
-      // for it to leave.
-      const holding = held.get(key)
-      if (holding === undefined || holding.arrived === null) return
-      setText(body, holding.arrived)
-      holding.arrived = null
-    })
+    const holding = held.get(key)
+    if (holding === undefined) return
+
+    if (body.textContent === holding.was) {
+      // Nothing was typed, so there is nothing here for a write to protect -
+      // and writing the old text now would silently revert an edit that
+      // arrived from disk while the block happened to be focused. Clear the
+      // timer ourselves, as `write` would, and take what arrived instead.
+      if (holding.timer !== null) {
+        clearTimeout(holding.timer)
+        holding.timer = null
+      }
+      if (holding.arrived !== null) {
+        setText(body, holding.arrived)
+        holding.arrived = null
+      }
+      return
+    }
+
+    // Something was typed: write it (`write` clears the timer), and drop
+    // whatever arrived rather than applying it - your edit is what the file
+    // holds once this lands, and the store's sidecar-changed subscription
+    // brings the block back into line with disk on the next draw.
+    holding.arrived = null
+    void write(key, body)
   })
 
   // Escape leaves the block rather than putting anything back. A block has
@@ -268,7 +293,7 @@ function updateEditor(element, block, date, text, caret, held) {
   body.setAttribute('aria-label', `Notes on ${block.title}`)
 
   const key = element.dataset['key'] ?? keyOf(block)
-  const holding = held.get(key) ?? { suffix: block.suffix, date, timer: null, arrived: null }
+  const holding = held.get(key) ?? { suffix: block.suffix, date, timer: null, arrived: null, was: '' }
   holding.date = date
   held.set(key, holding)
 

@@ -144,14 +144,20 @@ export function mount(root, handlers) {
   const carry = createCarryBand(handlers)
   const horizon = createHorizonStrip()
   const items = createItemList(handlers)
+
   const add = createAddRow(handlers.onAdd, 'Write something down')
-  const sections = createDaySections({ onBlock: handlers.onBlock, onOpen: handlers.onOpenSidecar })
+  const sections = createDaySections({
+    onBlock: handlers.onBlock,
+    onOpen: handlers.onOpenSidecar,
+  })
+
   // The day's own line, under everything else, the way the bottom of a
   // planner page is left blank for one (spec §5.1).
   const note = el('div', 'note')
   note.setAttribute('contenteditable', 'plaintext-only')
   note.setAttribute('role', 'textbox')
   note.setAttribute('aria-label', 'A note on the day')
+
   const foot = createDayFooter(handlers.onOpenSpread)
 
   const surface = el('div', 'page')
@@ -179,7 +185,9 @@ export function mount(root, handlers) {
       event.preventDefault()
       setText(note, noteBefore)
       note.blur()
-    } else if (event.key === 'Enter' && !event.shiftKey) {
+      return
+    }
+    if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       note.blur()
     }
@@ -258,7 +266,12 @@ export function render(state) {
   page.carry.render(state.carry, state.today)
   page.horizon.render(state.horizon)
   page.items.render(state.doc, state.badges)
-  page.sections.render({ date: state.page, contributed: state.sections, blocks: state.blocks, textOf: state.sidecarText })
+  page.sections.render({
+    date: state.page,
+    contributed: state.sections,
+    blocks: state.blocks,
+    textOf: state.sidecarText,
+  })
   renderNote(page.note, state.doc)
 
   page.foot.render(openCount(state.doc))
