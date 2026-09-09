@@ -58,8 +58,10 @@ const SETTLE = 800
  * @property {ReturnType<typeof setTimeout>|null} timer
  * @property {string|null} arrived  text that came from disk while the caret
  *   was in this block, waiting for it to leave
- * @property {string} was  what the block said when the caret arrived, so
- *   `focusout` can tell whether anything was actually typed
+ * @property {string} was  what disk is believed to hold - not what the user
+ *   found when they arrived. A block autosaves mid-session, so a snapshot
+ *   taken at focus goes stale the moment the settle timer writes; this is
+ *   kept current by every place that actually changes what disk has
  */
 
 /**
@@ -90,7 +92,10 @@ export function createDaySections(handlers) {
       clearTimeout(holding.timer)
       holding.timer = null
     }
-    await handlers.onBlock(holding.date, holding.suffix, body.textContent ?? '')
+    const text = body.textContent ?? ''
+    await handlers.onBlock(holding.date, holding.suffix, text)
+    // Disk now has this - the next `focusout` should not write it again.
+    holding.was = text
   }
 
   return {
@@ -214,12 +219,6 @@ function makeEditor(handlers, held, write) {
   const section = el('section', 'block')
   section.append(head, body)
 
-  // Remembered so `focusout` can tell whether anything was actually typed.
-  body.addEventListener('focusin', () => {
-    const holding = held.get(section.dataset['key'] ?? '')
-    if (holding !== undefined) holding.was = body.textContent ?? ''
-  })
-
   body.addEventListener('input', () => {
     const key = section.dataset['key'] ?? ''
     const holding = held.get(key)
@@ -234,25 +233,30 @@ function makeEditor(handlers, held, write) {
     if (holding === undefined) return
 
     if (body.textContent === holding.was) {
-      // Nothing was typed, so there is nothing here for a write to protect -
-      // and writing the old text now would silently revert an edit that
-      // arrived from disk while the block happened to be focused. Clear the
-      // timer ourselves, as `write` would, and take what arrived instead.
+      // Disk already has this - not because nothing was typed, but because
+      // either nothing was typed or the settle timer already wrote it and
+      // backspacing (or similar) brought the text back to what disk holds.
+      // Writing now would be a no-op at best; at worst it would race an
+      // edit that arrived from disk while the block was focused and stomp
+      // it. Clear the timer ourselves, as `write` would, and take what
+      // arrived instead.
       if (holding.timer !== null) {
         clearTimeout(holding.timer)
         holding.timer = null
       }
       if (holding.arrived !== null) {
         setText(body, holding.arrived)
+        holding.was = holding.arrived
         holding.arrived = null
       }
       return
     }
 
-    // Something was typed: write it (`write` clears the timer), and drop
-    // whatever arrived rather than applying it - your edit is what the file
-    // holds once this lands, and the store's sidecar-changed subscription
-    // brings the block back into line with disk on the next draw.
+    // Disk does not have this yet: write it (`write` clears the timer and
+    // updates `was` once the write lands), and drop whatever arrived rather
+    // than applying it - your edit is what the file will hold, and the
+    // store's sidecar-changed subscription brings the block back into line
+    // with disk on the next draw.
     holding.arrived = null
     void write(key, body)
   })
@@ -304,5 +308,7 @@ function updateEditor(element, block, date, text, caret, held) {
     if (text !== null && text !== body.textContent) holding.arrived = text
     return
   }
+  // Unfocused, so this is disk's own answer, not a snapshot taken in passing.
   setText(body, text ?? '')
+  if (text !== null) holding.was = text
 }
