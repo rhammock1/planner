@@ -81,9 +81,11 @@ pub fn read(app: &tauri::AppHandle, plugin: &str, params: &Value) -> Result<Valu
 
     let prefixes = app.state::<Registry>().prefixes_of(plugin);
     if !owned(&prefixes, &suffix) {
-        // The same sentence for a file that is not there and a file that is
-        // not yours: which of the two it is is not a plugin's business.
-        return Err(format!("{plugin} does not own {suffix}"));
+        // The same sentence for a file that is not there and a file that is not
+        // yours: which of the two it is is not a plugin's business, and a
+        // message that distinguished them would answer a question about
+        // somebody else's notes (spec §4.1).
+        return Err(format!("there is no {suffix} on {date}"));
     }
 
     let Some(root) = crate::vault::root(app) else { return Err("no vault is open".into()) };

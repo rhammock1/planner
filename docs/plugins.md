@@ -394,10 +394,10 @@ at 500 with the newest kept. `read` rejects for a file that is not there and
 for a suffix that is not yours, with the same sentence — neither is a strike.
 
 **You cannot write one.** There is no `vault.sidecar.write`. You *name* a
-sidecar — through `page.section`, or through `item.action` — and the app opens
-a block on the day page that the person types into, and the app writes it. A
-plugin relaying keystrokes back through the door to write what the app already
-has is not a feature this API is missing.
+sidecar, and the app opens a block on the day page that the person types
+into, and the app writes it — the surface that lets you name one arrives with
+a later version. A plugin relaying keystrokes back through the door to write
+what the app already has is not a feature this API is missing.
 
 ### `onContribute`
 
