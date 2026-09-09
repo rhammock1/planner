@@ -94,6 +94,37 @@ declare namespace Planner {
     now: Now
   }
 
+  /** The question behind the `page.section` slot. */
+  interface SectionQuestion {
+    now: Now
+    /** The page being drawn, `YYYY-MM-DD`. */
+    date: string
+    /** Which of *your* sidecars exist on that day. Never anybody else's. */
+    sidecars: { suffix: string; title: string }[]
+  }
+
+  /** A block you are asking for. A suffix that exists is a block to type in;
+   *  one that does not is an offer, and needs a title to write on it. */
+  interface SectionAnswer {
+    suffix: string
+    title?: string
+  }
+
+  /** The question behind the `search.provide` slot. */
+  interface SearchQuestion {
+    now: Now
+    /** Exactly what was typed into ⌘F. */
+    query: string
+  }
+
+  /** One result of yours. `date` jumps to that day; `href` is a `sidecar:`
+   *  of yours and nothing else - a URL is dropped. */
+  interface SearchHit {
+    text: string
+    date?: string
+    href?: string
+  }
+
   /** A line the app drew, and where it sits on the page. */
   interface Line {
     index: number
@@ -171,6 +202,10 @@ declare const planner: {
     Planner.Badge[] | Promise<Planner.Badge[]>): void
   on(slot: 'theme.tokens', handler: (question: Planner.TokensQuestion) =>
     Record<string, string> | Promise<Record<string, string>>): void
+  on(slot: 'page.section', handler: (question: Planner.SectionQuestion) =>
+    Planner.SectionAnswer[] | Promise<Planner.SectionAnswer[]>): void
+  on(slot: 'search.provide', handler: (question: Planner.SearchQuestion) =>
+    Planner.SearchHit[] | Promise<Planner.SearchHit[]>): void
 
   /** `vault.contribute` under the name it has always had. */
   onContribute(

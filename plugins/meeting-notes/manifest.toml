@@ -1,17 +1,14 @@
 name        = "meeting-notes"
-version     = "0.0.1"
-description = "The notes kept beside a day, listed under it"
+version     = "0.1.0"
+description = "A block under the day for each meeting, kept in a file beside it"
 entry       = "index.js"
-slots       = ["vault.contribute"]
-
-[contribute]
-heading = "Notes"
+slots       = ["page.section", "search.provide"]
 
 # One line, because `core/toml.js` reads single-line arrays and nothing else.
 [permissions]
-capabilities = ["vault.sidecar.read"]
+capabilities = ["macos.calendar.read", "vault.sidecar.read"]
 
-# Every file this plugin may see begins `meeting`. Nothing else may name one,
+# Every file this plugin may name begins `meeting`. Nothing else may name one,
 # and it may name nothing else.
 [sidecars]
 prefixes = ["meeting"]

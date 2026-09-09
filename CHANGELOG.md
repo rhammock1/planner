@@ -11,6 +11,11 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Added
 
+-   `meeting-notes` grows to 0.1.0: a block under the day for each meeting on
+    the calendar, kept in a file beside the day and typed into on the page. It
+    names the file and the app writes it. Its notes are searchable from ⌘F,
+    under their own heading, through the new `search.provide` slot. The line it
+    contributed at 0.0.1 is gone — the block says more than the line did
 -   A plugin may ask for a file beside a day — `2026-09-01.meeting-standup.md`, same folder, same date, a suffix beginning with a prefix its manifest declared. `vault.sidecar.read` lets it list and read its own; nothing lets it write one, because the app holds the pen. The day model never sees such a file: it is not a day, is not counted, and never carries forward
 -   `meeting-notes`, at 0.0.1: the notes kept beside a day, listed under it. The first thing to use `vault.sidecar.read`, and the smallest — it reads the files whose names begin with the prefix its manifest claims, and nothing else. It grows a block you type into when `page.section` lands
 -   `tools/update` (`npm run update`) installs this checkout's plugins and themes into `~/.planner`, rebuilding the app first if anything has moved since the last one. One command, so the binary and the plugin beside it are never from different days — and it names what it did not touch, because an installed theme *wins* over the app's own copy and a stale one there looks like the app ignoring an edit
