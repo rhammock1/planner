@@ -47,6 +47,7 @@ export function createSearchPanel(handlers) {
 
   const results = el('div', 'search-results')
   const provided = el('div', 'search-provided')
+  const providedNotices = el('ul', 'search-provided-notices')
   const summary = el('div', 'search-summary')
 
   /** What the field held when the providers were last asked. The panel holds
@@ -58,7 +59,7 @@ export function createSearchPanel(handlers) {
 
   const element = el('div', 'search')
   element.hidden = true
-  element.append(field, results, provided, summary)
+  element.append(field, results, provided, providedNotices, summary)
 
   field.addEventListener('input', () => {
     const query = field instanceof HTMLInputElement ? field.value : ''
@@ -71,6 +72,7 @@ export function createSearchPanel(handlers) {
     if (query.trim() === '') {
       asked = ''
       provided.replaceChildren()
+      providedNotices.replaceChildren()
       return
     }
     waiting = setTimeout(() => {
@@ -90,10 +92,19 @@ export function createSearchPanel(handlers) {
   function renderProvided() {
     if (asked === '') {
       provided.replaceChildren()
+      providedNotices.replaceChildren()
       return
     }
     const given = handlers.onProviders(asked)
     provided.replaceChildren(...given.groups.map((group) => providerSection(group, handlers.onFollow)))
+
+    // What `readProvided` counted and dropped from a plugin's answer (spec
+    // §6). Not `store.notice` - that band appends, and this is asked again on
+    // every draw (spec §1.4), so the same line would pile up once per redraw
+    // rather than say it once and replace it. Rebuilt whole each time, like
+    // `provided` above: there is no "still true between two draws" worth
+    // keeping an element over.
+    providedNotices.replaceChildren(...given.notices.map((notice) => el('li', undefined, notice)))
   }
 
   function close() {
@@ -101,6 +112,7 @@ export function createSearchPanel(handlers) {
     if (field instanceof HTMLInputElement) field.value = ''
     results.replaceChildren()
     provided.replaceChildren()
+    providedNotices.replaceChildren()
     asked = ''
     if (waiting !== null) clearTimeout(waiting)
     setText(summary, '')

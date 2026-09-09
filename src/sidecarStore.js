@@ -29,6 +29,7 @@ import * as ipc from './ipc.js'
  * @property {() => void} reopen  the vault moved, so nothing held is about it any more
  * @property {(date: string, suffix: string) => string|null} text
  * @property {(date: string) => {suffix: string, title: string}[]} on
+ * @property {(date: string, suffix: string) => Promise<string|null>} read
  * @property {(date: string, suffix: string, text: string) => Promise<boolean>} change
  */
 
@@ -60,6 +61,39 @@ export function createSidecars(deps) {
   /** @type {Set<string>} */
   const listing = new Set()
 
+  /**
+   * Re-asks what is on a day, without ever answering `[]` in the meantime.
+   *
+   * Shared by `on` (a day nobody has listed yet) and the `sidecar:changed`
+   * subscription (a day that has - something on it just changed): both start
+   * the same fetch, and neither clears `sidecarsByDay` first. A cache entry
+   * is only ever replaced by what comes back, never removed ahead of it, so
+   * a block reading `on(date)` mid-refresh gets the last known answer rather
+   * than a hole it would read as "nothing here" and tear itself down over.
+   *
+   * @param {string} date
+   * @returns {void}
+   */
+  function refreshDay(date) {
+    if (listing.has(date)) return
+
+    listing.add(date)
+    void ipc.listSidecars(date, date)
+      .then((found) => {
+        sidecarsByDay.set(date, found.map((one) => ({ suffix: one.suffix, title: one.title })))
+      })
+      .catch((error) => {
+        // Only when there is nothing to fall back on: a transient failure
+        // should not blank a listing that was already known good.
+        if (!sidecarsByDay.has(date)) sidecarsByDay.set(date, [])
+        deps.notice(`Could not list the notes on ${date}: ${message(error)}`)
+      })
+      .finally(() => {
+        listing.delete(date)
+        deps.onChanged()
+      })
+  }
+
   return {
     async start() {
       await ipc.onSidecarChanged(async ({ date, suffix }) => {
@@ -69,8 +103,13 @@ export function createSidecars(deps) {
         // file is the only thing worth believing about it.
         sidecarWrites.observed(key)
         // The day's listing is now a day older than the truth: a note that
-        // has just been created is not in it.
-        sidecarsByDay.delete(date)
+        // has just been created is not in it. Refreshed, not deleted - the
+        // app's own write of a block fires this same event (`vault.rs`'s
+        // `write_sidecar` mirrors `write_page`), so deleting here would blank
+        // the list for a frame on every autosave and tear the block off the
+        // page mid-edit, caret and all. `on` below must keep answering the
+        // stale listing until the fresh one lands.
+        refreshDay(date)
         deps.onChanged()
       })
     },
@@ -119,27 +158,34 @@ export function createSidecars(deps) {
     /**
      * Which sidecars exist on a day. Asked once per day and re-asked when one
      * of that day's files changes.
+     *
+     * Answers `[]` only for a day nobody has ever listed: once a listing has
+     * landed, that listing is what comes back, stale or not, for as long as a
+     * fresher one is in flight. A day held here and a day never asked about
+     * are different questions; conflating them is what used to tear a block
+     * down on every autosave (see `refreshDay` and the `sidecar:changed`
+     * handler above).
      */
     on: (date) => {
       const have = sidecarsByDay.get(date)
       if (have !== undefined) return have
-      if (listing.has(date)) return []
-
-      listing.add(date)
-      void ipc.listSidecars(date, date)
-        .then((found) => {
-          sidecarsByDay.set(date, found.map((one) => ({ suffix: one.suffix, title: one.title })))
-        })
-        .catch((error) => {
-          sidecarsByDay.set(date, [])
-          deps.notice(`Could not list the notes on ${date}: ${message(error)}`)
-        })
-        .finally(() => {
-          listing.delete(date)
-          deps.onChanged()
-        })
+      refreshDay(date)
       return []
     },
+
+    /**
+     * A direct, uncached read of one sidecar - straight to `ipc.readSidecar`,
+     * bypassing `text`'s draw-on-miss cache entirely.
+     *
+     * `text` above answers null for "not there" and "not read yet" alike,
+     * which is exactly right for drawing a block (either way it draws empty,
+     * and redraws when a read lands) and exactly wrong for deciding whether
+     * to *create* one: a caller that creates on that null risks writing over
+     * a note it simply hasn't read yet. This is the definite answer that
+     * decision needs, at the cost of an IPC round trip nothing else here
+     * pays.
+     */
+    read: (date, suffix) => ipc.readSidecar(date, suffix),
 
     /**
      * The one place a sidecar leaves the app. Nothing else writes one, and no

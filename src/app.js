@@ -188,10 +188,12 @@ async function openSpread(view) {
  */
 async function openSidecar(block) {
   const page = showing.page()
-  // The listing, not `store.sidecar` - which answers null for "not there" and
-  // "not read yet" alike, and writing over the second erases someone's note.
-  const there = store.sidecarsOn(page).some((one) => one.suffix === block.suffix)
-  if (!there && !await store.changeSidecar(page, block.suffix, `# ${block.title}\n\n`)) return
+  // `store.readSidecar`, not the listing and not `store.sidecar` - both of
+  // those answer the same "nothing" for "not there" and "not caught up yet",
+  // and creating over the second erases someone's note. This is the one
+  // definite read: null only when the file is truly not there.
+  const already = await store.readSidecar(page, block.suffix)
+  if (already === null && !await store.changeSidecar(page, block.suffix, `# ${block.title}\n\n`)) return
   // Not yet: the block exists once the listing and the plugin both catch up,
   // which `draw` keeps trying for on every pass.
   revealing = block.suffix

@@ -55,6 +55,7 @@ import { today, nowTime } from './clock.js'
  * @property {(page: string, mutate: (doc: Document|null) => Document|null) => Promise<boolean>} change
  * @property {(date: string, suffix: string) => string|null} sidecar
  * @property {(date: string) => {suffix: string, title: string}[]} sidecarsOn
+ * @property {(date: string, suffix: string) => Promise<string|null>} readSidecar
  * @property {(date: string, suffix: string, text: string) => Promise<boolean>} changeSidecar
  */
 
@@ -298,6 +299,7 @@ export function createStore() {
 
     sidecar: sidecars.text,
     sidecarsOn: sidecars.on,
+    readSidecar: sidecars.read,
     changeSidecar: sidecars.change,
   }
 }

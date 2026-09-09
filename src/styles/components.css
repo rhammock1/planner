@@ -772,6 +772,25 @@
   border-top: 1px solid var(--edge-soft);
 }
 
+/* What a provider dropped from its answer (spec §6) - the same family as
+   `.search-summary`, since both sit under the results as a line about the
+   query rather than a result of it. Empty and childless between queries, so
+   nothing to hide explicitly. */
+.search-provided-notices {
+  flex: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.search-provided-notices li {
+  padding: 5px 16px;
+  font-family: var(--font-meta);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--alert);
+}
+
 /* ── settings ───────────────────────────────────────────── */
 
 /* Over the page, like the search: a thing you open, change and put away

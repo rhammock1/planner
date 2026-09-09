@@ -128,6 +128,15 @@ function readOne(raw, plugin, prefixes, existing) {
  * the question carries. Not the page: a keystroke in the daily note changes
  * the page and not one word of what the plugin was shown (spec §1.4).
  *
+ * A note's title is in the key, so editing a note's first `# ` heading also
+ * rebuilds its block - the same "not seen this exact answer before" mechanism
+ * that a new sidecar appearing relies on, just triggered by a keystroke in a
+ * file rather than by one arriving. Rarer in practice than the autosave case
+ * (`sidecarStore.js`'s `on`) because a heading is edited far less often than
+ * the body under it, and left as is: the fix there is what stops the block
+ * being torn down while it holds focus, and this path goes through the same
+ * fix.
+ *
  * @param {string} date
  * @param {Map<string, string>} existing
  * @returns {string}

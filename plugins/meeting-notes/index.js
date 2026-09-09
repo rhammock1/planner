@@ -113,8 +113,6 @@ function sidecarRef(date, suffix) {
  * carrying them. The capability below is for searching.
  */
 planner.on('page.section', async ({ date, sidecars }) => {
-  const events = await planner.capability('macos.calendar.read').events({ from: date, to: date })
-
   /** Suffix to block, so an event whose note exists is one block and not two. */
   const blocks = new Map()
 
@@ -122,6 +120,18 @@ planner.on('page.section', async ({ date, sidecars }) => {
   // which is the order they are on disk. A note you have written outranks an
   // offer of one you have not.
   for (const one of sidecars) blocks.set(one.suffix, { suffix: one.suffix })
+
+  // A refused calendar - unticked in settings, or macOS itself saying no -
+  // should cost you the offers of new notes, never the editors of ones you
+  // already wrote. Those come from `sidecars` above and do not touch this
+  // capability at all, so a rejection here only means no new offers this time.
+  /** @type {Planner.CalendarEvent[]} */
+  let events = []
+  try {
+    events = await planner.capability('macos.calendar.read').events({ from: date, to: date })
+  } catch {
+    events = []
+  }
 
   for (const event of events) {
     // A meeting called off is not on your day, and does not want a note.
@@ -161,6 +171,10 @@ planner.on('search.provide', async ({ now, query }) => {
   // Newest first: what you are looking for is far more often a note from this
   // week than one from two months ago, and this is what decides which twenty
   // survive when there are more.
+  //
+  // Up to 500 reads here, sequentially - `notes.list`'s own ceiling - for a
+  // query that matches no title. Seen, and left alone: still inside today's
+  // deadline.
   for (const one of [...mine].reverse()) {
     if (hits.length >= 20) break
 

@@ -98,9 +98,12 @@ export function createDaySections(handlers) {
       holding.timer = null
     }
     const text = body.textContent ?? ''
-    await handlers.onBlock(holding.date, holding.suffix, text)
-    // Disk now has this - the next `focusout` should not write it again.
-    holding.was = text
+    const saved = await handlers.onBlock(holding.date, holding.suffix, text)
+    // Disk now has this - the next `focusout` should not write it again. Only
+    // on success: a failed write leaves disk holding the old text, and if
+    // `was` claimed otherwise, `focusout` would compare equal and drop the
+    // retry, leaving the edit stranded in the DOM with a notice nobody acts on.
+    if (saved) holding.was = text
   }
 
   return {
