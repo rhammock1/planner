@@ -200,7 +200,7 @@ pub fn ask(app: &AppHandle, name: &str, slot: &str, now: &Value, params: &Value)
     }
 
     let (id, answer) = app.state::<Pending>().ask_of(name);
-    let script = format!("window.__planner.request({})", literal(&envelope(id, slot, now, params)));
+    let script = format!("window.__planner.request({})", literal(&envelope(id, slot, now, params, name)));
 
     if let Err(error) = window.eval(&script) {
         app.state::<Pending>().forget(id);
