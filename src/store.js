@@ -20,6 +20,7 @@ import { createGranted } from './plugins/granted.js'
 import { LEDGER } from './core/theme.js'
 import { createWriteQueue } from './writeQueue.js'
 import { createAsking } from './plugins/asking.js'
+import { sidecarRef, readRef } from './core/sidecars.js'
 import * as ipc from './ipc.js'
 import * as startup from './startup.js'
 import { today, nowTime } from './clock.js'
@@ -51,6 +52,9 @@ import { today, nowTime } from './clock.js'
  * @property {(page: string) => Document|null} page
  * @property {(pages: Iterable<string>) => VaultIndex} freshest
  * @property {(page: string, mutate: (doc: Document|null) => Document|null) => Promise<boolean>} change
+ * @property {(date: string, suffix: string) => string|null} sidecar
+ * @property {(date: string) => {suffix: string, title: string}[]} sidecarsOn
+ * @property {(date: string, suffix: string, text: string) => Promise<boolean>} changeSidecar
  */
 
 /**
@@ -60,6 +64,29 @@ export function createStore() {
   // One change at a time, and nothing reads a page it has just written but
   // not yet seen come back (see writeQueue.js).
   const writes = createWriteQueue(async (page, doc) => { await ipc.writePage(page, serialize(doc)) })
+
+  // The same hazard over a different document. A block on the day page is a
+  // window onto a file, exactly as the page is a window onto the day, so the
+  // text takes the same route: mutate, queue, write, watcher, re-read.
+  const sidecarWrites = createWriteQueue(
+    /** @type {(key: string, text: string) => Promise<void>} */
+    (async (key, text) => {
+      const named = readRefOrThrow(key)
+      await ipc.writeSidecar(named.date, named.suffix, text)
+    }),
+  )
+
+  /** What each sidecar says on disk, by `sidecar:<date>/<suffix>`. Null for a
+   *  file that is not there, which is how a block tells "no note yet" from
+   *  "an empty note". @type {Map<string, string|null>} */
+  let sidecarText = new Map()
+  /** Reads in the air, so a draw does not ask the same question twice.
+   *  @type {Set<string>} */
+  const sidecarReading = new Set()
+  /** Which sidecars exist on a day, by date. @type {Map<string, {suffix: string, title: string}[]>} */
+  let sidecarsByDay = new Map()
+  /** @type {Set<string>} */
+  const listing = new Set()
 
   /** @type {VaultIndex} */
   let vault = buildIndex([])
@@ -142,6 +169,10 @@ export function createStore() {
 
     const files = await ipc.readVault()
     vault = buildIndex(files.map((file) => ({ page: file.page, doc: parse(file.text) })))
+
+    // A vault that has moved is a vault whose notes are somebody else's.
+    sidecarText = new Map()
+    sidecarsByDay = new Map()
   }
 
   /**
@@ -190,6 +221,22 @@ export function createStore() {
       })
     } catch (error) {
       notices = [...notices, `Edits will save but not appear: ${message(error)}`]
+    }
+
+    try {
+      await ipc.onSidecarChanged(async ({ date, suffix }) => {
+        const key = sidecarRef(date, suffix)
+        sidecarText.set(key, await ipc.readSidecar(date, suffix))
+        // Whatever we may have written to this file has now arrived, so the
+        // file is the only thing worth believing about it.
+        sidecarWrites.observed(key)
+        // The day's listing is now a day older than the truth: a note that
+        // has just been created is not in it.
+        sidecarsByDay.delete(date)
+        changed()
+      })
+    } catch (error) {
+      notices = [...notices, `Notes will save but not appear: ${message(error)}`]
     }
 
     return { home }
@@ -272,6 +319,72 @@ export function createStore() {
         return false
       }
     },
+
+    /**
+     * What a sidecar says, asking if nobody has (spec §1.4's draw-on-miss,
+     * applied to a file rather than to a plugin's answer).
+     *
+     * Null means "not read yet, or not there" - a block draws empty either
+     * way, and is redrawn when the read lands.
+     */
+    sidecar: (date, suffix) => {
+      const key = sidecarRef(date, suffix)
+      const held = sidecarWrites.current(key, () => sidecarText.get(key) ?? null)
+      if (sidecarText.has(key) || sidecarReading.has(key)) return held
+
+      sidecarReading.add(key)
+      void ipc.readSidecar(date, suffix)
+        .then((text) => { sidecarText.set(key, text) })
+        .catch((error) => {
+          sidecarText.set(key, null)
+          notices = [...notices, `Could not read ${date}.${suffix}: ${message(error)}`]
+        })
+        .finally(() => {
+          sidecarReading.delete(key)
+          changed()
+        })
+      return held
+    },
+
+    /**
+     * Which sidecars exist on a day. Asked once per day and re-asked when one
+     * of that day's files changes.
+     */
+    sidecarsOn: (date) => {
+      const have = sidecarsByDay.get(date)
+      if (have !== undefined) return have
+      if (listing.has(date)) return []
+
+      listing.add(date)
+      void ipc.listSidecars(date, date)
+        .then((found) => {
+          sidecarsByDay.set(date, found.map((one) => ({ suffix: one.suffix, title: one.title })))
+        })
+        .catch((error) => {
+          sidecarsByDay.set(date, [])
+          notices = [...notices, `Could not list the notes on ${date}: ${message(error)}`]
+        })
+        .finally(() => {
+          listing.delete(date)
+          changed()
+        })
+      return []
+    },
+
+    /**
+     * The one place a sidecar leaves the app. Nothing else writes one, and no
+     * plugin ever does (spec §4.1).
+     */
+    changeSidecar: async (date, suffix, text) => {
+      const key = sidecarRef(date, suffix)
+      try {
+        return await sidecarWrites.change(key, () => sidecarText.get(key) ?? null, () => text)
+      } catch (error) {
+        notices = [...notices, `Could not save ${date}.${suffix}: ${message(error)}`]
+        changed()
+        return false
+      }
+    },
   }
 }
 
@@ -281,4 +394,20 @@ export function createStore() {
  */
 function message(error) {
   return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * The day and suffix a queue key names.
+ *
+ * Throws rather than returns null: every key in that queue was built by
+ * `sidecarRef` from a date and a suffix this module had already checked, so a
+ * key that will not parse is this file's own bug and not a plugin's.
+ *
+ * @param {string} key
+ * @returns {{date: string, suffix: string}}
+ */
+function readRefOrThrow(key) {
+  const named = readRef(key)
+  if (named === null) throw new Error(`${key} is not a sidecar`)
+  return named
 }
