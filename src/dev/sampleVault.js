@@ -25,6 +25,12 @@ export function sampleHost() {
   const pages = samplePages(today)
   /** @type {((page: string) => void)[]} */
   const handlers = []
+  /** Sidecars, keyed `<date>/<suffix>`. The sample vault has none to start
+   *  with: a note is something you write, and there is nothing to read back
+   *  until this session writes one. @type {Map<string, string>} */
+  const sidecars = new Map()
+  /** @type {((change: {date: string, suffix: string}) => void)[]} */
+  const sidecarHandlers = []
 
   return {
     // ?theme=console picks a bundled theme, so the three can be compared
@@ -76,6 +82,22 @@ export function sampleHost() {
       queueMicrotask(() => { for (const handler of handlers) handler(page) })
     },
     onVaultChanged: (handler) => { handlers.push(handler) },
+
+    readSidecar: async (date, suffix) => sidecars.get(`${date}/${suffix}`) ?? null,
+    listSidecars: async (from, to) =>
+      [...sidecars.entries()]
+        .map(([key, text]) => {
+          const [date = '', suffix = ''] = key.split('/')
+          const heading = text.split('\n').find((line) => line.startsWith('# '))
+          return { date, suffix, title: heading === undefined ? suffix : heading.slice(2).trim() }
+        })
+        .filter((one) => one.date >= from && one.date <= to)
+        .sort((left, right) => `${left.date}${left.suffix}`.localeCompare(`${right.date}${right.suffix}`)),
+    writeSidecar: async (date, suffix, text) => {
+      sidecars.set(`${date}/${suffix}`, text)
+      for (const handler of sidecarHandlers) handler({ date, suffix })
+    },
+    onSidecarChanged: (handler) => { sidecarHandlers.push(handler) },
 
     // No plugin host in a browser: nothing to install, nothing to start.
     listPlugins: async () => [],

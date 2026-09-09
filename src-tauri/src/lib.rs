@@ -175,6 +175,60 @@ fn write_page(
     Ok(())
 }
 
+/// A file beside a day, or `None` when it is not there - which is how a block
+/// tells "no note yet" from "an empty note".
+#[tauri::command]
+fn read_sidecar(vault: State<'_, SharedVault>, date: String, suffix: String) -> Option<String> {
+    let root = vault.lock().expect("vault lock").root.clone()?;
+    vault_io::sidecars::read(&root, &date, &suffix)
+}
+
+/// Every sidecar between two dates. The app's own windows only - a plugin
+/// reaches the same files through `vault.sidecar.read`, scoped to the
+/// prefixes it owns.
+#[tauri::command]
+fn list_sidecars(
+    vault: State<'_, SharedVault>,
+    from: String,
+    to: String,
+) -> Vec<vault_io::sidecars::Sidecar> {
+    let root = vault.lock().expect("vault lock").root.clone();
+    root.map(|root| vault_io::sidecars::list(&root, &from, &to)).unwrap_or_default()
+}
+
+/// Writes a sidecar and announces it, exactly as `write_page` does for a day.
+///
+/// The app holds the pen: a plugin names a sidecar and never writes one
+/// (spec §4.1), so this is reachable only from the app's own windows.
+#[tauri::command]
+fn write_sidecar(
+    app: AppHandle,
+    vault: State<'_, SharedVault>,
+    date: String,
+    suffix: String,
+    text: String,
+) -> Result<(), String> {
+    let root = {
+        let mut state = vault.lock().expect("vault lock");
+        let root = state.root.clone().ok_or("no vault is open")?;
+        let path = vault_io::sidecars::sidecar_path(&root, &date, &suffix)
+            .ok_or_else(|| format!("{date}.{suffix} is not a sidecar's name"))?;
+        state.echoes.record(&path, &text);
+        root
+    };
+
+    vault_io::sidecars::write(&root, &date, &suffix, &text).map_err(|error| {
+        eprintln!("planner: could not write {date}.{suffix}: {error}");
+        error.to_string()
+    })?;
+
+    let payload = serde_json::json!({ "date": date, "suffix": suffix });
+    if let Err(error) = app.emit("sidecar:changed", payload) {
+        eprintln!("planner: wrote {date}.{suffix} but could not announce it: {error}");
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Every invoke passes the gate before it reaches a command. A plugin
@@ -194,6 +248,9 @@ pub fn run() {
         read_page,
         page_path,
         write_page,
+        read_sidecar,
+        list_sidecars,
+        write_sidecar,
         tray::set_pinned,
         tray::set_badge,
         notify::set_notifications,

@@ -100,6 +100,57 @@ export async function onVaultChanged(handler) {
 }
 
 /**
+ * A file beside a day (spec §4.1). Null when it is not there - which is how a
+ * block tells "no note yet" from "an empty note".
+ *
+ * @param {string} date  `YYYY-MM-DD`
+ * @param {string} suffix
+ * @returns {Promise<string|null>}
+ */
+export async function readSidecar(date, suffix) {
+  return (await getHost()).readSidecar(date, suffix)
+}
+
+/**
+ * Every sidecar between two dates, inclusive, in date then suffix order.
+ *
+ * A range rather than a day, because a search provider looking at four months
+ * cannot make a hundred and twenty calls inside two seconds (spec §4.1).
+ *
+ * @param {string} from
+ * @param {string} to
+ * @returns {Promise<import('./host.js').Sidecar[]>}
+ */
+export async function listSidecars(from, to) {
+  return (await getHost()).listSidecars(from, to)
+}
+
+/**
+ * Writes a sidecar whole.
+ *
+ * The app holds the pen. A plugin names one of these and never writes one, so
+ * everything that reaches here came from a block somebody typed into.
+ *
+ * @param {string} date
+ * @param {string} suffix
+ * @param {string} text
+ * @returns {Promise<void>}
+ */
+export async function writeSidecar(date, suffix, text) {
+  return (await getHost()).writeSidecar(date, suffix, text)
+}
+
+/**
+ * Fires when a sidecar changes on disk, whoever changed it.
+ *
+ * @param {(change: {date: string, suffix: string}) => void} handler
+ * @returns {Promise<void>}
+ */
+export async function onSidecarChanged(handler) {
+  await (await getHost()).onSidecarChanged(handler)
+}
+
+/**
  * Opens a file in the user's editor (spec §8).
  *
  * The escape hatch: the vault is a folder of Markdown precisely so that
