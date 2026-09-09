@@ -44,6 +44,7 @@ import { today, nowTime } from './clock.js'
  * @property {(name: string) => string[]} approvedOpen  addresses a plugin may open, from the pane
  * @property {() => Installed[]} installed  every plugin the two files describe
  * @property {() => Map<string, string[]>} pluginMoves  what each plugin was ticked to move
+ * @property {() => Map<string, string[]>} pluginPrefixes  who owns which sidecar prefix
  * @property {() => Map<string, string>} themeTokens  the theme's own, before any plugin
  * @property {() => VaultIndex} vault
  * @property {() => import('./core/config.js').Config} config
@@ -253,6 +254,7 @@ export function createStore() {
     approvedOpen: granted.approvedOpen,
     installed: granted.installed,
     pluginMoves: granted.moves,
+    pluginPrefixes: granted.prefixes,
 
     themeTokens: () => themeTokens,
     vault: () => vault,

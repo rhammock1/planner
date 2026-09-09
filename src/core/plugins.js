@@ -21,6 +21,7 @@
 
 import { readManifest } from './manifest.js'
 import { settled, resolveOpen, personSet, resolveRun, isApproved } from './pluginSettings.js'
+import { settlePrefixes } from './sidecars.js'
 
 /** @typedef {import('./config.js').PluginConfig} PluginConfig */
 /** @typedef {import('./settingsSchema.js').SettingsField} SettingsField */
@@ -42,6 +43,9 @@ import { settled, resolveOpen, personSet, resolveRun, isApproved } from './plugi
  *   Only the second is a strike (spec §1.2).
  * @property {string[]} askedRun  command names the manifest declares, ticked
  *   or not, for the same reason
+ * @property {string[]} prefixes  the sidecar suffixes this plugin owns, after
+ *   every other enabled plugin has claimed too: two plugins wanting the same
+ *   prefix is a refusal of the second, in name order (spec §4.1)
  * @property {Map<string, TomlValue>} settings  checked against the manifest's schema
  */
 
@@ -89,6 +93,9 @@ export function plan(folders, configured) {
   const start = []
   /** @type {string[]} */
   const notices = []
+  /** What each plugin claimed, before anyone else's claim is known.
+   *  @type {{name: string, prefixes: string[]}[]} */
+  const claims = []
 
   for (const folder of folders) {
     const settings = configured.get(folder.name)
@@ -156,6 +163,8 @@ export function plan(folders, configured) {
       }
     }
 
+    claims.push({ name: folder.name, prefixes: read.prefixes })
+
     start.push({
       name: folder.name,
       entry: read.entry,
@@ -165,9 +174,18 @@ export function plan(folders, configured) {
       run,
       asked: read.capabilities,
       askedRun: read.run.map((one) => one.name),
+      // Filled in below: who owns a prefix is not a fact about one manifest.
+      prefixes: [],
       settings: pluginSettings,
     })
   }
+
+  // Settled once, over the plugins that will actually run: a folder that is
+  // switched off holds nothing, so switching one on is what takes a prefix
+  // and switching it off is what gives it back.
+  const settledPrefixes = settlePrefixes(claims)
+  for (const one of start) one.prefixes = settledPrefixes.owned.get(one.name) ?? []
+  for (const line of settledPrefixes.notices) notices.push(line)
 
   return { start, notices }
 }
@@ -205,6 +223,7 @@ export function signature(start) {
       ]),
     [...start.asked].sort(),
     [...start.askedRun].sort(),
+    [...start.prefixes].sort(),
     [...start.settings].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
   ])
 }

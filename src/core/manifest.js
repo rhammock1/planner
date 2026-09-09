@@ -22,6 +22,7 @@ import { parseToml } from './toml.js'
 import { isSlot, optionsTableOf } from './slots.js'
 import { readCapabilities, readOpen, readRun } from './permissions.js'
 import { readSettings } from './settingsSchema.js'
+import { isPrefix, LONGEST_PREFIX } from './sidecars.js'
 
 /** @typedef {import('./toml.js').TomlValue} TomlValue */
 /** @typedef {import('./settingsSchema.js').SettingsField} SettingsField */
@@ -40,6 +41,9 @@ import { readSettings } from './settingsSchema.js'
  * @property {Map<string, Record<string, TomlValue>>} options  per declared
  *   slot, the table named for its last word - what that slot needs to know
  *   that the question does not carry (spec §1.1)
+ * @property {string[]} prefixes  the sidecar suffixes this plugin owns, as
+ *   `[sidecars] prefixes` declares them. A declaration of ownership rather
+ *   than a slot's options, which is why it has a table of its own (spec §1.1)
  * @property {string|null} error  why it cannot run, when it cannot
  * @property {string[]} notices  what was left out, and why
  * @property {SettingsField[]} settings  the plugin's own settings schema
@@ -53,7 +57,7 @@ export function readManifest(text) {
   /** @param {string} error @returns {Manifest} */
   const bad = (error) => ({
     entry: '', slots: [], unofferedSlots: [], capabilities: [], open: [],
-    run: [], options: new Map(), error, notices: [], settings: [],
+    run: [], options: new Map(), prefixes: [], error, notices: [], settings: [],
   })
 
   let table
@@ -91,9 +95,50 @@ export function readManifest(text) {
   const run = readRun(table['permissions'], notices)
   if (typeof run === 'string') return bad(run)
 
+  const prefixes = readPrefixes(table['sidecars'], notices)
   const options = readOptions(table, slots, notices)
   const settings = readSettings(table['settings'], notices)
-  return { entry, slots, unofferedSlots, capabilities, open, run, options, error: null, notices, settings }
+  return { entry, slots, unofferedSlots, capabilities, open, run, options, prefixes, error: null, notices, settings }
+}
+
+/**
+ * The sidecar suffixes a plugin says are its (spec §4.1).
+ *
+ * A prefix it cannot make a filename out of is dropped with a line rather than
+ * refused whole: a plugin declaring three prefixes and mistyping one should
+ * still own the other two, and the line is what tells its author which.
+ *
+ * @param {unknown} declared  the `[sidecars]` table
+ * @param {string[]} notices
+ * @returns {string[]}
+ */
+function readPrefixes(declared, notices) {
+  if (declared === undefined) return []
+  if (typeof declared !== 'object' || declared === null || Array.isArray(declared)) {
+    notices.push('manifest.toml has a sidecars key that is not a table')
+    return []
+  }
+
+  const raw = /** @type {Record<string, unknown>} */ (declared)['prefixes']
+  if (raw === undefined) return []
+  if (!Array.isArray(raw) || raw.some((one) => typeof one !== 'string')) {
+    notices.push('manifest.toml lists sidecar prefixes as something other than a list of names')
+    return []
+  }
+
+  /** @type {string[]} */
+  const kept = []
+  for (const prefix of /** @type {string[]} */ (raw)) {
+    if (!isPrefix(prefix)) {
+      notices.push(
+        `manifest.toml claims the ${prefix} sidecar prefix, which is not lowercase words joined by single hyphens, at most ${LONGEST_PREFIX} characters`,
+      )
+      continue
+    }
+    // Claimed twice is claimed once, the same way `slots` is.
+    if (!kept.includes(prefix)) kept.push(prefix)
+  }
+  return kept
 }
 
 /**
