@@ -33,10 +33,13 @@ const REACH = 60
  * IPC round trip, and a question has two seconds before the host counts it a
  * timeout and switches this plugin off. `list` gives back at most 500, so
  * without a ceiling a query matching no title opens all of them one after
- * another; sixty is what fits comfortably, and the reading is newest-first,
- * so the sixty are the sixty most recent. A note older than that is still
- * found by its title, which is the thing you actually remember about a
- * meeting.
+ * another. Sixty is a guess rather than a measurement - nothing here times a
+ * round trip against the deadline - chosen conservatively as the recency
+ * window a plugin trades for staying switched on; checked against a real
+ * vault in the app run at the end of this pull request rather than derived.
+ * The reading is newest-first, so the sixty are the sixty most recent, and a
+ * note older than that is still found by its title, which is the thing you
+ * actually remember about a meeting.
  */
 const MOST_READ = 60
 
@@ -198,7 +201,9 @@ planner.on('search.provide', async ({ now, query }) => {
     }
 
     // Newest first, so the ceiling is a recency window rather than an
-    // arbitrary cut. Titles above are still matched all the way back.
+    // arbitrary cut. A title past it is still matched - unless the twenty
+    // hits above are already full of newer notes, the same as any other
+    // note this far back.
     if (opened >= MOST_READ) continue
     opened += 1
 
