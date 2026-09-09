@@ -121,3 +121,24 @@ fn a_write_never_leaves_half_a_file() {
         .collect();
     assert_eq!(left, vec!["2026-09-01.meeting-standup.md".to_string()]);
 }
+
+#[test]
+fn an_echo_is_about_a_file_rather_than_about_a_day() {
+    use planner_lib::vault_io::Echoes;
+
+    let root = vault("echoes");
+    let day = root.join("2026").join("09").join("2026-09-01.md");
+    let side = root.join("2026").join("09").join("2026-09-01.meeting-standup.md");
+
+    let mut echoes = Echoes::default();
+    echoes.record(&day, "- [ ] a line\n");
+
+    assert!(echoes.is_echo(&day, "- [ ] a line\n"));
+    // The day and its sidecar share a date and are two files. Before the key
+    // moved to the path, writing one silenced a real edit to the other.
+    assert!(!echoes.is_echo(&side, "- [ ] a line\n"));
+
+    echoes.record(&side, "# Standup\n");
+    assert!(echoes.is_echo(&side, "# Standup\n"));
+    assert!(!echoes.is_echo(&side, "# Standup\n\nedited elsewhere\n"));
+}

@@ -111,18 +111,43 @@ fn changes(app: AppHandle, root: PathBuf) -> impl Fn(notify::Result<notify::Even
         }
 
         for path in event.paths {
-            let Some(page) = vault_io::page_for_path(&root, &path) else { continue };
+            // What kind of file it is, before it is read. A vault holds the
+            // `.tmp` file every atomic write makes and whatever else the
+            // person keeps in there; reading each of those to decide it was
+            // nothing is work the old code never did and this must not start.
+            let page = vault_io::page_for_path(&root, &path);
+            let sidecar = match page {
+                Some(_) => None,
+                None => vault_io::sidecars::sidecar_for_path(&root, &path),
+            };
+            if page.is_none() && sidecar.is_none() {
+                continue;
+            }
 
             let text = std::fs::read_to_string(&path).unwrap_or_default();
             let state = app.state::<crate::SharedVault>();
             let is_echo = state
                 .lock()
-                .map(|vault| vault.echoes.is_echo(&page, &text))
+                .map(|vault| vault.echoes.is_echo(&path, &text))
                 .unwrap_or(false);
+            if is_echo {
+                continue;
+            }
 
-            if !is_echo {
+            if let Some(page) = page {
                 if let Err(error) = app.emit("vault:changed", serde_json::json!({ "page": page })) {
                     eprintln!("planner: could not announce a change to {page}: {error}");
+                }
+                continue;
+            }
+
+            // A file beside a day. Announced under its own name, because
+            // nothing that listens for `vault:changed` knows what to do with
+            // one and the block that does is not the page (spec §4.1).
+            if let Some((date, suffix)) = sidecar {
+                let payload = serde_json::json!({ "date": date, "suffix": suffix });
+                if let Err(error) = app.emit("sidecar:changed", payload) {
+                    eprintln!("planner: could not announce a change to {date}.{suffix}: {error}");
                 }
             }
         }

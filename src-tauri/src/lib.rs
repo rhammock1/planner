@@ -157,8 +157,9 @@ fn write_page(
 ) -> Result<(), String> {
     let root = {
         let mut state = vault.lock().expect("vault lock");
-        state.echoes.record(&page, &text);
-        state.root.clone().ok_or("no vault is open")?
+        let root = state.root.clone().ok_or("no vault is open")?;
+        state.echoes.record(&vault_io::path_for_page(&root, &page), &text);
+        root
     };
 
     vault_io::write_page(&root, &page, &text).map_err(|error| {

@@ -27,16 +27,20 @@ pub struct PageFile {
     pub text: String,
 }
 
-/// What was last written to a page, so the watcher can recognise its own echo.
+/// What was last written to a file, so the watcher can recognise its own echo.
+///
+/// Keyed by path rather than by page. A day and its sidecars share a date and
+/// are different files, so a page key would have a sidecar's write silence a
+/// real edit to the day it sits beside (spec §4.1).
 #[derive(Default)]
-pub struct Echoes(HashMap<String, u64>);
+pub struct Echoes(HashMap<PathBuf, u64>);
 
 impl Echoes {
-    pub fn record(&mut self, page: &str, text: &str) {
-        self.0.insert(page.to_string(), digest(text));
+    pub fn record(&mut self, path: &Path, text: &str) {
+        self.0.insert(path.to_path_buf(), digest(text));
     }
 
-    /// True when this content is what we last wrote to that page.
+    /// True when this content is what we last wrote to that file.
     ///
     /// The record is kept rather than consumed, because one save does not
     /// arrive as one event: FSEvents reports a create and two modifies for a
@@ -47,8 +51,8 @@ impl Echoes {
     /// suppressed too. That costs nothing to see, because the page on screen
     /// already says exactly that. A record only stops being an echo when the
     /// content differs from it - which is what a real edit does.
-    pub fn is_echo(&self, page: &str, text: &str) -> bool {
-        self.0.get(page) == Some(&digest(text))
+    pub fn is_echo(&self, path: &Path, text: &str) -> bool {
+        self.0.get(path) == Some(&digest(text))
     }
 }
 
