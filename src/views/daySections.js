@@ -62,6 +62,11 @@ const SETTLE = 800
  *   found when they arrived. A block autosaves mid-session, so a snapshot
  *   taken at focus goes stale the moment the settle timer writes; this is
  *   kept current by every place that actually changes what disk has
+ * @property {boolean} seen  whether disk has answered for this block at least
+ *   once. `store.sidecar` returns null both for "no such file" and "not read
+ *   yet" (spec §4.2), so a block can render before its own text has arrived -
+ *   and a body nobody has read from is left uneditable rather than risk a
+ *   keystroke writing over words it never showed
  */
 
 /**
@@ -297,9 +302,15 @@ function updateEditor(element, block, date, text, caret, held) {
   body.setAttribute('aria-label', `Notes on ${block.title}`)
 
   const key = element.dataset['key'] ?? keyOf(block)
-  const holding = held.get(key) ?? { suffix: block.suffix, date, timer: null, arrived: null, was: '' }
+  const holding = held.get(key) ?? { suffix: block.suffix, date, timer: null, arrived: null, was: '', seen: false }
   holding.date = date
+  if (text !== null) holding.seen = true
   held.set(key, holding)
+
+  // Nothing typed here could be honest until disk has actually answered once
+  // - before that, a keystroke would write over a file nobody has seen. Once
+  // seen, a block stays editable even if a later read somehow came back null.
+  body.setAttribute('contenteditable', holding.seen ? 'plaintext-only' : 'false')
 
   // Never while it holds the caret: an edit arriving from disk mid-sentence
   // would take the words out from under whoever is typing them. Held, and

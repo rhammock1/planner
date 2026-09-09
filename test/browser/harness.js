@@ -15,13 +15,18 @@
 const results = []
 
 /**
+ * `body` may be async - forcing a write with `blur()` still leaves the
+ * handler's own promise to settle, and a caller that needs to see past that
+ * awaits the promise this returns. A synchronous `body` behaves exactly as
+ * before: the push into `results` happens before `check` returns.
+ *
  * @param {string} name
- * @param {() => void} body
- * @returns {void}
+ * @param {() => void|Promise<void>} body
+ * @returns {Promise<void>}
  */
-export function check(name, body) {
+export async function check(name, body) {
   try {
-    body()
+    await body()
     results.push({ name, error: null })
   } catch (error) {
     results.push({ name, error: error instanceof Error ? error.message : String(error) })
