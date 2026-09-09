@@ -27,12 +27,17 @@ const MINE = 'meeting'
 const REACH = 60
 
 /**
- * `LONGEST_STEM`, `LONGEST_PREFIX`, `isPrefix`, `stemOf` and `suffixFor` below
- * are copied verbatim from `src/core/sidecars.js` - see the note at the top
- * of this file for why they cannot be imported. Keep them byte-for-byte the
- * rule there: a plugin that computes a different suffix than the app does
- * names a file the app then cannot find.
+ * `LONGEST_SUFFIX`, `LONGEST_STEM`, `LONGEST_PREFIX`, `SUFFIX`, `isPrefix`,
+ * `stemOf`, `suffixFor` and `sidecarRef` below are copied verbatim from
+ * `src/core/sidecars.js` - see the note at the top of this file for why they
+ * cannot be imported. Keep them byte-for-byte the rule there: a plugin that
+ * computes a different suffix than the app does names a file the app then
+ * cannot find. `test/plugin-sidecar-parity.test.js` holds the two copies
+ * against each other so drift is caught here rather than on somebody's day.
  */
+
+/** The longest a suffix may be, prefix and all. */
+const LONGEST_SUFFIX = 64
 
 /** The longest a title's stem may be, before its prefix is put in front. */
 const LONGEST_STEM = 48
@@ -45,7 +50,7 @@ const LONGEST_STEM = 48
  * the meeting with the long title. Refused at the manifest, where a person
  * can see it, rather than on the day it bites.
  */
-const LONGEST_PREFIX = 64 - LONGEST_STEM - 1
+const LONGEST_PREFIX = LONGEST_SUFFIX - LONGEST_STEM - 1
 
 const SUFFIX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u
 
