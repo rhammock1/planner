@@ -13,9 +13,10 @@
 import { horizon } from './core/horizon.js'
 import { unfinished, carryForward } from './core/carry.js'
 import { readContributions } from './core/contributions.js'
-import { badgesFor, openBadge } from './plugins/pageAsking.js'
+import { badgesFor, sectionsFor, providedFor, openBadge } from './plugins/pageAsking.js'
 import { openInEditor, pickVault } from './vaultActions.js'
 import { search } from './core/search.js'
+import { readRef } from './core/sidecars.js'
 import { applyPluginTokens } from './plugins/theming.js'
 import { today } from './clock.js'
 import { createShowing } from './showing.js'
@@ -32,6 +33,9 @@ const store = createStore()
 // (showing.js).
 const showing = createShowing(today())
 let pinned = false
+// A block a jump is waiting for, until the plugin answers again (spec §4.3).
+/** @type {string|null} */
+let revealing = null
 const edits = createPageEdits(store, () => showing.page())
 // What the app says while nobody is looking at it: the menu bar icon, and
 // the alarms it hands the shell (spec §5.8, §5.9).
@@ -49,9 +53,14 @@ async function start() {
     },
     onCarry: (decisions) => { void carry(decisions) },
     onBadge: (plugin, href) => { void openBadge(store, plugin, href) },
+    // The block's own day, not `showing.page()`, which has moved on by the time a leaving block flushes.
+    onBlock: (date, suffix, text) => store.changeSidecar(date, suffix, text),
+    onOpenSidecar: (block) => { void openSidecar(block) },
     onPin: (next) => { void pin(next) },
     onOpenSpread: (view) => { void openSpread(view) },
     onSearch: (query) => search(store.vault(), query),
+    onProviders: (query) => providedFor(store, query),
+    onFollow: (hit) => { void followHit(hit) },
     settings: {
       onChange: (patch) => { void write(() => store.saveConfig(patch)) },
       onPlugin: (name, plugin) => { void write(() => store.savePlugin(name, plugin)) },
@@ -88,7 +97,8 @@ async function start() {
     // already used it to cancel an edit, which is the nearer meaning. The
     // search field uses it first, to close itself.
     if (event.key === 'Escape' && !event.defaultPrevented) {
-      void ipc.closePopover()
+      // Whatever is half-typed goes to disk now, before the window's own timers go idle (spec §3.1).
+      void dayPage.sections().flushAll().finally(() => ipc.closePopover())
       return
     }
     // The way out of one day and into the week, without reaching for the
@@ -166,6 +176,51 @@ async function openSpread(view) {
   }
 }
 
+/**
+ * Turns an offer into a note, and puts the caret in it.
+ *
+ * The app holds the pen: the plugin named the file, and it is created here
+ * with the offered title as its first line (spec §4.1). Already there is not
+ * an error - two clicks on one offer is one note.
+ *
+ * @param {import('./core/sections.js').Block} block
+ * @returns {Promise<void>}
+ */
+async function openSidecar(block) {
+  const page = showing.page()
+  // `store.readSidecar`, not the listing and not `store.sidecar` - both of
+  // those answer the same "nothing" for "not there" and "not caught up yet",
+  // and creating over the second erases someone's note. This is the one
+  // definite read: null only when the file is truly not there.
+  const already = await store.readSidecar(page, block.suffix)
+  if (already === null && !await store.changeSidecar(page, block.suffix, `# ${block.title}\n\n`)) return
+  // Not yet: the block exists once the listing and the plugin both catch up,
+  // which `draw` keeps trying for on every pass.
+  revealing = block.suffix
+  draw()
+}
+
+/**
+ * Goes where a provider's hit points.
+ *
+ * A date jumps to that day, exactly as a vault hit does. A `sidecar:` href
+ * then puts the caret in the block - which may take a draw or two, because
+ * the day it names has to be listed and its plugin asked (spec §4.3).
+ *
+ * @param {import('./core/provided.js').Provided} hit
+ * @returns {Promise<void>}
+ */
+async function followHit(hit) {
+  const named = hit.href === null ? null : readRef(hit.href)
+  const page = named?.date ?? hit.date
+  if (page === null) return
+
+  showing.go(page, today())
+  dayPage.search().close()
+  if (named !== null) revealing = named.suffix
+  draw()
+}
+
 function draw() {
   const now = today()
   // Before anything is read off it: the day may have turned since the last
@@ -192,6 +247,9 @@ function draw() {
   // What the plugins have to say about the lines on this page (spec §1.4).
   const marked = badgesFor(store, page)
 
+  // The blocks under the day, whichever day: Friday's notes live on Friday.
+  const blocked = sectionsFor(store, page)
+
   // The colours the plugins moved, over the theme's own (spec §3.3). It also
   // keeps the minute clock that lets a pinned page follow the sky.
   const warmed = applyPluginTokens(store, draw)
@@ -215,14 +273,23 @@ function draw() {
     // is reading, not triage, so the band stays out of the way there.
     carry: page === now ? unfinished(store.vault(), now, store.config().carryForwardScanDays) : [],
     sections: given.sections,
+    blocks: blocked.blocks,
+    sidecarText: (suffix) => store.sidecar(page, suffix),
     badges: marked.badges,
     // The one thing a notice ever needs pressing for: the app will not put a
     // vault somewhere nobody asked for (spec §8).
     actions: store.vaultExists() ? [] : [{ label: 'Choose a folder…', run: () => { void pickVault(store, ipc) } }],
     // Worked out on the way to the page rather than kept, so redrawing the
     // same contributions does not say the same thing twice.
-    notices: [...store.notices(), ...given.notices, ...marked.notices, ...warmed],
+    notices: [...store.notices(), ...given.notices, ...marked.notices, ...blocked.notices, ...warmed],
   })
+
+  // Tried on every draw until it lands: a note just created is not on the
+  // page until the listing and the plugin have both caught up.
+  if (revealing !== null && dayPage.sections().reveal(revealing)) revealing = null
+
+  // The search holds its own query; this is what puts a late answer under it.
+  dayPage.search().refresh()
 }
 
 /**

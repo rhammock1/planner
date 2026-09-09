@@ -11,6 +11,8 @@
 
 /** @typedef {{page: string, text: string}} PageFile */
 
+/** One file beside a day, as a listing names it. @typedef {{date: string, suffix: string, title: string}} Sidecar */
+
 /**
  * What the Rust side must provide. The command names are the contract.
  *
@@ -36,6 +38,10 @@
  * @property {(path: string, editor: string) => Promise<void>} openInEditor
  * @property {(page: string, text: string) => Promise<void>} writePage
  * @property {(handler: (page: string) => void) => void|Promise<void>} onVaultChanged
+ * @property {(date: string, suffix: string) => Promise<string|null>} readSidecar
+ * @property {(from: string, to: string) => Promise<Sidecar[]>} listSidecars
+ * @property {(date: string, suffix: string, text: string) => Promise<void>} writeSidecar
+ * @property {(handler: (change: {date: string, suffix: string}) => void) => void|Promise<void>} onSidecarChanged
  * @property {() => Promise<{name: string, manifest: string}[]>} listPlugins
  * @property {(grant: import('../core/plugins.js').Grant) => Promise<void>} startPlugin
  * @property {(name: string) => Promise<void>} stopPlugin
@@ -142,6 +148,19 @@ function tauriHost() {
     onVaultChanged: (handler) =>
       tauri.event.listen('vault:changed', (/** @type {any} */ event) => {
         handler(String(event.payload?.page ?? ''))
+      }),
+    readSidecar: (date, suffix) => invoke('read_sidecar', { date, suffix }),
+    listSidecars: (from, to) => invoke('list_sidecars', { from, to }),
+    writeSidecar: (date, suffix, text) => invoke('write_sidecar', { date, suffix, text }),
+    // Same shape as `onVaultChanged`: unwrapped and coerced here rather than
+    // handed the raw payload, so a malformed event cannot hand the rest of
+    // the app anything but a pair.
+    onSidecarChanged: (handler) =>
+      tauri.event.listen('sidecar:changed', (/** @type {any} */ event) => {
+        handler({
+          date: String(event.payload?.date ?? ''),
+          suffix: String(event.payload?.suffix ?? ''),
+        })
       }),
     // Also awaited and allowed to throw: a window that cannot hear this is a
     // window whose tabs quietly stop switching it.

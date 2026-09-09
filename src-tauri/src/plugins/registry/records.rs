@@ -25,6 +25,7 @@ pub struct Granting {
     pub asked: Vec<String>,
     #[serde(rename = "askedRun")]
     pub asked_run: Vec<String>,
+    pub prefixes: Vec<String>,
     pub settings: Value,
 }
 
@@ -54,6 +55,9 @@ pub(super) struct Grant {
     /// (spec §1.2).
     pub(super) asked: Vec<String>,
     pub(super) asked_run: Vec<String>,
+    /// The sidecar suffixes this plugin owns, settled across every enabled
+    /// plugin by the frontend - where the manifests are read.
+    pub(super) prefixes: Vec<String>,
     /// This plugin's own settings, checked against its manifest's schema and
     /// settled by the frontend - the page it is served carries them.
     pub(super) settings: Value,

@@ -35,7 +35,7 @@ impl Registry {
     /// make it look as though it never said ready.
     pub fn grant(&self, granting: Granting) {
         let Granting {
-            name, entry, slots, capabilities, open, run, asked, asked_run, settings,
+            name, entry, slots, capabilities, open, run, asked, asked_run, prefixes, settings,
         } = granting;
         let name = name.as_str();
         let mut held = self.0.lock().expect("registry lock");
@@ -53,6 +53,7 @@ impl Registry {
                 run,
                 asked,
                 asked_run,
+                prefixes,
                 settings,
                 handles,
                 strikes,
@@ -156,6 +157,19 @@ impl Registry {
         held.get(name)
             .filter(|grant| grant.running && !grant.disabled)
             .map(|grant| grant.run.clone())
+    }
+
+    /// The sidecar suffixes a plugin owns right now.
+    ///
+    /// `running` as well as `!disabled`, for the same reason `may_open` reads
+    /// both: switching a plugin off has to withdraw what it may reach at once,
+    /// and what it may reach here is a set of files.
+    pub fn prefixes_of(&self, name: &str) -> Vec<String> {
+        let held = self.0.lock().expect("registry lock");
+        held.get(name)
+            .filter(|grant| grant.running && !grant.disabled)
+            .map(|grant| grant.prefixes.clone())
+            .unwrap_or_default()
     }
 
     /// Whether the plugin's own manifest asked for this capability, whatever

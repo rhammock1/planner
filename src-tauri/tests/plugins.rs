@@ -504,6 +504,7 @@ mod asking {
             "item.badge",
             &json!({"date": "2026-09-02", "time": "16:20"}),
             &json!({"date": "2026-09-02", "items": []}),
+            "ticket-links",
         );
         assert_eq!(asked["id"], 11);
         assert_eq!(asked["kind"], "item.badge");
@@ -521,6 +522,7 @@ mod asking {
             "vault.contribute",
             &json!({"date": "2026-09-02", "time": "09:00"}),
             &json!({"id": 999, "kind": "capability", "now": "nonsense"}),
+            "a-plugin",
         );
         assert_eq!(asked["id"], 2);
         assert_eq!(asked["kind"], "vault.contribute");
@@ -529,8 +531,52 @@ mod asking {
 
     #[test]
     fn params_that_are_not_a_table_are_simply_left_out() {
-        let asked = envelope(1, "item.badge", &json!({"date": "d", "time": "t"}), &json!([1, 2]));
+        let asked = envelope(1, "item.badge", &json!({"date": "d", "time": "t"}), &json!([1, 2]), "a-plugin");
         assert_eq!(asked["kind"], "item.badge");
         assert!(asked.get("0").is_none());
+    }
+
+    #[test]
+    fn a_question_may_carry_something_only_one_plugin_is_told() {
+        use planner_lib::plugins::waiting::envelope;
+
+        let now = serde_json::json!({ "date": "2026-09-02", "time": "09:15" });
+        let params = serde_json::json!({
+            "date": "2026-09-02",
+            "per": {
+                "meeting-notes": { "sidecars": [{ "suffix": "meeting-standup", "title": "Standup" }] },
+                "task-notes": { "sidecars": [] },
+            },
+        });
+
+        let mine = envelope(7, "page.section", &now, &params, "meeting-notes");
+        assert_eq!(mine["kind"], "page.section");
+        assert_eq!(mine["date"], "2026-09-02");
+        assert_eq!(mine["sidecars"][0]["suffix"], "meeting-standup");
+        // Nobody is shown the whole table, including the plugin whose entry it is.
+        assert!(mine.get("per").is_none());
+
+        let theirs = envelope(8, "page.section", &now, &params, "task-notes");
+        assert_eq!(theirs["sidecars"], serde_json::json!([]));
+
+        // A plugin with no entry is told the rest of the question and nothing more.
+        let other = envelope(9, "page.section", &now, &params, "a-third-plugin");
+        assert!(other.get("sidecars").is_none());
+        assert_eq!(other["date"], "2026-09-02");
+    }
+
+    #[test]
+    fn what_only_one_plugin_is_told_cannot_talk_over_the_host() {
+        use planner_lib::plugins::waiting::envelope;
+
+        let now = serde_json::json!({ "date": "2026-09-02", "time": "09:15" });
+        let params = serde_json::json!({
+            "per": { "a-plugin": { "id": 999, "kind": "something-else", "now": "yesterday" } },
+        });
+
+        let asked = envelope(7, "page.section", &now, &params, "a-plugin");
+        assert_eq!(asked["id"], 7);
+        assert_eq!(asked["kind"], "page.section");
+        assert_eq!(asked["now"]["time"], "09:15");
     }
 }

@@ -15,17 +15,32 @@
 const results = []
 
 /**
+ * `body` may be async - forcing a write with `blur()` still leaves the
+ * handler's own promise to settle, and a caller that needs to see past that
+ * `await`s the promise this returns. But every existing page in this folder
+ * calls `check` without awaiting and then calls `report()` right after, so
+ * async support has to be opt-in at the point of use: only a `body` that
+ * actually returns a thenable defers the push, and by even one microtask -
+ * exactly long enough for `report()` to have already run.
+ *
  * @param {string} name
- * @param {() => void} body
- * @returns {void}
+ * @param {() => void|Promise<void>} body
+ * @returns {void|Promise<void>}
  */
 export function check(name, body) {
   try {
-    body()
+    const value = body()
+    if (value !== null && typeof value === 'object' && typeof value.then === 'function') {
+      return value.then(
+        () => { results.push({ name, error: null }) },
+        (error) => { results.push({ name, error: error instanceof Error ? error.message : String(error) }) },
+      )
+    }
     results.push({ name, error: null })
   } catch (error) {
     results.push({ name, error: error instanceof Error ? error.message : String(error) })
   }
+  return undefined
 }
 
 /**

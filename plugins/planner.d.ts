@@ -94,6 +94,37 @@ declare namespace Planner {
     now: Now
   }
 
+  /** The question behind the `page.section` slot. */
+  interface SectionQuestion {
+    now: Now
+    /** The page being drawn, `YYYY-MM-DD`. */
+    date: string
+    /** Which of *your* sidecars exist on that day. Never anybody else's. */
+    sidecars: { suffix: string; title: string }[]
+  }
+
+  /** A block you are asking for. A suffix that exists is a block to type in;
+   *  one that does not is an offer, and needs a title to write on it. */
+  interface SectionAnswer {
+    suffix: string
+    title?: string
+  }
+
+  /** The question behind the `search.provide` slot. */
+  interface SearchQuestion {
+    now: Now
+    /** Exactly what was typed into ⌘F. */
+    query: string
+  }
+
+  /** One result of yours. `date` jumps to that day; `href` is a `sidecar:`
+   *  of yours and nothing else - a URL is dropped. */
+  interface SearchHit {
+    text: string
+    date?: string
+    href?: string
+  }
+
   /** A line the app drew, and where it sits on the page. */
   interface Line {
     index: number
@@ -122,6 +153,36 @@ declare namespace Planner {
     tokens: Record<string, string>
   }
 
+  /** One file beside a day, as a listing names it. */
+  interface SidecarFile {
+    /** `YYYY-MM-DD`, the day it sits beside. */
+    date: string
+    /** The name after the date, which begins with a prefix your manifest declared. */
+    suffix: string
+    /** Its first `# ` line, or the suffix when it has none. */
+    title: string
+  }
+
+  interface SidecarCapability {
+    /**
+     * Every sidecar of yours between two dates, inclusive, in date then
+     * suffix order.
+     *
+     * A range rather than a day, and one call rather than sixty: a range
+     * wider than 366 days is refused, and a listing is cut at 500 with the
+     * newest kept.
+     */
+    list(range: Range): Promise<SidecarFile[]>
+    /**
+     * One of your sidecars, as text.
+     *
+     * Rejects for a file that is not there and for a suffix outside the
+     * prefixes your manifest declared - with the same message, because which
+     * of the two it is is not yours to know. Neither is a strike.
+     */
+    read(date: string, suffix: string): Promise<string>
+  }
+
   /** A marker after a line. */
   interface Badge {
     /** The `index` of the line this belongs to, from the question. */
@@ -141,6 +202,10 @@ declare const planner: {
     Planner.Badge[] | Promise<Planner.Badge[]>): void
   on(slot: 'theme.tokens', handler: (question: Planner.TokensQuestion) =>
     Record<string, string> | Promise<Record<string, string>>): void
+  on(slot: 'page.section', handler: (question: Planner.SectionQuestion) =>
+    Planner.SectionAnswer[] | Promise<Planner.SectionAnswer[]>): void
+  on(slot: 'search.provide', handler: (question: Planner.SearchQuestion) =>
+    Planner.SearchHit[] | Promise<Planner.SearchHit[]>): void
 
   /** `vault.contribute` under the name it has always had. */
   onContribute(
@@ -157,6 +222,8 @@ declare const planner: {
   capability(name: 'shell.run'): Planner.RunCapability
 
   capability(name: 'macos.location.read'): Planner.LocationCapability
+
+  capability(name: 'vault.sidecar.read'): Planner.SidecarCapability
 
   /**
    * This plugin's own settings, as `config.toml` holds them, keyed the way

@@ -12,7 +12,7 @@ import { SLOTS, isSlot, sentenceFor, optionsTableOf } from '../src/core/slots.js
 test('the slots that exist are the ones with a consumer', () => {
   // A slot with no consumer is a guess about an API (spec §0). Adding a name
   // here without the plugin that needs it is the mistake this test catches.
-  assert.deepEqual(SLOTS.map((slot) => slot.name), ['vault.contribute', 'item.badge', 'theme.tokens'])
+  assert.deepEqual(SLOTS.map((slot) => slot.name), ['vault.contribute', 'item.badge', 'theme.tokens', 'page.section', 'search.provide'])
 })
 
 test('every slot has a sentence a person could tick', () => {
@@ -26,8 +26,11 @@ test('a slot this app does not offer is not a slot', () => {
   assert.equal(isSlot('vault.contribute'), true)
   assert.equal(isSlot('item.badge'), true)
   assert.equal(isSlot('theme.tokens'), true)
-  // A slot that lands at #8, so this test still has a name that is not one.
-  assert.equal(isSlot('page.section'), false)
+  assert.equal(isSlot('page.section'), true)
+  assert.equal(isSlot('search.provide'), true)
+  // A slot no version of this app has offered, so this test still has a name
+  // that is not one.
+  assert.equal(isSlot('page.footer'), false)
   assert.equal(isSlot(''), false)
 })
 
@@ -44,4 +47,16 @@ test('a slot names the table its options live in, or names none', () => {
   assert.equal(optionsTableOf('vault.contribute'), 'contribute')
   assert.equal(optionsTableOf('item.badge'), null)
   assert.equal(optionsTableOf('theme.tokens'), 'tokens')
+})
+
+test('page.section is offered, with a sentence about what it is shown', () => {
+  assert.equal(isSlot('page.section'), true)
+  assert.equal(optionsTableOf('page.section'), null, 'it needs nothing the question does not carry')
+  assert.match(sentenceFor('page.section'), /beside the day/)
+})
+
+test('search.provide is offered, with a sentence about what it is shown', () => {
+  assert.equal(isSlot('search.provide'), true)
+  assert.equal(optionsTableOf('search.provide'), null)
+  assert.match(sentenceFor('search.provide'), /⌘F/)
 })

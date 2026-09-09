@@ -8,6 +8,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { createAsking } from '../src/plugins/asking.js'
+import { owns } from '../src/core/sidecars.js'
 
 /**
  * A stub host that records what it was asked and lets a test answer whenever
@@ -410,4 +411,29 @@ test('a plugin is started with the commands it was granted', async () => {
     command: ['git', '-C', '{repo}'],
     binds: [{ name: 'repo', rule: 'setting', key: 'repo', value: '~/gotab/node' }],
   }])
+})
+
+test('each plugin is told only the sidecars its own prefixes own', () => {
+  // The split `sectionsFor` performs, stated on its own: two plugins, one
+  // day, four files, and neither plugin learns the other's names.
+  const owned = new Map([['meeting-notes', ['meeting']], ['task-notes', ['note']]])
+  const onTheDay = [
+    { suffix: 'meeting-standup', title: 'Standup' },
+    { suffix: 'meeting-retro', title: 'Retro' },
+    { suffix: 'note-review-pr-4412', title: 'Review PR #4412' },
+    { suffix: 'orphan-thing', title: 'Nobody owns this' },
+  ]
+
+  const per = Object.fromEntries(
+    [...owned.entries()].map(([plugin, prefixes]) => [
+      plugin,
+      { sidecars: onTheDay.filter((one) => owns(prefixes, one.suffix)) },
+    ]),
+  )
+
+  assert.deepEqual(per['meeting-notes']?.sidecars.map((one) => one.suffix), ['meeting-standup', 'meeting-retro'])
+  assert.deepEqual(per['task-notes']?.sidecars.map((one) => one.suffix), ['note-review-pr-4412'])
+  // A file whose plugin has been uninstalled belongs to nobody, and stays on
+  // disk where it was: it is somebody's writing.
+  assert.equal(JSON.stringify(per).includes('orphan-thing'), false)
 })

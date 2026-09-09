@@ -65,6 +65,9 @@ const HEADING = 40
  * @property {RunRow[]} run  commands the manifest declares, ticked or not
  * @property {Map<string, string>} approvedRun  the raw table, so writing one
  *   tick back does not throw away the others
+ * @property {string[]} prefixes  the sidecar suffixes its manifest claims,
+ *   before any other plugin's claim is taken into account. The pane shows what
+ *   the manifest says; who actually owns one is settled by `settlePrefixes`
  * @property {string} heading  what the day page calls this plugin's section
  * @property {string[]} moves  the theme tokens this plugin says it moves, of
  *   the names this version knows. A name no theme has is dropped here rather
@@ -109,6 +112,7 @@ export function installed(folders, configured) {
         slots: [], approvedSlots: [], asked: [], approved: [], open: [], approvedOpen: [],
         run: [],
         approvedRun,
+        prefixes: [],
         heading: folder.name,
         moves: [],
         approvedMoves: [],
@@ -160,6 +164,7 @@ export function installed(folders, configured) {
         })),
       })),
       approvedRun,
+      prefixes: read.prefixes,
       // The manifest's, when it has one. A plugin that never contributes
       // never has this drawn - and a null would only mean every reader had to
       // check for one.

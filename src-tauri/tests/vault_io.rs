@@ -139,9 +139,11 @@ fn a_missing_vault_reads_as_empty() {
 // the same content arriving moments later and stay quiet about it.
 #[test]
 fn a_write_is_recognised_as_its_own_echo() {
+    let root = Path::new("/vault");
+    let path = path_for_page(root, "2026-08-31");
     let mut echoes = Echoes::default();
-    echoes.record("2026-08-31", "# 2026-08-31\n");
-    assert!(echoes.is_echo("2026-08-31", "# 2026-08-31\n"));
+    echoes.record(&path, "# 2026-08-31\n");
+    assert!(echoes.is_echo(&path, "# 2026-08-31\n"));
 }
 
 // One save reaches the watcher as several filesystem events. Every one of
@@ -149,34 +151,43 @@ fn a_write_is_recognised_as_its_own_echo() {
 // app's own write as an edit made somewhere else.
 #[test]
 fn every_event_from_one_write_is_the_same_echo() {
+    let root = Path::new("/vault");
+    let path = path_for_page(root, "2026-08-31");
     let mut echoes = Echoes::default();
-    echoes.record("2026-08-31", "same\n");
-    assert!(echoes.is_echo("2026-08-31", "same\n"));
-    assert!(echoes.is_echo("2026-08-31", "same\n"));
-    assert!(echoes.is_echo("2026-08-31", "same\n"));
+    echoes.record(&path, "same\n");
+    assert!(echoes.is_echo(&path, "same\n"));
+    assert!(echoes.is_echo(&path, "same\n"));
+    assert!(echoes.is_echo(&path, "same\n"));
 }
 
 // An edit made elsewhere changes the bytes, and different bytes are never an
 // echo however recently the app wrote to that page.
 #[test]
 fn a_later_edit_is_heard_over_the_echo() {
+    let root = Path::new("/vault");
+    let path = path_for_page(root, "2026-08-31");
     let mut echoes = Echoes::default();
-    echoes.record("2026-08-31", "ours\n");
-    assert!(!echoes.is_echo("2026-08-31", "nvim's\n"));
-    echoes.record("2026-08-31", "ours again\n");
-    assert!(!echoes.is_echo("2026-08-31", "ours\n"));
+    echoes.record(&path, "ours\n");
+    assert!(!echoes.is_echo(&path, "nvim's\n"));
+    echoes.record(&path, "ours again\n");
+    assert!(!echoes.is_echo(&path, "ours\n"));
 }
 
 #[test]
 fn different_content_is_never_an_echo() {
+    let root = Path::new("/vault");
+    let path = path_for_page(root, "2026-08-31");
     let mut echoes = Echoes::default();
-    echoes.record("2026-08-31", "what we wrote\n");
-    assert!(!echoes.is_echo("2026-08-31", "what nvim wrote\n"));
+    echoes.record(&path, "what we wrote\n");
+    assert!(!echoes.is_echo(&path, "what nvim wrote\n"));
 }
 
 #[test]
 fn an_echo_belongs_to_one_page_only() {
+    let root = Path::new("/vault");
+    let one = path_for_page(root, "2026-08-31");
+    let other = path_for_page(root, "2026-09-01");
     let mut echoes = Echoes::default();
-    echoes.record("2026-08-31", "shared text\n");
-    assert!(!echoes.is_echo("2026-09-01", "shared text\n"));
+    echoes.record(&one, "shared text\n");
+    assert!(!echoes.is_echo(&other, "shared text\n"));
 }

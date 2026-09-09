@@ -37,12 +37,12 @@ test('a slot this app does not offer is dropped, and said out loud', () => {
   // still do the parts this version understands.
   const read = readManifest(`
 entry = "index.js"
-slots = ["item.badge", "page.section"]
+slots = ["item.badge", "page.footer"]
 `)
   assert.equal(read.error, null)
   assert.deepEqual(read.slots, ['item.badge'])
   assert.equal(read.notices.length, 1)
-  assert.match(read.notices[0] ?? '', /page\.section/)
+  assert.match(read.notices[0] ?? '', /page\.footer/)
 })
 
 test('slots in the wrong shape are a fault, not a guess', () => {
@@ -286,4 +286,43 @@ repo    = "settings.repo"
 test('a permissions.run that is not a table stops the plugin', () => {
   const read = readManifest('entry = "index.js"\n\n[permissions]\nrun = "git log"\n')
   assert.match(read.error ?? '', /permissions\.run/)
+})
+
+test('a plugin declares the prefixes it owns', () => {
+  const read = readManifest([
+    'entry = "index.js"',
+    'slots = ["page.section"]',
+    '',
+    '[sidecars]',
+    'prefixes = ["meeting", "standup"]',
+  ].join('\n'))
+
+  assert.equal(read.error, null)
+  assert.deepEqual(read.prefixes, ['meeting', 'standup'])
+})
+
+test('a prefix that cannot make a filename is dropped with a line', () => {
+  const read = readManifest([
+    'entry = "index.js"',
+    '',
+    '[sidecars]',
+    'prefixes = ["Meeting", "a-very-long-prefix-indeed", "meeting"]',
+  ].join('\n'))
+
+  assert.deepEqual(read.prefixes, ['meeting'])
+  assert.equal(read.notices.length, 2)
+  assert.ok(read.notices.some((one) => one.includes('Meeting')))
+  assert.ok(read.notices.some((one) => one.includes('a-very-long-prefix-indeed')))
+})
+
+test('no sidecars table means no prefixes, and nothing to say about it', () => {
+  const read = readManifest('entry = "index.js"\n')
+  assert.deepEqual(read.prefixes, [])
+  assert.deepEqual(read.notices, [])
+})
+
+test('a sidecars table that is not a table earns a line', () => {
+  const read = readManifest('entry = "index.js"\nsidecars = "meeting"\n')
+  assert.deepEqual(read.prefixes, [])
+  assert.equal(read.notices.length, 1)
 })

@@ -13,7 +13,8 @@ import { today } from './clock.js'
 import { applyPluginTokens } from './plugins/theming.js'
 import { moveItem } from './core/move.js'
 import { search } from './core/search.js'
-import { badgesFor, openBadge } from './plugins/pageAsking.js'
+import { readRef } from './core/sidecars.js'
+import { badgesFor, providedFor, openBadge } from './plugins/pageAsking.js'
 import { weekOf } from './core/calendar.js'
 import { SOMEDAY } from './core/vaultIndex.js'
 import { createStore } from './store.js'
@@ -54,6 +55,7 @@ async function start() {
       draw()
     },
     onSearch: (query) => search(store.vault(), query),
+    onProviders: (query) => providedFor(store, query),
     onJump: (hit) => {
       // This window shows weeks and months, not days, so a result lands on
       // the week its day sits in - or on the back page, which is a view of
@@ -64,6 +66,18 @@ async function start() {
         view = 'week'
         anchor = hit.page
       }
+      spreadPage.search().close()
+      draw()
+    },
+    onFollow: (hit) => {
+      // This window shows weeks and months, so a hit lands on the week its day
+      // sits in. There is no block to put a caret in here - the spread has no
+      // sections - so the href only says which day (spec §2.3).
+      const named = hit.href === null ? null : readRef(hit.href)
+      const page = named?.date ?? hit.date
+      if (page === null) return
+      view = 'week'
+      anchor = page
       spreadPage.search().close()
       draw()
     },
@@ -166,6 +180,9 @@ function draw() {
     badges,
     notices: [...store.notices(), ...badgeNotices, ...warmed],
   })
+
+  // The search holds its own query; this is what puts a late answer under it.
+  spreadPage.search().refresh()
 }
 
 /**

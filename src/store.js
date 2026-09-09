@@ -20,6 +20,7 @@ import { createGranted } from './plugins/granted.js'
 import { LEDGER } from './core/theme.js'
 import { createWriteQueue } from './writeQueue.js'
 import { createAsking } from './plugins/asking.js'
+import { createSidecars } from './sidecarStore.js'
 import * as ipc from './ipc.js'
 import * as startup from './startup.js'
 import { today, nowTime } from './clock.js'
@@ -43,6 +44,7 @@ import { today, nowTime } from './clock.js'
  * @property {(name: string) => string[]} approvedOpen  addresses a plugin may open, from the pane
  * @property {() => Installed[]} installed  every plugin the two files describe
  * @property {() => Map<string, string[]>} pluginMoves  what each plugin was ticked to move
+ * @property {() => Map<string, string[]>} pluginPrefixes  who owns which sidecar prefix
  * @property {() => Map<string, string>} themeTokens  the theme's own, before any plugin
  * @property {() => VaultIndex} vault
  * @property {() => import('./core/config.js').Config} config
@@ -51,6 +53,10 @@ import { today, nowTime } from './clock.js'
  * @property {(page: string) => Document|null} page
  * @property {(pages: Iterable<string>) => VaultIndex} freshest
  * @property {(page: string, mutate: (doc: Document|null) => Document|null) => Promise<boolean>} change
+ * @property {(date: string, suffix: string) => string|null} sidecar
+ * @property {(date: string) => {suffix: string, title: string}[]} sidecarsOn
+ * @property {(date: string, suffix: string) => Promise<string|null>} readSidecar
+ * @property {(date: string, suffix: string, text: string) => Promise<boolean>} changeSidecar
  */
 
 /**
@@ -114,6 +120,14 @@ export function createStore() {
     states: plugins.states,
   })
 
+  // Files beside a day: what each says, and how a change to one reaches disk
+  // (sidecarStore.js). Its own module for the same reason `granted.js` is -
+  // this is the part of the store that is not about the day index.
+  const sidecars = createSidecars({
+    onChanged: () => changed(),
+    notice: (line) => { notices = [...notices, line] },
+  })
+
   /**
    * Reads the config, applies the theme, opens the vault and indexes it.
    *
@@ -142,6 +156,9 @@ export function createStore() {
 
     const files = await ipc.readVault()
     vault = buildIndex(files.map((file) => ({ page: file.page, doc: parse(file.text) })))
+
+    // A vault that has moved is a vault whose notes are somebody else's.
+    sidecars.reopen()
   }
 
   /**
@@ -192,6 +209,12 @@ export function createStore() {
       notices = [...notices, `Edits will save but not appear: ${message(error)}`]
     }
 
+    try {
+      await sidecars.start()
+    } catch (error) {
+      notices = [...notices, `Notes will save but not appear: ${message(error)}`]
+    }
+
     return { home }
   }
 
@@ -232,6 +255,7 @@ export function createStore() {
     approvedOpen: granted.approvedOpen,
     installed: granted.installed,
     pluginMoves: granted.moves,
+    pluginPrefixes: granted.prefixes,
 
     themeTokens: () => themeTokens,
     vault: () => vault,
@@ -272,6 +296,11 @@ export function createStore() {
         return false
       }
     },
+
+    sidecar: sidecars.text,
+    sidecarsOn: sidecars.on,
+    readSidecar: sidecars.read,
+    changeSidecar: sidecars.change,
   }
 }
 

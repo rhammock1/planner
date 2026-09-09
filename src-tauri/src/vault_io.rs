@@ -14,6 +14,10 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
+/// Files beside a day. Its own module because the rule has four parts and
+/// this file is already at its length (spec §4.1).
+pub mod sidecars;
+
 /// The back page's key. A date names every other page.
 pub const SOMEDAY: &str = "someday";
 
@@ -23,16 +27,20 @@ pub struct PageFile {
     pub text: String,
 }
 
-/// What was last written to a page, so the watcher can recognise its own echo.
+/// What was last written to a file, so the watcher can recognise its own echo.
+///
+/// Keyed by path rather than by page. A day and its sidecars share a date and
+/// are different files, so a page key would have a sidecar's write silence a
+/// real edit to the day it sits beside (spec §4.1).
 #[derive(Default)]
-pub struct Echoes(HashMap<String, u64>);
+pub struct Echoes(HashMap<PathBuf, u64>);
 
 impl Echoes {
-    pub fn record(&mut self, page: &str, text: &str) {
-        self.0.insert(page.to_string(), digest(text));
+    pub fn record(&mut self, path: &Path, text: &str) {
+        self.0.insert(path.to_path_buf(), digest(text));
     }
 
-    /// True when this content is what we last wrote to that page.
+    /// True when this content is what we last wrote to that file.
     ///
     /// The record is kept rather than consumed, because one save does not
     /// arrive as one event: FSEvents reports a create and two modifies for a
@@ -43,8 +51,8 @@ impl Echoes {
     /// suppressed too. That costs nothing to see, because the page on screen
     /// already says exactly that. A record only stops being an echo when the
     /// content differs from it - which is what a real edit does.
-    pub fn is_echo(&self, page: &str, text: &str) -> bool {
-        self.0.get(page) == Some(&digest(text))
+    pub fn is_echo(&self, path: &Path, text: &str) -> bool {
+        self.0.get(path) == Some(&digest(text))
     }
 }
 
@@ -92,7 +100,7 @@ pub fn page_for_path(root: &Path, path: &Path) -> Option<String> {
     Some(date.to_string())
 }
 
-fn is_date(text: &str) -> bool {
+pub(crate) fn is_date(text: &str) -> bool {
     text.len() == 10
         && text.as_bytes()[4] == b'-'
         && text.as_bytes()[7] == b'-'
@@ -143,25 +151,32 @@ pub fn read_page(root: &Path, page: &str) -> Option<String> {
     fs::read_to_string(path_for_page(root, page)).ok()
 }
 
-/// Writes a page atomically: a temporary file in the same directory, flushed,
+/// Writes a page atomically. See `write_atomic`.
+pub fn write_page(root: &Path, page: &str, text: &str) -> std::io::Result<()> {
+    write_atomic(&path_for_page(root, page), text)
+}
+
+/// Writes a file atomically: a temporary file in the same directory, flushed,
 /// then renamed over the target. A rename within one filesystem is atomic, so
 /// a crash or a full disk leaves the previous file exactly as it was - which
 /// is the whole of spec §8's promise that a failed write destroys nothing.
-pub fn write_page(root: &Path, page: &str, text: &str) -> std::io::Result<()> {
-    let path = path_for_page(root, page);
+///
+/// Shared by a page and a sidecar, because the promise is about the vault and
+/// not about which of the two kinds of file is being written.
+pub fn write_atomic(path: &Path, text: &str) -> std::io::Result<()> {
     let parent = path.parent().ok_or_else(|| {
-        std::io::Error::new(std::io::ErrorKind::InvalidInput, "page has no directory")
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "that file has no directory")
     })?;
     fs::create_dir_all(parent)?;
 
-    let temporary = parent.join(format!(".{}.tmp", file_name(&path)));
+    let temporary = parent.join(format!(".{}.tmp", file_name(path)));
     {
         let mut file = fs::File::create(&temporary)?;
         file.write_all(text.as_bytes())?;
         file.sync_all()?;
     }
 
-    match fs::rename(&temporary, &path) {
+    match fs::rename(&temporary, path) {
         Ok(()) => Ok(()),
         Err(error) => {
             let _ = fs::remove_file(&temporary);

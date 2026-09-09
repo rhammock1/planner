@@ -114,3 +114,21 @@ test('the parse is not repeated while neither file has changed', () => {
   assert.notEqual(one.installed(), first, 'a new folder list was not noticed')
   assert.deepEqual(one.installed()[0]?.moves, ['paper', 'ink'])
 })
+
+test('only an enabled plugin holds a prefix', () => {
+  const granted = createGranted({
+    folders: () => [
+      { name: 'a-notes', manifest: 'entry = "index.js"\n\n[sidecars]\nprefixes = ["meeting"]\n' },
+      { name: 'b-notes', manifest: 'entry = "index.js"\n\n[sidecars]\nprefixes = ["meeting"]\n' },
+    ],
+    plugins: () => new Map([
+      ['a-notes', { enabled: false, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], approvedRun: new Map(), approvedMoves: [], settings: new Map() }],
+      ['b-notes', { enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], approvedRun: new Map(), approvedMoves: [], settings: new Map() }],
+    ]),
+    states: () => [],
+  })
+
+  const owned = granted.prefixes()
+  assert.equal(owned.has('a-notes'), false)
+  assert.deepEqual(owned.get('b-notes'), ['meeting'])
+})

@@ -58,6 +58,7 @@ test('a plugin the config enables starts with what both files agree on', () => {
       run: [],
       asked: ['macos.calendar.read'],
       askedRun: [],
+      prefixes: [],
       settings: new Map(),
     },
   ])
@@ -193,14 +194,14 @@ test('the manifest is the ceiling for slots too', () => {
 test('a slot this planner does not offer never reaches the config', () => {
   const manifest = `
 entry = "index.js"
-slots = ["vault.contribute", "page.section"]
+slots = ["vault.contribute", "page.footer"]
 `
   const { start, notices } = plan(
     folders(manifest),
     // This manifest declares no permissions, so approvedCapabilities is
     // dropped to [] here - otherwise the default capability in configured()
     // would add its own, unrelated disagreement to notices.
-    configured({ approvedSlots: ['vault.contribute', 'page.section'], approvedCapabilities: [] }),
+    configured({ approvedSlots: ['vault.contribute', 'page.footer'], approvedCapabilities: [] }),
   )
   assert.deepEqual(start[0]?.slots, ['vault.contribute'])
   // Exactly one line for theme.tokens - the manifest's own notice. Nothing
@@ -208,7 +209,7 @@ slots = ["vault.contribute", "page.section"]
   // because a slot this app has never heard of is not the person's mistake -
   // and a second notice would directly contradict the first.
   assert.deepEqual(notices, [
-    'macos-calendar: manifest.toml asks for the page.section slot, which this planner does not offer',
+    'macos-calendar: manifest.toml asks for the page.footer slot, which this planner does not offer',
   ])
 })
 
@@ -279,6 +280,7 @@ function started(over) {
     run: over?.run ?? [],
     asked: over?.asked ?? ['shell.open'],
     askedRun: over?.askedRun ?? [],
+    prefixes: over?.prefixes ?? [],
     settings: over?.settings ?? new Map(),
   }
 }
@@ -590,7 +592,7 @@ test('a plugin restarts when the value bound into a command changes', () => {
   // deleted, which is not a test of the run clause.
   const base = {
     name: 'git-activity', entry: 'index.js',
-    slots: [], capabilities: [], open: [], asked: [], askedRun: [], settings: new Map(),
+    slots: [], capabilities: [], open: [], asked: [], askedRun: [], prefixes: [], settings: new Map(),
   }
   /** @param {string|null} value */
   const bound = (value) => ({
@@ -637,4 +639,42 @@ test('a field added to a Start is a field the signature reads', () => {
       `signature does not read ${field}`,
     )
   }
+})
+
+test('the plan settles a contested prefix in name order', () => {
+  const folders = [
+    { name: 'zebra-notes', manifest: 'entry = "index.js"\n\n[sidecars]\nprefixes = ["meeting"]\n' },
+    { name: 'meeting-notes', manifest: 'entry = "index.js"\n\n[sidecars]\nprefixes = ["meeting"]\n' },
+  ]
+  const configured = new Map([
+    ['zebra-notes', { enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], approvedRun: new Map(), approvedMoves: [], settings: new Map() }],
+    ['meeting-notes', { enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], approvedRun: new Map(), approvedMoves: [], settings: new Map() }],
+  ])
+
+  const planned = plan(folders, configured)
+  const byName = new Map(planned.start.map((one) => [one.name, one]))
+  assert.deepEqual(byName.get('meeting-notes')?.prefixes, ['meeting'])
+  assert.deepEqual(byName.get('zebra-notes')?.prefixes, [])
+  assert.ok(planned.notices.some((one) => one.includes('zebra-notes') && one.includes('meeting')))
+})
+
+test('a plugin that is switched off does not hold a prefix', () => {
+  const folders = [
+    { name: 'a-notes', manifest: 'entry = "index.js"\n\n[sidecars]\nprefixes = ["meeting"]\n' },
+    { name: 'b-notes', manifest: 'entry = "index.js"\n\n[sidecars]\nprefixes = ["meeting"]\n' },
+  ]
+  const configured = new Map([
+    ['a-notes', { enabled: false, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], approvedRun: new Map(), approvedMoves: [], settings: new Map() }],
+    ['b-notes', { enabled: true, approvedSlots: [], approvedCapabilities: [], approvedOpen: [], approvedRun: new Map(), approvedMoves: [], settings: new Map() }],
+  ])
+
+  const planned = plan(folders, configured)
+  assert.deepEqual(planned.start.map((one) => one.name), ['b-notes'])
+  assert.deepEqual(planned.start[0]?.prefixes, ['meeting'], 'nobody else is holding it')
+})
+
+test('a changed prefix restarts the plugin', () => {
+  const one = { name: 'a', entry: 'index.js', slots: [], capabilities: [], open: [], run: [], asked: [], askedRun: [], prefixes: ['meeting'], settings: new Map() }
+  const other = { ...one, prefixes: ['note'] }
+  assert.notEqual(signature(one), signature(other))
 })

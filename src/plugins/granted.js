@@ -16,6 +16,7 @@
  */
 
 import { installed } from '../core/installed.js'
+import { settlePrefixes } from '../core/sidecars.js'
 
 /** @typedef {import('../core/installed.js').Installed} Installed */
 /** @typedef {import('../core/plugins.js').Folder} Folder */
@@ -32,6 +33,7 @@ import { installed } from '../core/installed.js'
  * @property {() => Installed[]} installed  every plugin the two files describe
  * @property {(name: string) => string[]} approvedOpen  addresses it may open
  * @property {() => Map<string, string[]>} moves  who may move which token
+ * @property {() => Map<string, string[]>} prefixes  who owns which sidecar prefix
  */
 
 /**
@@ -91,5 +93,13 @@ export function createGranted(reading) {
           .map((one) => [one.name, one.approvedMoves]),
       )
     },
+
+    // Enabled only, and settled here rather than read off `plan()`: the spread
+    // window asks plugins and starts none (spec §1.3), so it has no plan to
+    // read - and both windows must agree about whose file a `sidecar:` href
+    // names.
+    prefixes: () => settlePrefixes(
+      all().filter((one) => one.enabled).map((one) => ({ name: one.name, prefixes: one.prefixes })),
+    ).owned,
   }
 }

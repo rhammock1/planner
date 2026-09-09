@@ -18,7 +18,7 @@ import { createAddRow } from './addRow.js'
 import { createHorizonStrip } from './horizonStrip.js'
 import { createItemList } from './itemList.js'
 import { createCarryBand } from './carryBand.js'
-import { createContributions } from './contributions.js'
+import { createDaySections } from './daySections.js'
 import { createDayFooter } from './dayFooter.js'
 import { createNotices } from './notices.js'
 import { createSearchPanel } from './searchPanel.js'
@@ -35,6 +35,8 @@ import { createSettingsPanel } from './settingsPanel.js'
  * @property {import('../core/horizon.js').HorizonEntry[]} horizon
  * @property {import('../core/carry.js').CarryGroup[]} carry  empty unless today
  * @property {import('../core/contributions.js').Section[]} sections  one per contributing plugin; today only
+ * @property {import('../core/sections.js').Block[]} blocks  the plugin blocks for this day
+ * @property {(suffix: string) => string|null} sidecarText  what a block's file says
  * @property {Map<number, import('../core/badges.js').Badge[]>} [badges]  markers, keyed by line index
  * @property {string[]} notices
  * @property {Action[]} actions  offered under the notices; usually none
@@ -50,12 +52,16 @@ import { createSettingsPanel } from './settingsPanel.js'
  * @property {(index: number) => Promise<boolean>} onRemove
  * @property {(plugin: string, href: string) => void} onBadge
  * @property {(note: string) => Promise<boolean>} onDailyNote
+ * @property {(date: string, suffix: string, text: string) => Promise<boolean>} onBlock
+ * @property {(block: import('../core/sections.js').Block) => void} onOpenSidecar
  * @property {(line: string) => Promise<boolean>} onAdd  false if it was not saved
  * @property {(decisions: import('../core/carry.js').CarryDecision[]) => void} onCarry
  * @property {(pinned: boolean) => void} onPin
  * @property {(view: string) => void} onOpenSpread  week, month or someday
  * @property {(query: string) => {groups: import('../core/search.js').Group[], found: number}} onSearch
+ * @property {(query: string) => {groups: {plugin: string, hits: import('../core/provided.js').Provided[]}[], notices: string[]}} onProviders
  * @property {(hit: import('../core/search.js').Hit) => void} onJump
+ * @property {(hit: import('../core/provided.js').Provided) => void} onFollow
  * @property {import('./settingsPanel.js').SettingsHandlers} settings
  */
 
@@ -90,12 +96,12 @@ let currentState = null
  * @property {ReturnType<typeof createNotices>} notices
  * @property {ReturnType<typeof createSearchPanel>} search
  * @property {ReturnType<typeof createSettingsPanel>} settings
- * @property {HTMLElement} note
  * @property {ReturnType<typeof createDayFooter>} foot
  * @property {ReturnType<typeof createHorizonStrip>} horizon
  * @property {ReturnType<typeof createItemList>} items
  * @property {ReturnType<typeof createCarryBand>} carry
- * @property {ReturnType<typeof createContributions>} given
+ * @property {ReturnType<typeof createDaySections>} sections
+ * @property {HTMLElement} note
  */
 
 /**
@@ -135,29 +141,36 @@ export function mount(root, handlers) {
   head.append(heading, nav)
 
   const notices = createNotices()
-  const search = createSearchPanel({ onQuery: handlers.onSearch, onJump: handlers.onJump })
+  const search = createSearchPanel({
+    onQuery: handlers.onSearch,
+    onProviders: handlers.onProviders,
+    onJump: handlers.onJump,
+    onFollow: handlers.onFollow,
+  })
   const settings = createSettingsPanel(handlers.settings)
   const carry = createCarryBand(handlers)
   const horizon = createHorizonStrip()
   const items = createItemList(handlers)
+
+  const add = createAddRow(handlers.onAdd, 'Write something down')
+  const sections = createDaySections({
+    onBlock: handlers.onBlock,
+    onOpen: handlers.onOpenSidecar,
+  })
+
   // The day's own line, under everything else, the way the bottom of a
   // planner page is left blank for one (spec §5.1).
   const note = el('div', 'note')
   note.setAttribute('contenteditable', 'plaintext-only')
   note.setAttribute('role', 'textbox')
-  note.setAttribute('aria-label', "A note on the day")
-
-  const add = createAddRow(handlers.onAdd, 'Write something down')
-  // Under the list and the line you add to it, above the day's own note: the
-  // last thing on the page before what you thought of it.
-  const given = createContributions()
+  note.setAttribute('aria-label', 'A note on the day')
 
   const foot = createDayFooter(handlers.onOpenSpread)
 
   const surface = el('div', 'page')
   surface.append(
     head, notices.element, carry.element, horizon.element, items.element,
-    add.element, given.element, note, foot.element, search.element, settings.element,
+    add.element, sections.element, note, foot.element, search.element, settings.element,
   )
   root.replaceChildren(surface)
 
@@ -201,7 +214,7 @@ export function mount(root, handlers) {
     note.ownerDocument.execCommand('insertText', false, text)
   })
 
-  page = { weekday, date, todayButton, head, pin, notices, note, foot, horizon, items, carry, given, search, settings }
+  page = { weekday, date, todayButton, head, pin, notices, foot, horizon, items, carry, sections, note, search, settings }
 }
 
 /**
@@ -260,7 +273,12 @@ export function render(state) {
   page.carry.render(state.carry, state.today)
   page.horizon.render(state.horizon)
   page.items.render(state.doc, state.badges)
-  page.given.render(state.sections)
+  page.sections.render({
+    date: state.page,
+    contributed: state.sections,
+    blocks: state.blocks,
+    textOf: state.sidecarText,
+  })
   renderNote(page.note, state.doc)
 
   page.foot.render(openCount(state.doc))
@@ -288,4 +306,14 @@ function renderNote(element, doc) {
   // cannot start; the placeholder is where the day's line goes.
   element.hidden = doc === null
   setText(element, doc?.dailyNote ?? '')
+}
+
+/**
+ * The blocks under the day, for a `sidecar:` href that names one (spec §4.3).
+ *
+ * @returns {ReturnType<typeof createDaySections>}
+ */
+export function sections() {
+  if (page === null) throw new Error('sections before mount')
+  return page.sections
 }

@@ -138,23 +138,44 @@ impl Started {
     }
 }
 
-/// The question put to a plugin: what the app asked, with the three things
-/// the host owns written over the top.
+/// The question put to a plugin: what the app asked, with what only this
+/// plugin is told merged in, and the three things the host owns written over
+/// the top.
 ///
-/// The id last and unconditionally, because an id a plugin could choose is an
-/// answer it could put in another plugin's mouth. It lives beside `Pending`
-/// rather than beside the `eval` that sends it because that is the other half
-/// of the same argument: `Pending::ask_of` is what makes the id the host's to
-/// give, `Pending::settle` is what checks the answer came back from the plugin
-/// it was addressed to, and this is what puts the id where a plugin cannot
-/// talk over it.
-pub fn envelope(id: u64, slot: &str, now: &Value, params: &Value) -> Value {
+/// `per` is how a round of asking stops being one question. `page.section`
+/// tells each plugin which of *its* sidecars exist for the day (spec §4.2),
+/// so the frontend - which is where the manifests are read and where who owns
+/// what is settled - hands over an object keyed by plugin name, and this takes
+/// the caller's own entry. Rust learns nothing about sidecars by doing it: it
+/// merges an object it was given.
+///
+/// Merged *before* the three below are written, so nothing a plugin is told
+/// privately can talk over the id, the slot or the clock. The id last and
+/// unconditionally, because an id a plugin could choose is an answer it could
+/// put in another plugin's mouth. It lives beside `Pending` rather than
+/// beside the `eval` that sends it because that is the other half of the
+/// same argument: `Pending::ask_of` is what makes the id the host's to give,
+/// `Pending::settle` is what checks the answer came back from the plugin it
+/// was addressed to, and this is what puts the id where a plugin cannot talk
+/// over it.
+pub fn envelope(id: u64, slot: &str, now: &Value, params: &Value, name: &str) -> Value {
     let mut asked = match params {
         Value::Object(_) => params.clone(),
         // Not an error: the app's own windows build these, and a slot whose
         // question carries nothing beyond the time is a slot with no params.
         _ => Value::Object(Default::default()),
     };
+
+    // Taken out whichever plugin is being asked, so no plugin is ever shown
+    // the table - including the one whose entry it is, which would otherwise
+    // learn the names of every other plugin that answers this slot.
+    let per = asked.as_object_mut().and_then(|fields| fields.remove("per"));
+    if let Some(mine) = per.as_ref().and_then(|per| per.get(name)).and_then(Value::as_object) {
+        for (key, value) in mine {
+            asked[key.as_str()] = value.clone();
+        }
+    }
+
     asked["kind"] = Value::from(slot);
     asked["now"] = now.clone();
     asked["id"] = Value::from(id);

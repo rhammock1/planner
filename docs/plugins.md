@@ -38,6 +38,13 @@ hint  = "https://github.com/org/repo/pull/$1"
 `entry` is the file the plugin starts at, relative to its own folder. A path
 that climbs out of it is refused.
 
+**Nothing outside the folder comes with it.** `tools/update` installs a
+plugin by copying this folder alone, and the plugin is then served from
+`plugin://<name>/`, an origin that refuses any path climbing out of it — so
+a relative `import` reaching outside your own files will type-check in this
+checkout and 404 the moment somebody installs you. If your code needs
+something from elsewhere, copy it in.
+
 ## Turning one on
 
 > **Upgrading.** `approved_slots` is new. A plugin installed before this
@@ -108,6 +115,8 @@ that the manifest does not declare is never asked either.
 | `vault.contribute` | Nothing but the range of days. | `{date, time, text}[]` |
 | `item.badge` | `{date, items: [{index, text}]}` — every line the parser understood on the page being drawn, and where it sits. Not its note, not its tokens, not the daily note. | `{index, label, href}[]` |
 | `theme.tokens` | The clock, and `tokens` — every theme token as the theme set it. You are asked to *move* those, and cannot move what you were never shown. Not the page: what you do with colour is a function of the time of day. | `Record<string, string>` — a partial map of theme tokens |
+| `page.section` | `{date, sidecars: [{suffix, title}]}` — which of *your* files exist on that day, and never anybody else's. | `{suffix, title?}[]` |
+| `search.provide` | `{query}` — exactly what was typed into ⌘F. | `{text, date?, href?}[]` |
 
 A badge's `label` is one line, cut at 16 characters. Its `index` must be one
 the question sent — the lines may have moved while you were thinking, and a
@@ -355,6 +364,106 @@ but a question does. Do not hold a question open across a `run`: answer with
 what you have, start the run, and answer properly the next time you are asked.
 That is what the fifteen-minute refresh and the popover opening are for.
 
+### `vault.sidecar.read`
+
+A file beside a day, named for the day and for you:
+
+```
+~/Planner/2026/09/2026-09-01.meeting-standup.md
+```
+
+Declare the prefixes you own. A suffix is yours when it *is* one of your
+prefixes, or begins with one of them and a hyphen:
+
+```toml
+[permissions]
+capabilities = ["vault.sidecar.read"]
+
+[sidecars]
+prefixes = ["meeting"]
+```
+
+A prefix is lowercase words joined by single hyphens, at most 15 characters —
+short, because your prefix and a title have to fit in 64 together. Two enabled
+plugins cannot own the same prefix: the second in name order loses that claim
+and keeps its others, and the settings pane says so.
+
+```js
+const notes = planner.capability('vault.sidecar.read')
+
+const mine = await notes.list({ from: '2026-08-01', to: '2026-09-30' })
+// [{ date: '2026-09-01', suffix: 'meeting-standup', title: 'Standup' }]
+
+const text = await notes.read('2026-09-01', 'meeting-standup')
+```
+
+`list` takes a range because a call per day is sixty calls: ask for the window
+you need in one. A range wider than 366 days is refused, and a listing is cut
+at 500 with the newest kept. `read` rejects for a file that is not there and
+for a suffix that is not yours, with the same sentence — neither is a strike.
+
+**You cannot write one.** There is no `vault.sidecar.write`. You *name* a
+sidecar, and the app opens a block on the day page that the person types
+into, and the app writes it — the surface that lets you name one is
+`page.section`, below. A plugin relaying keystrokes back through the door to
+write what the app already has is not a feature this API is missing.
+
+### `page.section`
+
+A block under the day, kept in a file beside the day's:
+
+```toml
+slots = ["page.section"]
+
+[sidecars]
+prefixes = ["meeting"]
+```
+
+```js
+planner.on('page.section', ({ date, sidecars }) => {
+  // `sidecars` is which of *your* files exist on that day. Never anybody
+  // else's, and you are not told that anybody else's exist.
+  return [
+    { suffix: 'meeting-standup' },                                 // a block to type in
+    { suffix: 'meeting-1-1-with-priya', title: '1:1 with Priya' },  // an offer of one
+  ]
+})
+```
+
+A suffix that exists is a block; one that does not is an offer, and needs a
+`title` to write on it. A suffix outside your prefixes is dropped, and a line
+in the day's notice band says how many. Twelve blocks per day, per plugin.
+
+**You do not write the file.** Pressing the offer is what creates it, with the
+title as its first line, and every keystroke after that is written by the app —
+800 milliseconds after the last one, and on blur. A change arriving from
+elsewhere is held while the block has the caret and applied when it leaves.
+
+The title of a file that exists comes from the file's own first `# ` line, not
+from your answer: you name a note once, and after that it is somebody's writing.
+
+### `search.provide`
+
+```toml
+slots = ["search.provide"]
+```
+
+```js
+planner.on('search.provide', ({ query }) => [
+  { text: 'Daryoush wants the retry to back off', date: '2026-09-01', href: 'sidecar:2026-09-01/meeting-standup' },
+])
+```
+
+Asked 150 milliseconds after the last keystroke — one question per pause, not
+one per keystroke — and never waited for: the vault's own results are on screen
+before you are asked, and yours appear under them when they arrive. Your group
+is headed by your plugin's name, and a provider with nothing has no group.
+
+`text` is one line, cut at 200. `date` is optional and jumps to that day.
+`href` is optional, must be a `sidecar:` of yours, and a hit whose href is
+neither is dropped whole — a result you cannot press would not say why.
+Twenty hits each.
+
 ### `onContribute`
 
 Called with `{from, to}`, each `YYYY-MM-DD` local, inclusive. Return — or
@@ -503,5 +612,5 @@ and the pane says what it did.
 ## Not in v1
 
 `onRender`, `planner.storage`, `planner.vault.read`, `net.fetch`, `fs.read`,
-the `job` slot, and the `page.section` slot. Each arrives when something
-needs it. A slot with no consumer is a guess about an API.
+and the `job` slot. Each arrives when something needs it. A slot with no
+consumer is a guess about an API.
