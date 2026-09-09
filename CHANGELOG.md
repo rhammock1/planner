@@ -95,6 +95,10 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Fixed
 
+-   A ⌘F query no longer opens every note `meeting-notes` can see. It reads at
+    most sixty, newest first, and matches titles all the way back — a vault
+    with hundreds of notes could spend the plugin's two seconds opening files
+    and get it switched off for timing out
 -   The location and calendar prompts appear again. Signing with `--options runtime` was half a rule: under the hardened runtime macOS also refuses those two resources unless the signature names them, and refuses them without a word to the app — `locationd` logs *doesn't have the entitlement, not sending #AuthPrompt* and stops. `src-tauri/Entitlements.plist` names them, `tools/rebuild --bundle` checks the signed result for one and registers the bundle with LaunchServices, which had no record of an app that has never been opened from Finder
 -   A permission prompt appears again. `tools/update` had started keeping `planner` on the `PATH` as a symlink into `Planner.app`, and macOS identifies a process by the path it was executed as rather than what that resolves to — so the app registered with `bundleID=[ NULL ]`, TCC had nothing to attribute the request to, and the ask was made with no prompt ever drawn. It is a script that `exec`s the real path now, and the check behind the notice asks the framework for a bundle identifier instead of inspecting the path, which is what let the symlink through
 -   The `Moves <colour>` ticks in the plugin pane draw like every other tick. `theme.tokens` invented a row kind and the stylesheet had no rule for it, so seven of them rendered at the body size, inline, running off the edge of the pane. A tick's kind is now a union rather than a string, and a test reads the kinds out of one file and the selectors out of the stylesheet

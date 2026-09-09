@@ -27,6 +27,20 @@ const MINE = 'meeting'
 const REACH = 60
 
 /**
+ * How many notes a query may open.
+ *
+ * A title match costs nothing - it is in the listing. Opening a file is an
+ * IPC round trip, and a question has two seconds before the host counts it a
+ * timeout and switches this plugin off. `list` gives back at most 500, so
+ * without a ceiling a query matching no title opens all of them one after
+ * another; sixty is what fits comfortably, and the reading is newest-first,
+ * so the sixty are the sixty most recent. A note older than that is still
+ * found by its title, which is the thing you actually remember about a
+ * meeting.
+ */
+const MOST_READ = 60
+
+/**
  * `LONGEST_SUFFIX`, `LONGEST_STEM`, `LONGEST_PREFIX`, `SUFFIX`, `isPrefix`,
  * `stemOf`, `suffixFor` and `sidecarRef` below are copied verbatim from
  * `src/core/sidecars.js` - see the note at the top of this file for why they
@@ -171,10 +185,8 @@ planner.on('search.provide', async ({ now, query }) => {
   // Newest first: what you are looking for is far more often a note from this
   // week than one from two months ago, and this is what decides which twenty
   // survive when there are more.
-  //
-  // Up to 500 reads here, sequentially - `notes.list`'s own ceiling - for a
-  // query that matches no title. Seen, and left alone: still inside today's
-  // deadline.
+  let opened = 0
+
   for (const one of [...mine].reverse()) {
     if (hits.length >= 20) break
 
@@ -184,6 +196,11 @@ planner.on('search.provide', async ({ now, query }) => {
       hits.push({ text: one.title, date: one.date, href: sidecarRef(one.date, one.suffix) })
       continue
     }
+
+    // Newest first, so the ceiling is a recency window rather than an
+    // arbitrary cut. Titles above are still matched all the way back.
+    if (opened >= MOST_READ) continue
+    opened += 1
 
     let text = ''
     try {
