@@ -45,31 +45,51 @@ import { openBadge } from './plugins/pageAsking.js'
  *
  * The one road to a note, whichever gesture asked for it: an offer pressed, a
  * marker clicked, or a chord on a line. `routeTo` decides what the ref means
- * against the page on screen, and refuses the one case that would put a file
- * in the vault on a day nobody is looking at (spec §4.3, Decision 3).
+ * against the page the gesture was made on, and refuses the one case that
+ * would put a file in the vault on a day nobody is looking at (spec §4.3,
+ * Decision 3).
+ *
+ * `page` is a value, not a read. `store.readSidecar` below is a real IPC
+ * round trip, not an instant call - and `surface.page()` can change while it
+ * is in flight, because the person is allowed to navigate mid-gesture. That
+ * is not the same thing as a plugin naming a day nobody asked about, which is
+ * the only thing Decision 3 is for - so every caller captures the page once,
+ * before its own await, and hands it in here rather than letting this
+ * function read it live after the await above.
  *
  * `title` is the app's, never the plugin's: the plugin names the *file*, and
  * the words at the top of it are words you already wrote - a line, or an
- * offer's title. A plugin cannot write a heading into your vault.
+ * offer's title. A plugin cannot write a heading into your vault. `null`
+ * means this caller may never author one - a marker names a file that is
+ * supposed to exist already, and if it does not, that is said rather than
+ * invented.
  *
  * @param {Surface} surface
  * @param {{date: string, suffix: string}} ref
- * @param {string} title  the first line, when the file has to be made
+ * @param {string} page  the day the gesture was made on
+ * @param {string|null} title  the first line, when the file has to be made;
+ *   null when this caller must never make one
  * @returns {Promise<void>}
  */
-export async function openNote(surface, ref, title) {
+export async function openNote(surface, ref, page, title) {
   // `store.readSidecar`, not the listing and not `store.sidecar` - both of
   // those answer the same "nothing" for "not there" and "not caught up yet",
   // and creating over the second erases someone's note. This is the one
   // definite read: null only when the file is truly not there.
   const already = await surface.store.readSidecar(ref.date, ref.suffix)
-  const route = routeTo(ref, surface.page(), already !== null)
+  const route = routeTo(ref, page, already !== null)
   if (route === null) {
     surface.store.notice(`That note belongs to ${ref.date}, and there is nothing there to open.`)
     return
   }
 
-  if (route.create && !await surface.store.changeSidecar(ref.date, ref.suffix, `# ${title}\n\n`)) return
+  if (route.create) {
+    if (title === null) {
+      surface.store.notice(`That note is not there yet, and this cannot start one.`)
+      return
+    }
+    if (!await surface.store.changeSidecar(ref.date, ref.suffix, `# ${title}\n\n`)) return
+  }
   if (route.go !== null) surface.go(route.go)
   // Not yet: the block exists once the listing and the plugin both catch up,
   // which `draw` keeps trying for on every pass.
@@ -89,7 +109,11 @@ export async function openNote(surface, ref, title) {
  * @returns {Promise<void>}
  */
 export async function openSidecar(surface, block) {
-  await openNote(surface, { date: surface.page(), suffix: block.suffix }, block.title)
+  // Captured once, before `openNote`'s await: an offer's ref is always the
+  // page it was pressed on, not wherever the page has drifted to by the time
+  // the read resolves.
+  const page = surface.page()
+  await openNote(surface, { date: page, suffix: block.suffix }, page, block.title)
 }
 
 /**
@@ -129,6 +153,13 @@ export async function followHit(surface, hit) {
  * @returns {Promise<void>}
  */
 export async function noteOnLine(surface, line) {
+  // Captured once, at the top, before `askOnce`'s await - which carries a
+  // two second deadline, the widest window any of these gestures leaves open.
+  // Without this the question below could name Friday while the page has
+  // moved on to Monday by the time the plugin answers, and `openNote` would
+  // judge the answer against a day it was never asked about.
+  const page = surface.page()
+
   const acting = surface.store.installed()
     .filter((one) => one.enabled && one.approvedSlots.includes('item.action'))
 
@@ -143,7 +174,7 @@ export async function noteOnLine(surface, line) {
   let given
   try {
     given = await surface.store.askOnce('item.action', {
-      date: surface.page(),
+      date: page,
       index: line.index,
       text: line.text,
     })
@@ -165,7 +196,7 @@ export async function noteOnLine(surface, line) {
 
   // The line's own words are the heading, because they are the thing this
   // note is about and you wrote them.
-  await openNote(surface, opening, line.text)
+  await openNote(surface, opening, page, line.text)
 }
 
 /**
@@ -178,12 +209,21 @@ export async function noteOnLine(surface, line) {
  * the one that did not. Anything else is an address, and goes the way it
  * always has: past `mayOpen`, and out through the shell.
  *
+ * A marker names a file that is supposed to exist already, but `core/badges.js`
+ * does not require that of the href it hands back - whether it may be opened
+ * is not that reader's question, or this one's to answer by inventing a file.
+ * So `openNote` is told never to create one here: a marker that turns out to
+ * point at nothing gets a notice, not a note titled after a raw suffix.
+ *
  * @param {Surface} surface
  * @param {string} plugin  who answered, which decides what it may name
  * @param {string} href
  * @returns {Promise<void>}
  */
 export async function openMarker(surface, plugin, href) {
+  // Captured once, before `openNote`'s await: the marker was clicked on this
+  // page, whatever the page has moved to by the time the read resolves.
+  const page = surface.page()
   const ref = readRef(href)
   if (ref === null) {
     await openBadge(surface.store, plugin, href)
@@ -196,8 +236,5 @@ export async function openMarker(surface, plugin, href) {
     return
   }
 
-  // The suffix stands in for a title that is never written: a marker exists
-  // only because a file does, and `routeTo` refuses the case where it does
-  // not - so `openNote` never reaches the branch that would use this.
-  await openNote(surface, ref, ref.suffix)
+  await openNote(surface, ref, page, null)
 }
