@@ -256,6 +256,25 @@ export function createAsking(deps) {
   return {
     sync,
     answers,
+    /**
+     * A question asked and awaited, outside the cache.
+     *
+     * Everything else here is draw-on-miss, which is machinery for *not*
+     * waiting: a page is never held up by somebody else's code. An action is
+     * a gesture rather than a draw - a person pressed a chord, no older
+     * answer could be right, and the caller has nothing to show until this
+     * one lands. So it takes no key, writes nothing to `held`, and forces no
+     * redraw; what the answer means is the caller's to decide (spec §4.3).
+     *
+     * Rejects if the door does. There is no cached answer to fall back on and
+     * no page waiting on it, so the caller is the right place for a failure
+     * to be said out loud.
+     *
+     * @param {string} slot
+     * @param {Record<string, unknown>} params
+     * @returns {Promise<{answers: Answer[], notices: string[]}>}
+     */
+    once: (slot, params) => deps.askPlugins(slot, deps.now(), params),
     /** The counter a generation-forced key is built from (spec §1.4). */
     generation: () => generation,
     /** The world moved: the popover opened, or the schedule was refreshed. */
