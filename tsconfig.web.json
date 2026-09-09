@@ -19,6 +19,7 @@
   "include": [
     "src/**/*.js",
     "test/browser/**/*.js",
+    "test/sidecar-store.test.js",
     "plugins/**/*.js",
     "plugins/**/*.d.ts"
   ]
