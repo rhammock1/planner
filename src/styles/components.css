@@ -747,6 +747,22 @@
 .search-hit.other,
 .search-hit.note { color: var(--dim); }
 
+/* A provider's group is headed by the plugin, not by a day: what these hits
+   have in common is where they came from (spec §2.3). */
+.search-day.provider {
+  font-family: var(--font-body);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  color: var(--edge);
+}
+
+.search-provided {
+  flex: none;
+  max-height: 40%;
+  overflow-y: auto;
+}
+
 .search-summary {
   flex: none;
   padding: 7px 16px;

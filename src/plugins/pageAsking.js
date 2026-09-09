@@ -14,11 +14,13 @@
 
 import { linesOf, badgeKey, readBadges } from '../core/badges.js'
 import { readSections, sectionKey } from '../core/sections.js'
+import { readProvided } from '../core/provided.js'
 import { owns } from '../core/sidecars.js'
 import { mayOpen } from '../core/urls.js'
 import * as ipc from '../ipc.js'
 
 /** @typedef {import('../core/badges.js').Badge} Badge */
+/** @typedef {import('../core/provided.js').Provided} Provided */
 /** @typedef {import('../store.js').Store} Store */
 
 /**
@@ -79,6 +81,21 @@ export function sectionsFor(store, page) {
     existing,
     owned,
   )
+}
+
+/**
+ * What the plugins have to say about a search query (spec §2.3).
+ *
+ * The query is the cache key: an answer for a query the field no longer holds
+ * is simply a cache entry nobody asks for. Shared by the two windows because
+ * the question it builds and the answer it reads are one contract, not two.
+ *
+ * @param {Store} store
+ * @param {string} query
+ * @returns {{groups: {plugin: string, hits: Provided[]}[], notices: string[]}}
+ */
+export function providedFor(store, query) {
+  return readProvided(store.pluginAnswers('search.provide', query, { query }), store.pluginPrefixes())
 }
 
 /**

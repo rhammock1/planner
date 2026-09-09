@@ -59,7 +59,9 @@ function show(count, events, notices, actions) {
     onPin: () => {},
     onOpenSpread: () => {},
     onSearch: (query) => searchVault(vault, query),
+    onProviders: () => ({ groups: [], notices: [] }),
     onJump: () => {},
+    onFollow: () => {},
     settings: { onChange: () => {}, onPlugin: () => {}, onChooseVault: () => {} },
   })
   dayPage.render({
@@ -114,7 +116,9 @@ function handlersFor() {
     onPin: () => {},
     onOpenSpread: () => {},
     onSearch: () => ({ groups: [], found: 0 }),
+    onProviders: () => ({ groups: [], notices: [] }),
     onJump: () => {},
+    onFollow: () => {},
     settings: { onChange: () => {}, onPlugin: () => {}, onChooseVault: () => {} },
   }
 }

@@ -40,7 +40,9 @@ import { createSearchPanel } from './searchPanel.js'
  *   dragged from one page onto another
  * @property {(plugin: string, href: string) => void} onBadge
  * @property {(query: string) => {groups: import('../core/search.js').Group[], found: number}} onSearch
+ * @property {(query: string) => {groups: {plugin: string, hits: import('../core/provided.js').Provided[]}[], notices: string[]}} onProviders
  * @property {(hit: import('../core/search.js').Hit) => void} onJump
+ * @property {(hit: import('../core/provided.js').Provided) => void} onFollow
  */
 
 /** @typedef {{element: HTMLElement, render: (state: SpreadState) => void}} View */
@@ -85,7 +87,12 @@ export function mount(root, handlers) {
   const body = el('div', 'spread-body')
   for (const view of views.values()) body.append(view.element)
 
-  const search = createSearchPanel({ onQuery: handlers.onSearch, onJump: handlers.onJump })
+  const search = createSearchPanel({
+    onQuery: handlers.onSearch,
+    onProviders: handlers.onProviders,
+    onJump: handlers.onJump,
+    onFollow: handlers.onFollow,
+  })
 
   const surface = el('div', 'spread')
   surface.append(head, notices, body, search.element)

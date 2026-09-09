@@ -59,7 +59,9 @@ import { createSettingsPanel } from './settingsPanel.js'
  * @property {(pinned: boolean) => void} onPin
  * @property {(view: string) => void} onOpenSpread  week, month or someday
  * @property {(query: string) => {groups: import('../core/search.js').Group[], found: number}} onSearch
+ * @property {(query: string) => {groups: {plugin: string, hits: import('../core/provided.js').Provided[]}[], notices: string[]}} onProviders
  * @property {(hit: import('../core/search.js').Hit) => void} onJump
+ * @property {(hit: import('../core/provided.js').Provided) => void} onFollow
  * @property {import('./settingsPanel.js').SettingsHandlers} settings
  */
 
@@ -139,7 +141,12 @@ export function mount(root, handlers) {
   head.append(heading, nav)
 
   const notices = createNotices()
-  const search = createSearchPanel({ onQuery: handlers.onSearch, onJump: handlers.onJump })
+  const search = createSearchPanel({
+    onQuery: handlers.onSearch,
+    onProviders: handlers.onProviders,
+    onJump: handlers.onJump,
+    onFollow: handlers.onFollow,
+  })
   const settings = createSettingsPanel(handlers.settings)
   const carry = createCarryBand(handlers)
   const horizon = createHorizonStrip()

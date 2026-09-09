@@ -80,7 +80,9 @@ function showAt(anchor, view, count = 0, days = [], lines = '') {
     onMove: (from, index, to) => { moved.push(`${from}:${index} -> ${to}`) },
     onBadge: () => {},
     onSearch: () => ({ groups: [], found: 0 }),
+    onProviders: () => ({ groups: [], notices: [] }),
     onJump: () => {},
+    onFollow: () => {},
   })
 
   spreadPage.render({

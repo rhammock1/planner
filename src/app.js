@@ -13,9 +13,10 @@
 import { horizon } from './core/horizon.js'
 import { unfinished, carryForward } from './core/carry.js'
 import { readContributions } from './core/contributions.js'
-import { badgesFor, sectionsFor, openBadge } from './plugins/pageAsking.js'
+import { badgesFor, sectionsFor, providedFor, openBadge } from './plugins/pageAsking.js'
 import { openInEditor, pickVault } from './vaultActions.js'
 import { search } from './core/search.js'
+import { readRef } from './core/sidecars.js'
 import { applyPluginTokens } from './plugins/theming.js'
 import { today } from './clock.js'
 import { createShowing } from './showing.js'
@@ -58,6 +59,8 @@ async function start() {
     onPin: (next) => { void pin(next) },
     onOpenSpread: (view) => { void openSpread(view) },
     onSearch: (query) => search(store.vault(), query),
+    onProviders: (query) => providedFor(store, query),
+    onFollow: (hit) => { void followHit(hit) },
     settings: {
       onChange: (patch) => { void write(() => store.saveConfig(patch)) },
       onPlugin: (name, plugin) => { void write(() => store.savePlugin(name, plugin)) },
@@ -195,6 +198,27 @@ async function openSidecar(block) {
   draw()
 }
 
+/**
+ * Goes where a provider's hit points.
+ *
+ * A date jumps to that day, exactly as a vault hit does. A `sidecar:` href
+ * then puts the caret in the block - which may take a draw or two, because
+ * the day it names has to be listed and its plugin asked (spec §4.3).
+ *
+ * @param {import('./core/provided.js').Provided} hit
+ * @returns {Promise<void>}
+ */
+async function followHit(hit) {
+  const named = hit.href === null ? null : readRef(hit.href)
+  const page = named?.date ?? hit.date
+  if (page === null) return
+
+  showing.go(page, today())
+  dayPage.search().close()
+  if (named !== null) revealing = named.suffix
+  draw()
+}
+
 function draw() {
   const now = today()
   // Before anything is read off it: the day may have turned since the last
@@ -261,6 +285,9 @@ function draw() {
   // Tried on every draw until it lands: a note just created is not on the
   // page until the listing and the plugin have both caught up.
   if (revealing !== null && dayPage.sections().reveal(revealing)) revealing = null
+
+  // The search holds its own query; this is what puts a late answer under it.
+  dayPage.search().refresh()
 }
 
 /**

@@ -42,6 +42,11 @@ export const SLOTS = [
     sentence: "Adds a block under the day, kept in a file beside the day's.",
     options: null,
   },
+  {
+    name: 'search.provide',
+    sentence: 'Is shown what you type into ⌘F, and can answer alongside the vault.',
+    options: null,
+  },
 ]
 
 const BY_NAME = new Map(SLOTS.map((slot) => [slot.name, slot]))
