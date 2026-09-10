@@ -21,7 +21,7 @@
  * Note how little there is. Everything native happens on the other side of
  * `capability`; everything about timezones happened before the events got
  * here. `page.note` decides what a note is *called* and where it belongs,
- * and never writes a byte - you type into the block; the app writes the file
+ * and never writes a byte - you type into the note's own view; the app writes it
  * (spec §4.1). No clock: the day being drawn arrives in the question. No
  * storage: the vault is the storage, and a `meeting-` file on a day *is* the
  * record that the note exists.

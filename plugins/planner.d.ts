@@ -103,7 +103,7 @@ declare namespace Planner {
     sidecars: { suffix: string; title: string }[]
   }
 
-  /** A block you are asking for. A suffix that exists is a block to type in;
+  /** A note you are asking for. A suffix that exists is a note to open;
    *  one that does not is an offer, and needs a title to write on it. */
   interface SectionAnswer {
     suffix: string

@@ -73,7 +73,7 @@ export function sectionsFor(store, page) {
   }
 
   // The generation is in the key because a block's *offers* come from
-  // somewhere with a clock in it - a calendar, in `meeting-notes` - so opening
+  // somewhere with a clock in it - a calendar, in `macos-calendar` - so opening
   // the popover has to ask again (spec §1.4).
   const key = `${sectionKey(page, existing)}:${store.pluginGeneration()}`
   return readSections(
