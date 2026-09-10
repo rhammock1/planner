@@ -109,14 +109,25 @@ test('a url may hold one level of balanced parentheses', () => {
 })
 
 test('a line of unterminated links does not hang the parser', () => {
-  // The shape that used to explore both url branches on every `(`: 500
-  // openers, no closing paren anywhere. Cubic before the branches were made
-  // disjoint - 20 KB of this took a reviewer's machine about 98 seconds, on
-  // the main thread, from merely opening the note. A wall clock in a test is
-  // a flake waiting to happen, so this asserts the shape of the answer and
-  // relies on the suite's own timeout for the hang.
-  const pathological = '[a]('.repeat(500)
-  assert.deepEqual(inlineOf(pathological), [{ kind: 'text', text: pathological }])
+  // The shape that used to explore both url branches on every `(`: 5000
+  // openers, no closing paren anywhere - 20 KB, the size a reviewer clocked
+  // at about 98 seconds on the old regex, on the main thread, from merely
+  // opening the note. What that bug breaks is a hang, not a wrong answer, and
+  // a hang leaves no wrong output behind for `deepEqual` to catch - the only
+  // assertion that sees it is one about time. The suite runs with no
+  // `--test-timeout`, on purpose (see package.json), so a regression here
+  // must fail on its own rather than hang the runner forever; a threshold
+  // has to be picked with that in mind. One second is orders of magnitude
+  // above the fixed parser's real cost - tens of microseconds at this size -
+  // so this doesn't flake under load, and orders of magnitude below the old
+  // regex's, so a return of the bug fails loudly instead of quietly passing
+  // like it did at 500 openers.
+  const pathological = '[a]('.repeat(5000)
+  const start = performance.now()
+  const result = inlineOf(pathological)
+  const elapsed = performance.now() - start
+  assert.ok(elapsed < 1000, `parsing took ${elapsed}ms, expected under 1000ms`)
+  assert.deepEqual(result, [{ kind: 'text', text: pathological }])
 })
 
 test('a link carries where it may go', () => {
