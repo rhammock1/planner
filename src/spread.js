@@ -13,7 +13,7 @@ import { today } from './clock.js'
 import { applyPluginTokens } from './plugins/theming.js'
 import { moveItem } from './core/move.js'
 import { search } from './core/search.js'
-import { readRef } from './core/sidecars.js'
+import { readRef, owns } from './core/sidecars.js'
 import { badgesFor, providedFor, openBadge } from './plugins/pageAsking.js'
 import { weekOf } from './core/calendar.js'
 import { SOMEDAY } from './core/vaultIndex.js'
@@ -55,6 +55,18 @@ async function start() {
       // provider's hit does here - moves to the week that day sits in, and
       // leaves opening it to the popover (spec §4.3).
       if (ref !== null) {
+        // Spec §4.1: every `sidecar:` href, from any slot, is checked against
+        // the answering plugin's prefixes - the same check `openMarker` in
+        // `sidecarActions.js` makes for the popover's own badge.
+        const prefixes = store.pluginPrefixes().get(plugin) ?? []
+        if (!owns(prefixes, ref.suffix)) {
+          store.notice(`${plugin} pointed at a note that is not one of its own.`)
+          return
+        }
+        // Badges are drawn on the week view and the back page alike; without
+        // this a `✎` clicked from the someday view would move `anchor` under
+        // a view that never shows it - a dead click with no notice.
+        view = 'week'
         anchor = ref.date
         draw()
         return

@@ -18,6 +18,7 @@
 import { readRef, owns } from './core/sidecars.js'
 import { readActions, routeTo } from './core/actions.js'
 import { openBadge } from './plugins/pageAsking.js'
+import { SOMEDAY } from './core/vaultIndex.js'
 
 /** @typedef {import('./store.js').Store} Store */
 /** @typedef {import('./core/sections.js').Block} Block */
@@ -76,7 +77,20 @@ export async function openNote(surface, ref, page, title) {
   // those answer the same "nothing" for "not there" and "not caught up yet",
   // and creating over the second erases someone's note. This is the one
   // definite read: null only when the file is truly not there.
-  const already = await surface.store.readSidecar(ref.date, ref.suffix)
+  //
+  // Unlike the listing, this is a bare IPC round trip with no catch of its
+  // own (`sidecarStore.js`'s other read path catches; this one does not) - so
+  // it is caught here. Every gesture that reaches this function `void`s it,
+  // and a rejection left to become an unhandled one would mean the chord did
+  // nothing and said nothing about why.
+  /** @type {string|null} */
+  let already
+  try {
+    already = await surface.store.readSidecar(ref.date, ref.suffix)
+  } catch (error) {
+    surface.store.notice(`Could not open that note: ${error instanceof Error ? error.message : String(error)}`)
+    return
+  }
   const route = routeTo(ref, page, already !== null)
   if (route === null) {
     surface.store.notice(`That note belongs to ${ref.date}, and there is nothing there to open.`)
@@ -159,6 +173,13 @@ export async function noteOnLine(surface, line) {
   // moved on to Monday by the time the plugin answers, and `openNote` would
   // judge the answer against a day it was never asked about.
   const page = surface.page()
+
+  // `item.action`'s `date` is a day a note can be made or found on - every
+  // plugin's look-back, and `routeTo` below, both read it as `YYYY-MM-DD`.
+  // The back page is reachable here (a search hit can land showing on it, spec
+  // §5.7) and is not a date, so there is nothing to ask about: silence, the
+  // same silence as pressing the chord with no action plugin installed.
+  if (page === SOMEDAY) return
 
   const acting = surface.store.installed()
     .filter((one) => one.enabled && one.approvedSlots.includes('item.action'))

@@ -106,7 +106,7 @@ function readOne(raw, plugin, prefixes, existing) {
 
   const suffix = fields['suffix']
   if (typeof suffix !== 'string' || !isSuffix(suffix)) return null
-  // The whole of the prefix rule, at the one place a plugin names a file.
+  // The whole of the prefix rule, at the one place this slot names a file.
   if (!owns(prefixes, suffix)) return null
 
   const onDisk = existing.get(suffix)
