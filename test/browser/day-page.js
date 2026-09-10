@@ -52,7 +52,6 @@ function show(count, events, notices, actions) {
     onRemove: async () => true,
     onBadge: () => {},
     onDailyNote: async () => true,
-    onBlock: async () => true,
     onOpenSidecar: () => {},
     onAdd: async () => true,
     onCarry: () => {},
@@ -62,6 +61,13 @@ function show(count, events, notices, actions) {
     onProviders: () => ({ groups: [], notices: [] }),
     onJump: () => {},
     onFollow: () => {},
+    note: {
+      onWrite: async () => true,
+      onDelete: async () => true,
+      onFollow: () => {},
+      onOpenLink: () => {},
+      onClose: () => {},
+    },
     settings: { onChange: () => {}, onPlugin: () => {}, onChooseVault: () => {} },
   })
   dayPage.render({
@@ -79,7 +85,6 @@ function show(count, events, notices, actions) {
       })),
     }],
     blocks: [],
-    sidecarText: () => null,
     notices: notices ?? [],
     actions: actions ?? [],
   })
@@ -109,7 +114,6 @@ function handlersFor() {
     onRemove: async () => true,
     onBadge: () => {},
     onDailyNote: async () => true,
-    onBlock: async () => true,
     onOpenSidecar: () => {},
     onAdd: async () => true,
     onCarry: () => {},
@@ -119,6 +123,13 @@ function handlersFor() {
     onProviders: () => ({ groups: [], notices: [] }),
     onJump: () => {},
     onFollow: () => {},
+    note: {
+      onWrite: async () => true,
+      onDelete: async () => true,
+      onFollow: () => {},
+      onOpenLink: () => {},
+      onClose: () => {},
+    },
     settings: { onChange: () => {}, onPlugin: () => {}, onChooseVault: () => {} },
   }
 }
@@ -449,7 +460,6 @@ check('two plugins get two headed sections, and the footer stays put', () => {
       { plugin: 'macos-calendar', heading: 'On the calendar', events: [{ time: '09:30', text: 'Standup' }] },
     ],
     blocks: [],
-    sidecarText: () => null,
     notices: [],
     actions: [],
   })

@@ -121,6 +121,7 @@ export function sampleHost() {
 
     // No shell to hand a URL to: a browser tab can open its own links.
     openUrl: async () => {},
+    openLink: async () => {},
   }
 }
 

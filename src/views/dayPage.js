@@ -5,7 +5,9 @@
  *
  * Composition and chrome: the date header, the add row, the daily note, the
  * footer. The three parts with behaviour of their own - the horizon strip,
- * the list, the carry-forward band - are their own modules.
+ * the list, the carry-forward band - are their own modules, as are the three
+ * things that lie over the page rather than sit on it: the search, the
+ * settings, and a note (spec §2.1).
  *
  * DOM only. Every decision about what belongs on the page was made in core
  * before this module was called.
@@ -22,6 +24,7 @@ import { createCarryBand } from './carryBand.js'
 import { createDaySections } from './daySections.js'
 import { createDayFooter } from './dayFooter.js'
 import { createNotices } from './notices.js'
+import { createNoteView } from './noteView.js'
 import { createSearchPanel } from './searchPanel.js'
 import { createSettingsPanel } from './settingsPanel.js'
 
@@ -36,8 +39,7 @@ import { createSettingsPanel } from './settingsPanel.js'
  * @property {import('../core/horizon.js').HorizonEntry[]} horizon
  * @property {import('../core/carry.js').CarryGroup[]} carry  empty unless today
  * @property {import('../core/contributions.js').Section[]} sections  one per contributing plugin; today only
- * @property {import('../core/sections.js').Block[]} blocks  the plugin blocks for this day
- * @property {(suffix: string) => string|null} sidecarText  what a block's file says
+ * @property {import('../core/sections.js').Block[]} blocks  what the plugins named for this day
  * @property {Map<number, import('../core/badges.js').Badge[]>} [badges]  markers, keyed by line index
  * @property {string[]} notices
  * @property {Action[]} actions  offered under the notices; usually none
@@ -53,7 +55,6 @@ import { createSettingsPanel } from './settingsPanel.js'
  * @property {(index: number) => Promise<boolean>} onRemove
  * @property {(plugin: string, href: string) => void} onBadge
  * @property {(note: string) => Promise<boolean>} onDailyNote
- * @property {(date: string, suffix: string, text: string) => Promise<boolean>} onBlock
  * @property {(block: import('../core/sections.js').Block) => void} onOpenSidecar
  * @property {(line: string) => Promise<boolean>} onAdd  false if it was not saved
  * @property {(decisions: import('../core/carry.js').CarryDecision[]) => void} onCarry
@@ -63,6 +64,9 @@ import { createSettingsPanel } from './settingsPanel.js'
  * @property {(query: string) => {groups: {plugin: string, hits: import('../core/provided.js').Provided[]}[], notices: string[]}} onProviders
  * @property {(hit: import('../core/search.js').Hit) => void} onJump
  * @property {(hit: import('../core/provided.js').Provided) => void} onFollow
+ * @property {import('./noteView.js').NoteHandlers} note  the overlay a note
+ *   opens in (spec §2.1). Grouped rather than spread across five more
+ *   `on…` names, the way the settings pane's handlers already are
  * @property {import('./settingsPanel.js').SettingsHandlers} settings
  */
 
@@ -97,6 +101,7 @@ let currentState = null
  * @property {ReturnType<typeof createNotices>} notices
  * @property {ReturnType<typeof createSearchPanel>} search
  * @property {ReturnType<typeof createSettingsPanel>} settings
+ * @property {ReturnType<typeof createNoteView>} noteView
  * @property {ReturnType<typeof createDayFooter>} foot
  * @property {ReturnType<typeof createHorizonStrip>} horizon
  * @property {ReturnType<typeof createItemList>} items
@@ -149,15 +154,13 @@ export function mount(root, handlers) {
     onFollow: handlers.onFollow,
   })
   const settings = createSettingsPanel(handlers.settings)
+  const noteView = createNoteView(handlers.note)
   const carry = createCarryBand(handlers)
   const horizon = createHorizonStrip()
   const items = createItemList(handlers)
 
   const add = createAddRow(handlers.onAdd, 'Write something down')
-  const sections = createDaySections({
-    onBlock: handlers.onBlock,
-    onOpen: handlers.onOpenSidecar,
-  })
+  const sections = createDaySections({ onOpen: handlers.onOpenSidecar })
 
   // The day's own line, under everything else, the way the bottom of a
   // planner page is left blank for one (spec §5.1). `sections.evidence`
@@ -175,7 +178,7 @@ export function mount(root, handlers) {
   surface.append(
     head, notices.element, carry.element, horizon.element, items.element,
     add.element, sections.element, note, sections.evidence,
-    foot.element, search.element, settings.element,
+    foot.element, search.element, settings.element, noteView.element,
   )
   root.replaceChildren(surface)
 
@@ -219,7 +222,7 @@ export function mount(root, handlers) {
     note.ownerDocument.execCommand('insertText', false, text)
   })
 
-  page = { weekday, date, todayButton, head, pin, notices, foot, horizon, items, carry, sections, note, search, settings }
+  page = { weekday, date, todayButton, head, pin, notices, foot, horizon, items, carry, sections, note, search, settings, noteView }
 }
 
 /**
@@ -262,6 +265,19 @@ export function settings() {
 }
 
 /**
+ * A note, which lies over the page in the same way (spec §2.1).
+ *
+ * The day underneath is left exactly as it was: this view is opened, closed
+ * and asked what it is showing, and never redraws the page behind it.
+ *
+ * @returns {ReturnType<typeof createNoteView>}
+ */
+export function noteView() {
+  if (page === null) throw new Error('noteView before mount')
+  return page.noteView
+}
+
+/**
  * @param {DayState} state
  * @returns {void}
  */
@@ -278,12 +294,7 @@ export function render(state) {
   page.carry.render(state.carry, state.today)
   page.horizon.render(state.horizon)
   page.items.render(state.doc, state.badges)
-  page.sections.render({
-    date: state.page,
-    contributed: state.sections,
-    blocks: state.blocks,
-    textOf: state.sidecarText,
-  })
+  page.sections.render({ contributed: state.sections, blocks: state.blocks })
   renderNote(page.note, state.doc)
 
   page.foot.render(openCount(state.doc))
@@ -314,21 +325,12 @@ function renderNote(element, doc) {
 }
 
 /**
- * The blocks under the day, for a `sidecar:` href that names one (spec §4.3).
- *
- * @returns {ReturnType<typeof createDaySections>}
- */
-export function sections() {
-  if (page === null) throw new Error('sections before mount')
-  return page.sections
-}
-
-/**
  * The line holding the caret, as it reads on screen (spec §4.3).
  *
  * Null when the caret is somewhere that is not a line - the add row, the
- * daily note, a block, the search field, or nowhere at all. A gesture about a
- * line simply does not fire, rather than guessing at which line was meant.
+ * daily note, a note's own page, the search field, or nowhere at all. A
+ * gesture about a line simply does not fire, rather than guessing at which
+ * line was meant.
  *
  * The note under a line counts as that line: `closest('.item')` resolves both
  * to the row, which is the same rule dragging already follows.

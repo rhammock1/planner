@@ -652,9 +652,9 @@
   white-space: nowrap;
 }
 
-/* The blocks a plugin asked for, each a window onto a file beside the day
-   (spec §4.2). Between the contributed sections and the day's own note: not
-   in your file, but yours to write. */
+/* The notes a plugin offers to start, between the contributed sections and
+   the day's own note (spec §4.2). Only offers: a file that exists is a note,
+   and a note opens over the day rather than under it. */
 .blocks {
   flex: none;
   display: flex;
@@ -662,45 +662,6 @@
 }
 
 .blocks[hidden] { display: none; }
-
-.block {
-  flex: none;
-  padding: 8px 16px 10px;
-  border-top: 1px solid var(--edge-soft);
-}
-
-.block + .block { padding-top: 6px; }
-
-/* The same heading the contributed sections wear, because they are the same
-   kind of thing: a band of something that is not the list. */
-.block-head {
-  margin: 0 0 4px;
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--edge);
-}
-
-.block-body {
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--ink);
-  white-space: pre-wrap;
-  -webkit-user-select: text;
-  user-select: text;
-  /* A note that ran long takes a few lines and scrolls past them, the same
-     bargain the daily note makes. */
-  max-height: 7em;
-  overflow-y: auto;
-}
-
-.block-body:focus { outline: none; }
-
-.block-body:empty::before {
-  content: 'What was said';
-  color: var(--edge);
-}
 
 /* An offer is a line, not a button: the day page is a ruled page and this is
    the one place something on it can be pressed into existence. */

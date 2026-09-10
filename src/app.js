@@ -15,7 +15,7 @@ import { unfinished, carryForward } from './core/carry.js'
 import { readContributions } from './core/contributions.js'
 import { badgesFor, sectionsFor, providedFor } from './plugins/pageAsking.js'
 import { openInEditor, pickVault } from './vaultActions.js'
-import { openSidecar, followHit, noteOnLine, openMarker } from './sidecarActions.js'
+import { openSidecar, followHit, followRef, noteOnLine, openMarker } from './sidecarActions.js'
 import { search } from './core/search.js'
 import { applyPluginTokens } from './plugins/theming.js'
 import { today } from './clock.js'
@@ -33,7 +33,8 @@ const store = createStore()
 // (showing.js).
 const showing = createShowing(today())
 let pinned = false
-// A block a jump is waiting for, until the plugin answers again (spec §4.3).
+// A note a jump is waiting for, until the day's files have been read again
+// (spec §4.3).
 /** @type {string|null} */
 let revealing = null
 const edits = createPageEdits(store, () => showing.page())
@@ -53,9 +54,16 @@ async function start() {
     },
     onCarry: (decisions) => { void carry(decisions) },
     onBadge: (plugin, href) => { void openMarker(surface, plugin, href) },
-    // The block's own day, not `showing.page()`, which has moved on by the time a leaving block flushes.
-    onBlock: (date, suffix, text) => store.changeSidecar(date, suffix, text),
     onOpenSidecar: (block) => { void openSidecar(surface, block) },
+    note: {
+      // The note's own day, not `showing.page()`, which has moved on by the
+      // time a note opened on one day and closed on another flushes.
+      onWrite: (date, suffix, text) => store.changeSidecar(date, suffix, text),
+      onDelete: (date, suffix) => remove(date, suffix),
+      onFollow: (href) => { void followRef(surface, href) },
+      onOpenLink: (url) => { void openLink(url) },
+      onClose: () => { closeNote() },
+    },
     onPin: (next) => { void pin(next) },
     onOpenSpread: (view) => { void openSpread(view) },
     onSearch: (query) => search(store.vault(), query),
@@ -98,7 +106,7 @@ async function start() {
     // search field uses it first, to close itself.
     if (event.key === 'Escape' && !event.defaultPrevented) {
       // Whatever is half-typed goes to disk now, before the window's own timers go idle (spec §3.1).
-      void dayPage.sections().flushAll().finally(() => ipc.closePopover())
+      void dayPage.noteView().flush().finally(() => ipc.closePopover())
       return
     }
     // The way out of one day and into the week, without reaching for the
@@ -243,7 +251,6 @@ function draw() {
     carry: page === now ? unfinished(store.vault(), now, store.config().carryForwardScanDays) : [],
     sections: given.sections,
     blocks: blocked.blocks,
-    sidecarText: (suffix) => store.sidecar(page, suffix),
     badges: marked.badges,
     // The one thing a notice ever needs pressing for: the app will not put a
     // vault somewhere nobody asked for (spec §8).
@@ -253,12 +260,109 @@ function draw() {
     notices: [...store.notices(), ...given.notices, ...marked.notices, ...blocked.notices, ...warmed],
   })
 
-  // Tried on every draw until it lands: a note just created is not on the
-  // page until the listing and the plugin have both caught up.
-  if (revealing !== null && dayPage.sections().reveal(revealing)) revealing = null
+  // Tried on every draw until it lands: a note just created is not in the
+  // store until its day has been listed and the file read. Given up on
+  // quietly rather than said out loud, because a ref may name a note whose
+  // plugin has since been switched off.
+  if (revealing !== null) {
+    if (showNote(page, revealing)) revealing = null
+  } else {
+    // The note already up, offered the store's copy again. This is how an
+    // edit made in a text editor reaches a note that is open; `open` holds it
+    // until the caret leaves rather than taking the words out from under it.
+    const shown = dayPage.noteView().showing()
+    if (shown !== null) showNote(shown.date, shown.suffix)
+  }
 
   // The search holds its own query; this is what puts a late answer under it.
   dayPage.search().refresh()
+}
+
+/**
+ * Puts a note over the day, if the app knows enough about it yet.
+ *
+ * False while the day's listing or the file's own text is still in flight -
+ * both are draw-on-miss reads that redraw when they land, so the caller has
+ * only to ask again on the next pass rather than wait on anything here.
+ *
+ * The title comes from the listing, which reads it off the file's own first
+ * heading: the words at the top of a note are yours, never a plugin's answer
+ * about it (spec §4.2).
+ *
+ * @param {string} date
+ * @param {string} suffix
+ * @returns {boolean}  whether the note is now on screen
+ */
+function showNote(date, suffix) {
+  const named = store.sidecarsOn(date).find((one) => one.suffix === suffix)
+  if (named === undefined) return false
+  const text = store.sidecar(date, suffix)
+  if (text === null) return false
+  dayPage.noteView().open({ date, suffix, title: named.title, text })
+  return true
+}
+
+/**
+ * Puts the note away.
+ *
+ * `‹` and Escape say the note is finished with; they do not hide it
+ * themselves, so that one place owns the question of what is on screen. Wire
+ * this to anything that does not call `close`, and both of them become dead
+ * keys. A note that has just been deleted has already hidden itself, and
+ * `close` a second time is a no-op that keeps the two ways out one way out.
+ *
+ * @returns {void}
+ */
+function closeNote() {
+  dayPage.noteView().close()
+  // Nothing is waiting to be opened any more: a suffix parked before the note
+  // landed would otherwise put it straight back up on the next draw.
+  revealing = null
+  draw()
+}
+
+/**
+ * Moves a note into the vault's `.trash/` (spec §2.4).
+ *
+ * Straight to the shell rather than through the store: there is no cache to
+ * keep in step by hand, because the move is announced like any other change
+ * to that file and the store re-reads on it. False, with a line in the notice
+ * band, when it will not go - the view keeps the note rather than pretending
+ * it is gone.
+ *
+ * @param {string} date
+ * @param {string} suffix
+ * @returns {Promise<boolean>}
+ */
+async function remove(date, suffix) {
+  try {
+    await ipc.deleteSidecar(date, suffix)
+    return true
+  } catch (error) {
+    store.notice(`Could not delete that note: ${message(error)}`)
+    return false
+  }
+}
+
+/**
+ * Opens an address somebody typed into a note (spec §2.3).
+ *
+ * Not `ipc.openUrl`, which carries a plugin's name because it is a plugin's
+ * address and is checked against the prefixes that plugin was approved for.
+ * This one is yours: it takes the scheme check - in `core/markdown.js` before
+ * the link is drawn at all, and again in Rust before it is handed to the
+ * shell - and no allowlist, because that list exists to constrain plugins
+ * rather than the person whose notes these are.
+ *
+ * @param {string} url
+ * @returns {Promise<void>}
+ */
+async function openLink(url) {
+  try {
+    await ipc.openLink(url)
+  } catch (error) {
+    store.notice(`Could not open ${url}: ${message(error)}`)
+  }
 }
 
 /**

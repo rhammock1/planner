@@ -9,6 +9,7 @@
 /// Public so the tests in `tests/` can reach the day arithmetic; nothing
 /// outside this crate has any business calling a bridge.
 pub mod bridges;
+mod links;
 mod notify;
 mod quick_add;
 mod settings;
@@ -90,7 +91,8 @@ pub fn run() {
         plugins::stop_plugin,
         plugins::ask_plugins,
         plugins::plugin_states,
-        plugins::opening::open_url
+        plugins::opening::open_url,
+        links::open_link
     ]);
 
     tauri::Builder::default()

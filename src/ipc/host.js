@@ -50,6 +50,7 @@
  * @property {() => Promise<PluginState[]>} pluginStates
  * @property {(handler: () => void) => void|Promise<void>} onPopoverShown
  * @property {(plugin: string, url: string) => Promise<void>} openUrl
+ * @property {(url: string) => Promise<void>} openLink
  */
 
 /**
@@ -136,6 +137,7 @@ function tauriHost() {
     askPlugins: (slot, now, params) => invoke('ask_plugins', { slot, now, params }),
     pluginStates: () => invoke('plugin_states'),
     openUrl: (plugin, url) => invoke('open_url', { plugin, url }),
+    openLink: (url) => invoke('open_link', { url }),
     onPopoverShown: (handler) => tauri.event.listen('popover:shown', () => handler()),
     readTheme: (name) => invoke('read_theme', { name }),
     readVault: () => invoke('read_vault'),
