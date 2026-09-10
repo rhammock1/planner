@@ -148,7 +148,7 @@ your lines, no access to page DOM, its own stylesheet.
     vault is one capability or two — a tab like that wants all of it and the
     day page only ever wanted today.
 
-Two entries that belong here and have no phase:
+Three entries that belong here and have no phase:
 
 - **`macos-reminders`**, the second reference plugin (spec §7.5). The point of
   it is not reminders: it is the second consumer of an API that has only ever
@@ -157,6 +157,35 @@ Two entries that belong here and have no phase:
   ticking it here ticks it there — forces a plugin *proposing* a change your
   file accepts, which is a fork in the road for the whole API and wants its
   own design rather than a place in a queue.
+- **`standup-notes`**, and the capability it would force. Twice a week there is
+  a standup, and its notes are the same shape every time: what was worked on
+  since the last one, and what is still open going into the next. Both are
+  already in the vault, and not as a guess — a tick is what got done, a line
+  still open and carried is what did not, and a struck-out line is a decision
+  that was made. That is the whole of the Monday and Thursday format already
+  written down, four days at a time.
+
+  **The association that looks hard is not needed.** A plugin does not have to
+  know which tasks *belong to* a meeting, and nothing has to be tagged. The
+  meeting's own recurrence is the window: the previous occurrence of an event
+  with this title is where the range starts and this one is where it ends, so
+  Monday's standup reads Friday to Monday and Thursday's reads Monday to
+  Thursday. That comes out of `macos.calendar.read`, which already exists.
+
+  What it does need is the one thing no plugin can do today: **read the days.**
+  `vault.sidecar.read` reaches notes beside a day and nothing at all reaches a
+  day file, so this is a second consumer of the `vault.read` question phase
+  eleven leaves open — and a second consumer is what makes that question safe
+  to answer, since one is a guess about an API. The two want different shapes,
+  which is exactly the useful part: a year-of-days grid wants the whole vault,
+  and this wants four days ending today.
+
+  It drafts; you cut. The plugin names a `standup-` sidecar and the app writes
+  it, the same way a meeting note already works, and you edit it before the
+  call. Which answers the question that makes this look impossible — how would
+  it know which lines are worth saying out loud? It does not, and it does not
+  need to. The work it saves is the gathering, not the judgement.
+
 - **A heading that comes from the plugin.** The contributed section is headed
   `On the calendar` because one plugin contributes to it. A second one would
   need the heading to say whose lines those are, which means either a field in
