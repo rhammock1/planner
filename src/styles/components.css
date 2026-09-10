@@ -632,6 +632,7 @@
 
 .given-item {
   display: flex;
+  align-items: baseline;
   gap: 8px;
   font-size: 12.5px;
   line-height: 1.5;
@@ -647,42 +648,42 @@
 }
 
 .given-text {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* The notes a plugin offers to start, between the contributed sections and
-   the day's own note (spec §4.2). Only offers: a file that exists is a note,
-   and a note opens over the day rather than under it. */
-.blocks {
+/* A note on a meeting, offered or already there (spec §1.2). A real button,
+   not a link: it is the one thing on this row a press makes or opens, the
+   same rule `.block-offer` used to hold when this lived in its own row under
+   the section rather than at the end of the meeting's own.
+   Quiet by default - `opacity` rather than `hidden` or `display`, so a
+   keyboard reaches it by Tab whether or not a mouse is anywhere near. */
+.offer {
   flex: none;
-  display: flex;
-  flex-direction: column;
-}
-
-.blocks[hidden] { display: none; }
-
-/* An offer is a line, not a button: the day page is a ruled page and this is
-   the one place something on it can be pressed into existence. */
-.block-offer {
-  flex: none;
-  display: block;
-  width: 100%;
-  padding: 7px 16px;
+  padding: 2px 5px;
   border: none;
-  border-top: 1px solid var(--edge-soft);
   background: none;
   font-family: var(--font-body);
-  font-size: 12.5px;
-  line-height: 1.5;
-  text-align: left;
+  font-size: 11px;
   color: var(--dim);
   cursor: pointer;
+  opacity: 0;
 }
 
-.block-offer:hover,
-.block-offer:focus-visible { color: var(--ink); background: var(--surface); }
+.given-item:hover .offer,
+.given-item:focus-within .offer { opacity: 1; }
+
+.offer:hover,
+.offer:focus-visible { color: var(--ink); }
+
+/* A note that already exists is not something to hide behind a hover. */
+.offer.done {
+  opacity: 1;
+  color: var(--accent);
+}
 
 /* ── search ─────────────────────────────────────────────── */
 

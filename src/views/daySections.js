@@ -12,10 +12,11 @@
  *
  * There are no editors here any more. A file beside the day used to be a
  * block you typed into on this page; it is a page of its own now
- * (`noteView.js`), reached from a marker, a search hit, or one of these
- * offers. So a `page.note` answer naming a file that already *exists* draws
- * nothing here - the offers are the half of that answer this region still has
- * anything to say about.
+ * (`noteView.js`), reached from a marker, a search hit, or a control on the
+ * row it is about (spec §1.2). So a `page.note` answer never draws anything
+ * of its own in this region - `contributions.js` matches each answered
+ * block back to the timed row it belongs to, by the suffix that row's own
+ * title would make, and draws the note-or-offer control there instead.
  *
  * Thin as that leaves it, the file stays rather than folding into
  * `dayPage.js`, and the reason is the pairing: this is the one place holding
@@ -24,8 +25,7 @@
  * and nothing can match the two up without both of them in the same hand.
  */
 
-import { el, setText } from '../ui/dom.js'
-import { patchList } from '../ui/keyedList.js'
+import { el } from '../ui/dom.js'
 import { createContributions } from './contributions.js'
 
 /** @typedef {import('../core/sections.js').Block} Block */
@@ -39,7 +39,7 @@ import { createContributions } from './contributions.js'
 
 /**
  * @typedef {object} SectionHandlers
- * @property {(block: Block) => void} onOpen  an offer was pressed
+ * @property {(block: Block) => void} onOpen  a row's note-or-offer control was pressed
  */
 
 /**
@@ -47,13 +47,10 @@ import { createContributions } from './contributions.js'
  * @returns {{element: HTMLElement, evidence: HTMLElement, render: (state: SectionsState) => void}}
  */
 export function createDaySections(handlers) {
-  const given = createContributions()
-
-  const offers = el('div', 'blocks')
-  offers.hidden = true
+  const given = createContributions(handlers)
 
   const element = el('div', 'day-sections')
-  element.append(given.element, offers)
+  element.append(given.element)
 
   // Exposed rather than appended here: the untimed lines read as evidence
   // for the day's own note (spec §1.1), which `dayPage.js` places under that
@@ -65,50 +62,7 @@ export function createDaySections(handlers) {
     evidence,
 
     render: (state) => {
-      given.render(state.contributed)
-
-      // Only the offers. A block for a file that exists names a note, and a
-      // note opens over the day rather than under it.
-      const offered = state.blocks.filter((block) => block.kind === 'offer')
-      offers.hidden = offered.length === 0
-      patchList(offers, offered, {
-        keyOf,
-        create: () => makeOffer(),
-        update: (element, block) => updateOffer(element, block, handlers),
-      })
+      given.render(state.contributed, state.blocks)
     },
   }
-}
-
-/**
- * An offer is one plugin's file. Two plugins cannot own one suffix, so the
- * suffix alone would do - but the plugin is in the key so that an offer whose
- * owner was switched off is torn down rather than adopted.
- *
- * A space joins the two because a plugin name and a suffix are both lowercase
- * words and hyphens, so neither can contain one.
- *
- * @param {Block} block
- * @returns {string}
- */
-function keyOf(block) {
-  return `${block.plugin} ${block.suffix}`
-}
-
-/** @returns {HTMLElement} */
-function makeOffer() {
-  const button = el('button', 'block-offer')
-  button.setAttribute('type', 'button')
-  return button
-}
-
-/**
- * @param {HTMLElement} element
- * @param {Block} block
- * @param {SectionHandlers} handlers
- * @returns {void}
- */
-function updateOffer(element, block, handlers) {
-  setText(element, `＋ Notes on ${block.title}`)
-  element.onclick = () => handlers.onOpen(block)
 }

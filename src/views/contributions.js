@@ -22,22 +22,43 @@
  * Absent rather than empty, per section. A plugin with nothing shows no
  * heading and leaves no gap - a section that says "nothing" is a section
  * earning its space by lying about having some.
+ *
+ * A timed row also grows a trailing control for the note a plugin offers on
+ * it, or already holds (spec §1.2). There is no other way to reach one: a
+ * contributed event has no index into the day file the way an `item` does,
+ * so `page.note`'s answer is matched back to the row it is about by
+ * recomputing the suffix `macos-calendar` would compute for that row's own
+ * title, the only key a contributed event has ever had. Untimed rows never
+ * get one - they fold under the day's own note as evidence, in the tense of
+ * something that already happened, and that is not what a note is for.
  */
 
-import { el, setText } from '../ui/dom.js'
+import { el, setText, setClass } from '../ui/dom.js'
 import { patchList } from '../ui/keyedList.js'
 import { foldsUnderNote } from '../core/contributions.js'
+import { suffixFor } from '../core/sidecars.js'
 
 /** @typedef {import('../core/contributions.js').Event} Event */
 /** @typedef {import('../core/contributions.js').Section} Section */
+/** @typedef {import('../core/sections.js').Block} Block */
 
 /** One folded line, under the heading that said it. */
 /** @typedef {{key: string, heading: string, text: string}} EvidenceLine */
 
 /**
- * @returns {{element: HTMLElement, evidence: HTMLElement, render: (sections: Section[]) => void}}
+ * The prefix `macos-calendar` claims for a meeting's sidecar - its own
+ * `manifest.toml`, `[sidecars]`. Mirrored here rather than read off a block:
+ * a row does not carry a suffix of its own, so the only way to find the
+ * block that answers for it is to compute the same suffix its title would
+ * make, the way the plugin already does.
  */
-export function createContributions() {
+const MEETING = 'meeting'
+
+/**
+ * @param {{onOpen: (block: Block) => void}} handlers
+ * @returns {{element: HTMLElement, evidence: HTMLElement, render: (sections: Section[], blocks: Block[]) => void}}
+ */
+export function createContributions(handlers) {
   const stack = el('div', 'givens')
   stack.hidden = true
 
@@ -49,8 +70,11 @@ export function createContributions() {
   return {
     element: stack,
     evidence,
-    render: (sections) => {
+    render: (sections, blocks) => {
       const timed = sections.filter((section) => !foldsUnderNote(section))
+      // By suffix, computed once per render rather than once per row: a row
+      // does not know its own suffix, only its title.
+      const bySuffix = new Map(blocks.map((block) => [block.suffix, block]))
 
       stack.hidden = timed.length === 0
       patchList(stack, timed, {
@@ -72,16 +96,19 @@ export function createContributions() {
             keyOf: (event) => `${event.time ?? ''}:${event.text}`,
             create: () => {
               const row = el('li', 'given-item')
-              row.append(el('span', 'given-time'), el('span', 'given-text'))
+              const offer = el('button', 'offer')
+              offer.setAttribute('type', 'button')
+              row.append(el('span', 'given-time'), el('span', 'given-text'), offer)
               return row
             },
             update: (row, event) => {
-              const [time, text] = row.children
+              const [time, text, offer] = row.children
               if (!(time instanceof HTMLElement) || !(text instanceof HTMLElement)) return
               // Blank rather than hidden: an all-day thing lines its title up
               // with the timed ones rather than sitting out to the left alone.
               setText(time, event.time ?? '')
               setText(text, event.text)
+              if (offer instanceof HTMLButtonElement) updateOffer(offer, event, bySuffix, handlers)
             },
           })
         },
@@ -114,4 +141,40 @@ export function createContributions() {
       })
     },
   }
+}
+
+/**
+ * A timed row's trailing control, in whichever of the three states applies
+ * (spec §1.2):
+ *
+ *   - no note, not hovered - nothing drawn. The button stays in the DOM so
+ *     Tab still reaches it, but is invisible until hovered or focused
+ *     (`components.css`, `.offer`) - it must be a real `<button>` for that to
+ *     be true regardless of where the mouse is.
+ *   - no note, row hovered or a child focused - `＋ notes`
+ *   - a note exists - `✎`, always shown, and `.done` rather than quiet: a
+ *     note you already wrote is not something to hide behind a hover
+ *
+ * Hidden outright, rather than left blank, when the row's own title makes no
+ * suffix at all (a title with no letters or digits in it) or no block
+ * answered for it: there is nothing this control could open, and a button
+ * that does nothing is worse than no button.
+ *
+ * @param {HTMLButtonElement} offer
+ * @param {Event} event
+ * @param {Map<string, Block>} bySuffix
+ * @param {{onOpen: (block: Block) => void}} handlers
+ * @returns {void}
+ */
+function updateOffer(offer, event, bySuffix, handlers) {
+  const suffix = suffixFor(MEETING, event.text)
+  const block = suffix === '' ? undefined : bySuffix.get(suffix)
+
+  offer.hidden = block === undefined
+  if (block === undefined) return
+
+  const done = block.kind === 'editor'
+  setClass(offer, 'done', done)
+  setText(offer, done ? '✎' : '＋ notes')
+  offer.onclick = () => handlers.onOpen(block)
 }

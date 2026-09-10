@@ -1,7 +1,7 @@
 // @ts-check
 
 /**
- * `plugins/meeting-notes/index.js` and `plugins/task-notes/index.js` each
+ * `plugins/macos-calendar/index.js` and `plugins/task-notes/index.js` each
  * carry their own copies of a handful of `src/core/sidecars.js` declarations
  * - `stemOf`, `isPrefix`, `suffixFor`, `sidecarRef`, and the constants
  * `LONGEST_SUFFIX`, `LONGEST_STEM`, `LONGEST_PREFIX` and `SUFFIX`. This is
@@ -30,7 +30,7 @@ const CORE_PATH = fileURLToPath(new URL('../src/core/sidecars.js', import.meta.u
 /** Every plugin that carries copies of `src/core/sidecars.js` declarations.
  *  A plugin that names a sidecar has to be here: the copies are the only way
  *  it can name one, and this is the only thing holding them to the original. */
-const PLUGINS = ['meeting-notes', 'task-notes']
+const PLUGINS = ['macos-calendar', 'task-notes']
 
 /** The functions the plugins copy from the core module. */
 const FUNCTIONS = ['stemOf', 'isPrefix', 'suffixFor', 'sidecarRef']

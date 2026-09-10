@@ -1,11 +1,17 @@
 name = "macos-calendar"
-version = "0.1.0"
-description = "Shows the day's events under your list"
+version = "0.2.0"
+description = "The day's events, and a note on the ones you want one for"
 entry = "index.js"
-slots = ["vault.contribute"]
+slots = ["vault.contribute", "page.note", "search.provide"]
 
 [contribute]
 heading = "On the calendar"
 
+# One line, because `core/toml.js` reads single-line arrays and nothing else.
 [permissions]
-capabilities = ["macos.calendar.read"]
+capabilities = ["macos.calendar.read", "vault.sidecar.read"]
+
+# Every file this plugin may name begins `meeting`. Nothing else may name one,
+# and it may name nothing else.
+[sidecars]
+prefixes = ["meeting"]
