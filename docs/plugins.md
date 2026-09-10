@@ -471,7 +471,7 @@ from your answer: you name a note once, and after that it is somebody's writing.
 A gesture on a line, and a page of your own about it:
 
 ```toml
-slots = ["item.action", "item.badge", "page.note"]
+slots = ["item.action", "item.badge"]
 
 [action]
 label = "Notes"
@@ -502,11 +502,15 @@ other day has to name a file that is already there; the app goes to that day
 and shows it. So a note you have written stays where you wrote it, and nothing
 you name can put a file in the vault on a day nobody is looking at.
 
-**Declare `page.note` too.** A note-or-offer control on a row comes only from
-a `page.note` answer, matched back to the row it's about by suffix — without
-one, nothing appears there for a plugin whose row it is. `task-notes` declares
-it as well and draws nothing from it — none of its notes sit on a row. They
-are marked by `item.badge` and opened by `item.action` instead.
+**Declare `page.note` only if you contribute rows.** A note-or-offer control
+on a contributed row comes only from a `page.note` answer, matched back to the
+row it's about by the suffix that row's own title makes under one of *your*
+prefixes — without one, nothing appears there for a plugin whose row it is. A
+plugin that contributes no rows has nothing to draw a control on, so the slot
+would grant it nothing and the tick would be asking you to approve a sentence
+that is not true. `task-notes` is that plugin: it reaches its notes from a
+marker and a chord instead, and both of those are held to its `[sidecars]
+prefixes` rather than to any slot.
 
 **A line has no identity, and this is the part to think about.** A line is a
 position and some words. The position moves under any edit above it, and
