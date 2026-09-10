@@ -193,3 +193,34 @@ pub fn write_sidecar(
     }
     Ok(())
 }
+
+/// Deletes a sidecar by moving it aside (spec §2.4).
+///
+/// The app's own gesture: no plugin declares it, no capability grants it, and
+/// it is reachable only from the app's own windows. An accidentally created
+/// note is the app's problem rather than a plugin's.
+#[tauri::command]
+pub fn delete_sidecar(
+    app: AppHandle,
+    vault: State<'_, SharedVault>,
+    date: String,
+    suffix: String,
+) -> Result<(), String> {
+    let root = vault.lock().expect("vault lock").root.clone().ok_or("no vault is open")?;
+
+    let at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|error| error.to_string())?
+        .as_secs();
+
+    vault_io::sidecars::trash(&root, &date, &suffix, at).map_err(|error| {
+        eprintln!("planner: could not delete {date}.{suffix}: {error}");
+        error.to_string()
+    })?;
+
+    let payload = serde_json::json!({ "date": date, "suffix": suffix });
+    if let Err(error) = app.emit("sidecar:changed", payload) {
+        eprintln!("planner: deleted {date}.{suffix} but could not announce it: {error}");
+    }
+    Ok(())
+}

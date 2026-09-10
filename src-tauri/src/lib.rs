@@ -77,6 +77,7 @@ pub fn run() {
         vault::read_sidecar,
         vault::list_sidecars,
         vault::write_sidecar,
+        vault::delete_sidecar,
         tray::set_pinned,
         tray::set_badge,
         notify::set_notifications,

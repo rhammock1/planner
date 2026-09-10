@@ -103,6 +103,25 @@ pub fn write(root: &Path, date: &str, suffix: &str, text: &str) -> std::io::Resu
     super::write_atomic(&path, text)
 }
 
+/// Moves a sidecar into `.trash/`, stamped with the second it went.
+///
+/// Mirrors `trashPath` in `src/core/sidecars.js`; the two must agree, which is
+/// why both are one line over the same rule. A rename rather than a remove:
+/// the vault is a folder of plain files somebody owns, and this app does not
+/// get to be the one that makes a note actually disappear.
+pub fn trash(root: &Path, date: &str, suffix: &str, at: u64) -> std::io::Result<()> {
+    let from = sidecar_path(root, date, suffix).ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("{date}.{suffix} is not a sidecar's name"),
+        )
+    })?;
+
+    let bin = root.join(".trash");
+    fs::create_dir_all(&bin)?;
+    fs::rename(&from, bin.join(format!("{date}.{suffix}.{at}.md")))
+}
+
 /// Every sidecar between two dates, inclusive, in date then suffix order.
 ///
 /// Reads each file it finds, because the title is the first line of it and a

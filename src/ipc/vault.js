@@ -141,6 +141,21 @@ export async function writeSidecar(date, suffix, text) {
 }
 
 /**
+ * Deletes a sidecar by moving it into `.trash/` (spec §2.4).
+ *
+ * The app's own gesture. A plugin names a sidecar and never writes one, and it
+ * does not delete one either - there is no capability for this and no
+ * manifest declares it.
+ *
+ * @param {string} date
+ * @param {string} suffix
+ * @returns {Promise<void>}
+ */
+export async function deleteSidecar(date, suffix) {
+  return (await getHost()).deleteSidecar(date, suffix)
+}
+
+/**
  * Fires when a sidecar changes on disk, whoever changed it.
  *
  * @param {(change: {date: string, suffix: string}) => void} handler

@@ -41,6 +41,7 @@
  * @property {(date: string, suffix: string) => Promise<string|null>} readSidecar
  * @property {(from: string, to: string) => Promise<Sidecar[]>} listSidecars
  * @property {(date: string, suffix: string, text: string) => Promise<void>} writeSidecar
+ * @property {(date: string, suffix: string) => Promise<void>} deleteSidecar
  * @property {(handler: (change: {date: string, suffix: string}) => void) => void|Promise<void>} onSidecarChanged
  * @property {() => Promise<{name: string, manifest: string}[]>} listPlugins
  * @property {(grant: import('../core/plugins.js').Grant) => Promise<void>} startPlugin
@@ -152,6 +153,7 @@ function tauriHost() {
     readSidecar: (date, suffix) => invoke('read_sidecar', { date, suffix }),
     listSidecars: (from, to) => invoke('list_sidecars', { from, to }),
     writeSidecar: (date, suffix, text) => invoke('write_sidecar', { date, suffix, text }),
+    deleteSidecar: (date, suffix) => invoke('delete_sidecar', { date, suffix }),
     // Same shape as `onVaultChanged`: unwrapped and coerced here rather than
     // handed the raw payload, so a malformed event cannot hand the rest of
     // the app anything but a pair.

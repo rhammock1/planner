@@ -97,6 +97,12 @@ export function sampleHost() {
       sidecars.set(`${date}/${suffix}`, text)
       for (const handler of sidecarHandlers) handler({ date, suffix })
     },
+    // No `.trash/` in a browser - there is no filesystem to move a file
+    // aside on - so the entry is simply dropped from the map.
+    deleteSidecar: async (date, suffix) => {
+      sidecars.delete(`${date}/${suffix}`)
+      for (const handler of sidecarHandlers) handler({ date, suffix })
+    },
     onSidecarChanged: (handler) => { sidecarHandlers.push(handler) },
 
     // No plugin host in a browser: nothing to install, nothing to start.
