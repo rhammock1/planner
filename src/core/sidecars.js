@@ -81,6 +81,12 @@ export function sidecarPath(date, suffix) {
  * make a note, delete it, make it again, delete it again - is the ordinary
  * case rather than the odd one, and two files cannot share a name.
  *
+ * A second is coarse enough that both of those deletes can land inside one,
+ * so this is where the name *starts*: `trash` in
+ * `src-tauri/src/vault_io/sidecars.rs` takes the first free one of this,
+ * then `…{at}-2.md`, and so on. Nothing already in the bin is ever written
+ * over, which is the whole of what moving a note aside promises.
+ *
  * A dotfolder at the vault root, so `list` (which walks `YYYY/MM/`) never sees
  * one and a trashed note leaves no marker and no offer behind.
  *
