@@ -549,18 +549,18 @@ mod asking {
             },
         });
 
-        let mine = envelope(7, "page.section", &now, &params, "meeting-notes");
-        assert_eq!(mine["kind"], "page.section");
+        let mine = envelope(7, "page.note", &now, &params, "meeting-notes");
+        assert_eq!(mine["kind"], "page.note");
         assert_eq!(mine["date"], "2026-09-02");
         assert_eq!(mine["sidecars"][0]["suffix"], "meeting-standup");
         // Nobody is shown the whole table, including the plugin whose entry it is.
         assert!(mine.get("per").is_none());
 
-        let theirs = envelope(8, "page.section", &now, &params, "task-notes");
+        let theirs = envelope(8, "page.note", &now, &params, "task-notes");
         assert_eq!(theirs["sidecars"], serde_json::json!([]));
 
         // A plugin with no entry is told the rest of the question and nothing more.
-        let other = envelope(9, "page.section", &now, &params, "a-third-plugin");
+        let other = envelope(9, "page.note", &now, &params, "a-third-plugin");
         assert!(other.get("sidecars").is_none());
         assert_eq!(other["date"], "2026-09-02");
     }
@@ -574,9 +574,9 @@ mod asking {
             "per": { "a-plugin": { "id": 999, "kind": "something-else", "now": "yesterday" } },
         });
 
-        let asked = envelope(7, "page.section", &now, &params, "a-plugin");
+        let asked = envelope(7, "page.note", &now, &params, "a-plugin");
         assert_eq!(asked["id"], 7);
-        assert_eq!(asked["kind"], "page.section");
+        assert_eq!(asked["kind"], "page.note");
         assert_eq!(asked["now"]["time"], "09:15");
     }
 }

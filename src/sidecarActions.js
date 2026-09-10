@@ -1,13 +1,14 @@
 // @ts-check
 
 /**
- * The two gestures that end with a caret in a block: an offer pressed, and a
- * search result followed.
+ * Every gesture that ends with a note open over the day: an offer pressed, a
+ * search result followed, a marker clicked, a chord on a line, and a link
+ * from inside another note.
  *
- * Both of them navigate, both of them may make a file, and both of them then
- * have to wait - the block they want does not exist until the day has been
- * listed and its plugin asked again. So both end the same way, by naming the
- * suffix a later draw should reveal.
+ * All of them navigate, any of them may make a file, and all of them then
+ * have to wait - the note they want is not in the store until the day has
+ * been listed and read again. So all of them end the same way, by naming the
+ * suffix a later draw should open.
  *
  * Takes a `Surface` rather than reaching for `app.js`'s module state, the way
  * `vaultActions.js` takes `store` and `ipc` - nothing here reaches for
@@ -35,8 +36,8 @@ import { SOMEDAY } from './core/vaultIndex.js'
  * @property {Store} store
  * @property {() => string} page  the day on screen
  * @property {(date: string) => void} go  put a day on screen
- * @property {(suffix: string) => void} reveal  the block a later draw should
- *   put the caret in, once the plugin has answered about it again
+ * @property {(suffix: string) => void} reveal  the note a later draw should
+ *   open, once the day's files have been listed and read again
  * @property {() => void} closeSearch
  * @property {() => void} draw
  */
@@ -105,14 +106,14 @@ export async function openNote(surface, ref, page, title) {
     if (!await surface.store.changeSidecar(ref.date, ref.suffix, `# ${title}\n\n`)) return
   }
   if (route.go !== null) surface.go(route.go)
-  // Not yet: the block exists once the listing and the plugin both catch up,
-  // which `draw` keeps trying for on every pass.
+  // Not yet: the note is openable once the day's listing and the file's own
+  // text have both caught up, which `draw` keeps trying for on every pass.
   surface.reveal(ref.suffix)
   surface.draw()
 }
 
 /**
- * Turns an offer into a note, and puts the caret in it.
+ * Turns an offer into a note, and opens it.
  *
  * The app holds the pen: the plugin named the file, and it is created here
  * with the offered title as its first line (spec §4.1). Already there is not
@@ -134,8 +135,8 @@ export async function openSidecar(surface, block) {
  * Goes where a provider's hit points.
  *
  * A date jumps to that day, exactly as a vault hit does. A `sidecar:` href
- * then puts the caret in the block - which may take a draw or two, because
- * the day it names has to be listed and its plugin asked (spec §4.3).
+ * then opens the note - which may take a draw or two, because the day it
+ * names has to be listed and the file read (spec §4.3).
  *
  * @param {Surface} surface
  * @param {Provided} hit
@@ -150,6 +151,32 @@ export async function followHit(surface, hit) {
   surface.closeSearch()
   if (named !== null) surface.reveal(named.suffix)
   surface.draw()
+}
+
+/**
+ * A `sidecar:` link inside a note, followed (spec §2.3).
+ *
+ * The same road as every other gesture, and deliberately not a second
+ * resolver: `openNote` decides what the ref means against the day the note is
+ * open on, and the draw loop opens whatever it names.
+ *
+ * No prefix check, unlike `openMarker` below. That list says which files a
+ * *plugin* may name, and this link is not a plugin's - you typed it into your
+ * own note. `title` is null all the same: a link is not an invitation to
+ * create the file it points at, so a ref naming a note that is not there gets
+ * the notice `openNote` gives every other caller that may not author one.
+ *
+ * @param {Surface} surface
+ * @param {string} href
+ * @returns {Promise<void>}
+ */
+export async function followRef(surface, href) {
+  // Captured once, before `openNote`'s await: the link was in a note open on
+  // this page, whatever the page has moved to by the time the read resolves.
+  const page = surface.page()
+  const ref = readRef(href)
+  if (ref === null) return
+  await openNote(surface, ref, page, null)
 }
 
 /**

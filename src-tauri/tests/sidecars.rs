@@ -190,3 +190,41 @@ fn a_title_is_cut_at_eighty_characters_counted_as_characters() {
     assert_eq!(titled("note-long"), format!("{}…", "b".repeat(79)));
     assert_eq!(titled("note-astral"), astral);
 }
+
+#[test]
+fn a_deleted_sidecar_is_moved_aside_rather_than_unlinked() {
+    let root = vault("trash");
+    sidecars::write(&root, "2026-09-01", "meeting-standup", "# Standup\n\nnotes\n").unwrap();
+
+    sidecars::trash(&root, "2026-09-01", "meeting-standup", 1_757_520_000).expect("could not trash");
+
+    // Gone from the day it was on, and gone from what a plugin or the app can
+    // list - `.trash/` is at the root, and `list` walks `YYYY/MM/`.
+    assert_eq!(sidecars::read(&root, "2026-09-01", "meeting-standup"), None);
+    assert!(sidecars::list(&root, "2026-09-01", "2026-09-01").is_empty());
+
+    // Still a file somebody owns, under the name `trashPath` promises.
+    let bin = root.join(".trash").join("2026-09-01.meeting-standup.1757520000.md");
+    assert_eq!(fs::read_to_string(&bin).ok().as_deref(), Some("# Standup\n\nnotes\n"));
+}
+
+#[test]
+fn two_deletes_inside_one_second_do_not_write_over_each_other() {
+    let root = vault("trash-twice");
+    let at = 1_757_520_000;
+
+    sidecars::write(&root, "2026-09-01", "meeting-standup", "the first one\n").unwrap();
+    sidecars::trash(&root, "2026-09-01", "meeting-standup", at).unwrap();
+    sidecars::write(&root, "2026-09-01", "meeting-standup", "the second one\n").unwrap();
+    sidecars::trash(&root, "2026-09-01", "meeting-standup", at).unwrap();
+
+    let bin = root.join(".trash");
+    assert_eq!(
+        fs::read_to_string(bin.join("2026-09-01.meeting-standup.1757520000.md")).ok().as_deref(),
+        Some("the first one\n"),
+    );
+    assert_eq!(
+        fs::read_to_string(bin.join("2026-09-01.meeting-standup.1757520000-2.md")).ok().as_deref(),
+        Some("the second one\n"),
+    );
+}

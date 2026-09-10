@@ -103,6 +103,56 @@ pub fn write(root: &Path, date: &str, suffix: &str, text: &str) -> std::io::Resu
     super::write_atomic(&path, text)
 }
 
+/// How many times one suffix may be trashed inside a single second.
+///
+/// Not a real limit on anything a person does - it is the point past which a
+/// caller is looping rather than deleting, and where an error says more than
+/// another file would.
+const MOST_IN_A_SECOND: u32 = 64;
+
+/// Moves a sidecar into `.trash/`, stamped with the second it went.
+///
+/// Mirrors `trashPath` in `src/core/sidecars.js`, which is the name a trashed
+/// note gets; the two must agree, which is why both are one line over the same
+/// rule. A rename rather than a remove: the vault is a folder of plain files
+/// somebody owns, and this app does not get to be the one that makes a note
+/// actually disappear.
+///
+/// Which is exactly why the stamp is where the name *starts* rather than where
+/// it ends. A second is not fine enough to tell two deletes apart - make a
+/// note, delete it, make it again, delete it again, all inside one second, and
+/// both want the same path - and `fs::rename` overwrites without a word, which
+/// would be this app making a note somebody had already put in the bin
+/// disappear after all. So the first free one of `…{at}.md`, `…{at}-2.md`,
+/// `…{at}-3.md` wins.
+pub fn trash(root: &Path, date: &str, suffix: &str, at: u64) -> std::io::Result<()> {
+    let from = sidecar_path(root, date, suffix).ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("{date}.{suffix} is not a sidecar's name"),
+        )
+    })?;
+
+    let bin = root.join(".trash");
+    fs::create_dir_all(&bin)?;
+
+    for nth in 1..=MOST_IN_A_SECOND {
+        let to = bin.join(if nth == 1 {
+            format!("{date}.{suffix}.{at}.md")
+        } else {
+            format!("{date}.{suffix}.{at}-{nth}.md")
+        });
+        if !to.exists() {
+            return fs::rename(&from, to);
+        }
+    }
+
+    Err(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        format!("{date}.{suffix} has been deleted too many times in one second"),
+    ))
+}
+
 /// Every sidecar between two dates, inclusive, in date then suffix order.
 ///
 /// Reads each file it finds, because the title is the first line of it and a

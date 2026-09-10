@@ -207,6 +207,21 @@ export async function openUrl(plugin, url) {
 }
 
 /**
+ * Opens an address from one of your own notes (spec §2.3).
+ *
+ * No plugin is named because none is involved: you typed the link. So there
+ * is no approved list to check it against, and the scheme is what Rust checks
+ * instead - `http`, `https` and `mailto`, the three the note view draws as a
+ * link in the first place.
+ *
+ * @param {string} url
+ * @returns {Promise<void>}
+ */
+export async function openLink(url) {
+  return (await getHost()).openLink(url)
+}
+
+/**
  * Fires when the menu bar icon opens the popover.
  *
  * Opening it is asking what today looks like, which makes it the moment to

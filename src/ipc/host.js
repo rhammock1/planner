@@ -41,6 +41,7 @@
  * @property {(date: string, suffix: string) => Promise<string|null>} readSidecar
  * @property {(from: string, to: string) => Promise<Sidecar[]>} listSidecars
  * @property {(date: string, suffix: string, text: string) => Promise<void>} writeSidecar
+ * @property {(date: string, suffix: string) => Promise<void>} deleteSidecar
  * @property {(handler: (change: {date: string, suffix: string}) => void) => void|Promise<void>} onSidecarChanged
  * @property {() => Promise<{name: string, manifest: string}[]>} listPlugins
  * @property {(grant: import('../core/plugins.js').Grant) => Promise<void>} startPlugin
@@ -49,6 +50,7 @@
  * @property {() => Promise<PluginState[]>} pluginStates
  * @property {(handler: () => void) => void|Promise<void>} onPopoverShown
  * @property {(plugin: string, url: string) => Promise<void>} openUrl
+ * @property {(url: string) => Promise<void>} openLink
  */
 
 /**
@@ -135,6 +137,7 @@ function tauriHost() {
     askPlugins: (slot, now, params) => invoke('ask_plugins', { slot, now, params }),
     pluginStates: () => invoke('plugin_states'),
     openUrl: (plugin, url) => invoke('open_url', { plugin, url }),
+    openLink: (url) => invoke('open_link', { url }),
     onPopoverShown: (handler) => tauri.event.listen('popover:shown', () => handler()),
     readTheme: (name) => invoke('read_theme', { name }),
     readVault: () => invoke('read_vault'),
@@ -152,6 +155,7 @@ function tauriHost() {
     readSidecar: (date, suffix) => invoke('read_sidecar', { date, suffix }),
     listSidecars: (from, to) => invoke('list_sidecars', { from, to }),
     writeSidecar: (date, suffix, text) => invoke('write_sidecar', { date, suffix, text }),
+    deleteSidecar: (date, suffix) => invoke('delete_sidecar', { date, suffix }),
     // Same shape as `onVaultChanged`: unwrapped and coerced here rather than
     // handed the raw payload, so a malformed event cannot hand the rest of
     // the app anything but a pair.

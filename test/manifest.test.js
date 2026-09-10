@@ -291,7 +291,7 @@ test('a permissions.run that is not a table stops the plugin', () => {
 test('a plugin declares the prefixes it owns', () => {
   const read = readManifest([
     'entry = "index.js"',
-    'slots = ["page.section"]',
+    'slots = ["page.note"]',
     '',
     '[sidecars]',
     'prefixes = ["meeting", "standup"]',

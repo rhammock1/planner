@@ -49,7 +49,7 @@ const LOOK_BACK = 30
  * cannot find. `test/plugin-sidecar-parity.test.js` holds the copies against
  * each other so drift is caught here rather than on somebody's day.
  *
- * Copy them out of `plugins/meeting-notes/index.js`, which already carries
+ * Copy them out of `plugins/macos-calendar/index.js`, which already carries
  * the same set and is already held against core by that test - two copies
  * that agree is one thing to keep true, three that disagree is a bug hunt.
  */
@@ -123,7 +123,7 @@ function sidecarRef(date, suffix) {
 }
 
 /**
- * `dayOffset` is copied from `plugins/meeting-notes/index.js` rather than
+ * `dayOffset` is copied from `plugins/macos-calendar/index.js` rather than
  * from `src/core/dates.js`, whose `addDays` computes the same answer by
  * different arithmetic. It is **not** covered by the parity test, because it
  * has no twin in `src/core/sidecars.js` - so if you change it, change it in
@@ -174,15 +174,6 @@ function newestFor(mine, suffix) {
   }
   return null
 }
-
-/**
- * A block for every note of ours on this day.
- *
- * No offers: a note is made by pressing the chord on a line, never by a
- * button on the page. The host has already told us which of our files are on
- * this day, so nothing here needs the capability at all.
- */
-planner.on('page.section', ({ sidecars }) => sidecars.map((one) => ({ suffix: one.suffix })))
 
 /**
  * `✎` after every line that has a note.
@@ -238,7 +229,7 @@ planner.on('item.action', async ({ date, text }) => {
     mine = await lookBack(date)
   } catch {
     // A refused capability costs you the look-back, never the note: the same
-    // bargain `meeting-notes` makes with a refused calendar. The worst case
+    // bargain `macos-calendar` makes with a refused calendar. The worst case
     // is a second note for a line whose first one is on an older day, and
     // both are files in your vault that ⌘F can find.
     mine = []

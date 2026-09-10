@@ -1,13 +1,13 @@
 // @ts-check
 
 /**
- * `page.section`: what a plugin may put under a day, and what it may name.
+ * `page.note`: what a plugin may put under a day, and what it may name.
  */
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { readSections, sectionKey } from '../src/core/sections.js'
+import { blockForRow, readSections, sectionKey } from '../src/core/sections.js'
 
 const owned = new Map([['meeting-notes', ['meeting']], ['task-notes', ['note']]])
 const existing = new Map([['meeting-standup', 'Standup']])
@@ -173,4 +173,41 @@ test('a title is measured in code points, the way Rust measures it', () => {
     owned,
   )
   assert.equal(blocks[0]?.title, title)
+})
+
+/**
+ * Two plugins, both contributing timed rows, and both with a meeting called
+ * Standup on the day. This is the shape the prefix rule exists for.
+ */
+const CROSS = new Map([['macos-calendar', ['meeting']], ['macos-reminders', ['remind']]])
+
+/** @type {import('../src/core/sections.js').Block} */
+const MEETING = { plugin: 'macos-calendar', suffix: 'meeting-standup', title: 'Standup', kind: 'editor' }
+
+/** @type {import('../src/core/sections.js').Block} */
+const REMINDER = { plugin: 'macos-reminders', suffix: 'remind-standup', title: 'Standup', kind: 'offer' }
+
+const BOTH = [MEETING, REMINDER]
+
+test('a row finds the block its own plugin named for it', () => {
+  assert.deepEqual(blockForRow('macos-calendar', 'Standup', BOTH, CROSS), MEETING)
+  assert.deepEqual(blockForRow('macos-reminders', 'Standup', BOTH, CROSS), REMINDER)
+})
+
+test('a row never reaches another plugin\'s file, however alike the titles', () => {
+  // The calendar's block is the only one on the day, and the reminder's row
+  // is called exactly the same thing. Matching on the suffix alone - or on a
+  // prefix name written into the view - opens somebody else's note.
+  assert.equal(blockForRow('macos-reminders', 'Standup', [MEETING], CROSS), null)
+})
+
+test('a plugin that owns no prefix matches nothing', () => {
+  assert.equal(blockForRow('macos-calendar', 'Standup', BOTH, new Map()), null)
+})
+
+test('a title that makes no stem names no file', () => {
+  // Nothing but punctuation: `suffixFor` gives back `''`, and an empty
+  // suffix must not be looked up as if it were one.
+  assert.equal(blockForRow('macos-calendar', '!!!', BOTH, CROSS), null)
+  assert.equal(blockForRow('macos-calendar', '', BOTH, CROSS), null)
 })

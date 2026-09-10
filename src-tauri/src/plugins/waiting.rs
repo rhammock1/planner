@@ -142,7 +142,7 @@ impl Started {
 /// plugin is told merged in, and the three things the host owns written over
 /// the top.
 ///
-/// `per` is how a round of asking stops being one question. `page.section`
+/// `per` is how a round of asking stops being one question. `page.note`
 /// tells each plugin which of *its* sidecars exist for the day (spec §4.2),
 /// so the frontend - which is where the manifests are read and where who owns
 /// what is settled - hands over an object keyed by plugin name, and this takes

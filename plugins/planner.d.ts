@@ -94,7 +94,7 @@ declare namespace Planner {
     now: Now
   }
 
-  /** The question behind the `page.section` slot. */
+  /** The question behind the `page.note` slot. */
   interface SectionQuestion {
     now: Now
     /** The page being drawn, `YYYY-MM-DD`. */
@@ -103,7 +103,7 @@ declare namespace Planner {
     sidecars: { suffix: string; title: string }[]
   }
 
-  /** A block you are asking for. A suffix that exists is a block to type in;
+  /** A note you are asking for. A suffix that exists is a note to open;
    *  one that does not is an offer, and needs a title to write on it. */
   interface SectionAnswer {
     suffix: string
@@ -225,7 +225,7 @@ declare const planner: {
     Planner.ActionAnswer | null | Promise<Planner.ActionAnswer | null>): void
   on(slot: 'theme.tokens', handler: (question: Planner.TokensQuestion) =>
     Record<string, string> | Promise<Record<string, string>>): void
-  on(slot: 'page.section', handler: (question: Planner.SectionQuestion) =>
+  on(slot: 'page.note', handler: (question: Planner.SectionQuestion) =>
     Planner.SectionAnswer[] | Promise<Planner.SectionAnswer[]>): void
   on(slot: 'search.provide', handler: (question: Planner.SearchQuestion) =>
     Planner.SearchHit[] | Promise<Planner.SearchHit[]>): void

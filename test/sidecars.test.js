@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
-  isSuffix, isPrefix, sidecarPath, stemOf, suffixFor, owns,
+  isSuffix, isPrefix, sidecarPath, trashPath, stemOf, suffixFor, owns,
   sidecarRef, readRef, settlePrefixes, LONGEST_SUFFIX, LONGEST_PREFIX,
 } from '../src/core/sidecars.js'
 
@@ -49,6 +49,27 @@ test('a path is refused rather than guessed at', () => {
   assert.equal(sidecarPath('2026-9-1', 'meeting'), null, 'not a date')
   assert.equal(sidecarPath('2026-09-01', '../../etc/passwd'), null)
   assert.equal(sidecarPath('2026-09-01', ''), null)
+})
+
+test('a deleted note goes to the trash under a stamped name', () => {
+  assert.equal(
+    trashPath('2026-09-10', 'note-gift-card-promotions', 1757520000),
+    '.trash/2026-09-10.note-gift-card-promotions.1757520000.md',
+  )
+})
+
+test('deleting the same suffix twice does not collide', () => {
+  const first = trashPath('2026-09-10', 'meeting-standup', 1757520000)
+  const second = trashPath('2026-09-10', 'meeting-standup', 1757520061)
+  assert.notEqual(first, second)
+})
+
+test('the trash is refused the names a sidecar is refused', () => {
+  assert.equal(trashPath('2026-09-10', '../escape', 1757520000), null)
+  assert.equal(trashPath('not-a-date', 'note-x', 1757520000), null)
+  assert.equal(trashPath('2026-09-10', 'Note-X', 1757520000), null)
+  assert.equal(trashPath('2026-09-10', 'note-x', -1), null, 'a time before the epoch')
+  assert.equal(trashPath('2026-09-10', 'note-x', 1.5), null, 'seconds, whole ones')
 })
 
 test('a title becomes a stem a filesystem can hold', () => {
