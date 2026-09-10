@@ -235,7 +235,7 @@ check('a day with nothing contributed shows no section at all', () => {
 check('contributed events appear under the list and above the note', () => {
   show(3, 2)
   const order = [...stage.querySelectorAll('.page > *')].map((part) => part.className)
-  equal(order.join(' '), 'page-head notice-band carry horizon items add day-sections note page-foot search settings', 'the section is in the wrong place')
+  equal(order.join(' '), 'page-head notice-band carry horizon items add day-sections note evidence page-foot search settings note-view', 'the section is in the wrong place')
   equal(stage.querySelectorAll('.given-item').length, 2, 'the events did not appear')
 })
 
@@ -443,36 +443,67 @@ check('a negative number of days is put back rather than written', () => {
   equal(lead.value, '7', 'the field was left showing something the config would refuse')
 })
 
-// Two contributors is the case the heading exists for. Both sections have to
-// be on the page at once, and the footer still has to be at the bottom of it.
-check('two plugins get two headed sections, and the footer stays put', () => {
-  // `show` mounts the page; this re-renders it with two sections rather than
-  // one, which is the case the heading exists for.
-  show(6)
+/**
+ * Re-renders the page the plugins have now said something about. `show`
+ * mounts it; this is the second render the two checks below both need, and
+ * only the sections differ between them.
+ *
+ * @param {import('../../src/core/contributions.js').Section[]} sections
+ * @returns {void}
+ */
+function contribute(sections) {
   dayPage.render({
     today: '2026-09-01',
     page: '2026-09-01',
     doc: parse(pageOf(6)),
     horizon: [],
     carry: [],
-    sections: [
-      { plugin: 'git-activity', heading: 'From git', events: [{ time: null, text: '6 commits to gotab-inc/node' }] },
-      { plugin: 'macos-calendar', heading: 'On the calendar', events: [{ time: '09:30', text: 'Standup' }] },
-    ],
+    sections,
     blocks: [],
     notices: [],
     actions: [],
   })
+}
+
+// Two contributors is the case the heading exists for - and since spec §1.1
+// it is two cases, because a line with no time on it is not given a section
+// at all. One of each here: the timed plugin keeps its heading under the
+// list, and the untimed one's line folds under the day's own note as
+// evidence, carrying the heading down with it.
+check('a timed plugin is headed, an untimed one folds under the note, and the footer stays put', () => {
+  show(6)
+  contribute([
+    { plugin: 'git-activity', heading: 'From git', events: [{ time: null, text: '6 commits to gotab-inc/node' }] },
+    { plugin: 'macos-calendar', heading: 'On the calendar', events: [{ time: '09:30', text: 'Standup' }] },
+  ])
 
   const heads = [...stage.querySelectorAll('.given-head')].map((one) => one.textContent)
-  equal(heads.join(' | '), 'From git | On the calendar', 'the two sections are not headed by their plugins')
+  equal(heads.join(' | '), 'On the calendar', 'the untimed plugin was still given a section of its own')
+
+  const folded = [...stage.querySelectorAll('.evidence-row')]
+    .map((row) => [...row.children].map((cell) => cell.textContent).join(' · '))
+  equal(folded.join(' | '), 'From git · 6 commits to gotab-inc/node', 'the untimed line did not fold under the note')
 
   const foot = part('.page-foot').getBoundingClientRect()
   const window = stage.getBoundingClientRect()
   ok(
     Math.abs(foot.bottom - window.bottom) <= 1,
-    `two sections pushed the footer to ${Math.round(foot.bottom)} in a window ending at ${Math.round(window.bottom)}`,
+    `two contributors pushed the footer to ${Math.round(foot.bottom)} in a window ending at ${Math.round(window.bottom)}`,
   )
+})
+
+// The heading is per plugin, so two plugins with something timed to say are
+// two sections rather than one list under whichever heading came first.
+check('two timed plugins get two headed sections', () => {
+  show(6)
+  contribute([
+    { plugin: 'git-activity', heading: 'From git', events: [{ time: '17:40', text: '6 commits to gotab-inc/node' }] },
+    { plugin: 'macos-calendar', heading: 'On the calendar', events: [{ time: '09:30', text: 'Standup' }] },
+  ])
+
+  const heads = [...stage.querySelectorAll('.given-head')].map((one) => one.textContent)
+  equal(heads.join(' | '), 'From git | On the calendar', 'the two sections are not headed by their plugins')
+  equal(stage.querySelectorAll('.evidence-row').length, 0, 'a timed line folded under the note')
 })
 
 report()

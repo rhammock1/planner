@@ -7,9 +7,8 @@
  * Two things in one file because they are one region of the page and share
  * its one rule - neither is in your day file. A contributed line came from a
  * calendar; an offer is a note that is not there yet, and pressing it is what
- * makes one (spec §4.1). The daily note sits under both, in `dayPage.js`: it
- * has no dependency on either one, and keeping it there is what keeps this
- * file under the line count.
+ * makes one (spec §4.1). The daily note sits under both, in `dayPage.js`,
+ * because it has no dependency on either one.
  *
  * There are no editors here any more. A file beside the day used to be a
  * block you typed into on this page; it is a page of its own now
@@ -17,6 +16,12 @@
  * offers. So a `page.note` answer naming a file that already *exists* draws
  * nothing here - the offers are the half of that answer this region still has
  * anything to say about.
+ *
+ * Thin as that leaves it, the file stays rather than folding into
+ * `dayPage.js`, and the reason is the pairing: this is the one place holding
+ * both halves of the day at once - what the plugins contributed, and what
+ * they offered. An offer about a meeting belongs on that meeting's own row,
+ * and nothing can match the two up without both of them in the same hand.
  */
 
 import { el, setText } from '../ui/dom.js'
