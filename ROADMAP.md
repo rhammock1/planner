@@ -96,8 +96,7 @@ reach outside the sandbox.
    next plugin that thinks it does.
 
 **Write.** Beside your day file, never into it: [docs/format.md](docs/format.md)
-is a contract and a plugin is not a party to it. Sidecars, `page.section` and
-`meeting-notes` have landed; `task-notes` (#9) has not.
+is a contract and a plugin is not a party to it. Landed, whole.
 
 7. **Sidecar files.** A plugin gets a name next to the day it belongs to —
    `2026/09/2026-09-01.meeting-with-daryoush.md` — same folder, same date
@@ -118,11 +117,13 @@ is a contract and a plugin is not a party to it. Sidecars, `page.section` and
    about it, and the line carries a marker back to it. Forces `item.action`, a
    plugin adding a *gesture* to a line you wrote, which is a larger grant than
    a badge; the marker pointing back is `item.badge` again, already proven.
-   The open question is identity, and it is a real one: `onToggle(index)` says
-   a line is its position in the file, so editing the text or dragging it to
-   another day orphans a note keyed to it. Three candidates — the kebab-cased
-   text, a token in the line, or a content hash in plugin storage — and it
-   gets decided before the plugin is written, not during.
+   Identity was the open question and it was answered with the kebab of the
+   line's words, plus a look-back over the carry-forward window: the plugin
+   finds the newest `note-<kebab>` on or before the day being drawn, so a
+   carried line keeps its marker and the note stays where it was written.
+   Editing the words orphans the marker. If that turns out to be missed, the
+   `^abc123` block-ref spec §3.5 reserves is the app's to add, in core, with
+   a `format.md` change — not a plugin's.
 
 **Draw.** A box, and the plugin cannot leave it: no pointer events reaching
 your lines, no access to page DOM, its own stylesheet.
@@ -188,6 +189,6 @@ Two entries that belong here and have no phase:
   disappearing. That is the "nothing rots" idea — the day records what was
   decided, not only what was done.
 - A settings schema is a plugin describing itself, and so are a contributed
-  section's heading and a tab's name. Three manifest keys arriving separately
-  in three phases is worth watching: if the third looks like the first two,
-  they were one thing.
+  section's heading, a tab's name, and now a gesture's label. Four manifest
+  keys arriving separately in four phases is the same shape four times, which
+  is past the point of watching for it: they were one thing.

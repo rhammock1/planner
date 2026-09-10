@@ -442,6 +442,55 @@ elsewhere is held while the block has the caret and applied when it leaves.
 The title of a file that exists comes from the file's own first `# ` line, not
 from your answer: you name a note once, and after that it is somebody's writing.
 
+### `item.action`
+
+A gesture on a line, and a page of your own about it:
+
+```toml
+slots = ["item.action", "item.badge", "page.section"]
+
+[action]
+label = "Notes"
+
+[sidecars]
+prefixes = ["note"]
+```
+
+`label` is what the ⌘, pane calls your gesture, beside the tick that grants
+it. `⌘⇧N` on a focused line asks you, and this version asks **one** plugin: if
+two are ticked for `item.action` it says so and opens nothing, rather than
+choosing for you.
+
+```js
+// host -> plugin
+{ kind: 'item.action', now, date: '2026-09-02', index: 3, text: 'Review PR #4412' }
+// plugin -> host
+{ open: 'sidecar:2026-09-01/note-review-pr-4412' }
+```
+
+Answer with `open` — a `sidecar:` of yours to show, created if it is not
+there — or `null` when the line means nothing to you. Nothing else in this
+version: an action that changes the line is not something this API does.
+
+**Where a note may be made.** The app makes a file only when the ref's date is
+**the page being drawn**, which is the `date` in the question. A ref for any
+other day has to name a file that is already there; the app goes to that day
+and shows it. So a note you have written stays where you wrote it, and nothing
+you name can put a file in the vault on a day nobody is looking at.
+
+**Declare `page.section` too.** Sections are drawn only from `page.section`
+answers. A plugin that opened a note it could not list would show it once and
+lose it on the next draw.
+
+**A line has no identity, and this is the part to think about.** A line is a
+position and some words. The position moves under any edit above it, and
+carry-forward copies the words onto a new date every morning. So key a note on
+the *words*, and look back: list your sidecars for the window you care about
+in one call, and find the newest one on or before the question's `date`. That
+is what `task-notes` does, and why a line carried forward for a fortnight
+still carries its marker. Editing the words orphans the marker; the file stays,
+named for what the line said.
+
 ### `search.provide`
 
 ```toml

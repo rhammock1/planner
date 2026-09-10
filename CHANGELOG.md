@@ -11,6 +11,17 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Added
 
+-   `task-notes`, the fourth reference plugin: press ⌘⇧N on a line and get a
+    page of your own about it, kept in a file beside the day and typed into on
+    the page. The line carries a `✎` back to it. A line has no identity — it is
+    a position and some words, and carry-forward copies the words to a new date
+    every morning — so the note is keyed on the words and found by looking back
+    thirty days: a line carried for a fortnight keeps its marker, and the note
+    stays on the day it was written
+-   A plugin may add a gesture to a line you wrote (`item.action`). It is shown
+    the line you picked and answers with a file of its own to open — never with
+    a change to the line. The ⌘, pane names the gesture beside its tick, so what
+    you tick is *Notes*, not "does something to your lines"
 -   `meeting-notes` grows to 0.1.0: a block under the day for each meeting on
     the calendar, kept in a file beside the day and typed into on the page. It
     names the file and the app writes it. Its notes are searchable from ⌘F,
