@@ -110,13 +110,22 @@ export function linkTarget(url) {
  * millisecond.
  *
  * `link`'s url allows one level of balanced parentheses, because a Wikipedia
- * or a Jira address has them and `[^)\s]*` truncates at the first.
+ * or a Jira address has them and `[^)\s]*` truncates at the first. The two
+ * alternatives must stay *disjoint* on `(`: while the single-character branch
+ * was `[^)\s]`, it matched `(` as well, so every `(` in an unterminated url
+ * could be taken either way and a line of repeated `[…](` with no closing
+ * paren made the engine try all of them - measurably cubic, and a 20 KB
+ * pasted line hung the main thread for a minute and a half. Excluding `(` as
+ * well as `)` from that branch leaves exactly one way to read each character,
+ * so a url that never closes fails in one pass. The cost is that a url nested
+ * two levels deep no longer matches at all, where before it matched and
+ * silently truncated - the promise above was only ever one level.
  *
  * @type {{kind: 'code'|'link'|'strong'|'del'|'em', re: RegExp}[]}
  */
 const INLINE = [
   { kind: 'code', re: /`([^`]+)`/u },
-  { kind: 'link', re: /\[([^\]]*)\]\(((?:\([^)\s]*\)|[^)\s])*)\)/u },
+  { kind: 'link', re: /\[([^\]]*)\]\(((?:\([^()\s]*\)|[^()\s])*)\)/u },
   { kind: 'strong', re: /\*\*(?![\s*])((?:[^*]|\*(?!\*))+?)(?<![\s])\*\*/u },
   { kind: 'del', re: /~~(?![\s~])((?:[^~]|~(?!~))+?)(?<![\s])~~/u },
   { kind: 'em', re: /(?<!\*)\*(?![\s*])((?:[^*]|\*\*)+?)(?<![\s])\*(?!\*)/u },

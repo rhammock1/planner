@@ -108,6 +108,17 @@ test('a url may hold one level of balanced parentheses', () => {
   ])
 })
 
+test('a line of unterminated links does not hang the parser', () => {
+  // The shape that used to explore both url branches on every `(`: 500
+  // openers, no closing paren anywhere. Cubic before the branches were made
+  // disjoint - 20 KB of this took a reviewer's machine about 98 seconds, on
+  // the main thread, from merely opening the note. A wall clock in a test is
+  // a flake waiting to happen, so this asserts the shape of the answer and
+  // relies on the suite's own timeout for the hang.
+  const pathological = '[a]('.repeat(500)
+  assert.deepEqual(inlineOf(pathological), [{ kind: 'text', text: pathological }])
+})
+
 test('a link carries where it may go', () => {
   assert.deepEqual(inlineOf('[a](https://example.com/x)'), [
     { kind: 'link', text: 'a', url: 'https://example.com/x', where: 'out' },
