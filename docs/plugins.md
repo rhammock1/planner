@@ -116,6 +116,7 @@ that the manifest does not declare is never asked either.
 | `item.badge` | `{date, items: [{index, text}]}` — every line the parser understood on the page being drawn, and where it sits. Not its note, not its tokens, not the daily note. | `{index, label, href}[]` |
 | `theme.tokens` | The clock, and `tokens` — every theme token as the theme set it. You are asked to *move* those, and cannot move what you were never shown. Not the page: what you do with colour is a function of the time of day. | `Record<string, string>` — a partial map of theme tokens |
 | `page.section` | `{date, sidecars: [{suffix, title}]}` — which of *your* files exist on that day, and never anybody else's. | `{suffix, title?}[]` |
+| `item.action` | `{date, index, text}` — the line under the caret when `⌘⇧N` was pressed. | `{open: 'sidecar:…'}` or `null` |
 | `search.provide` | `{query}` — exactly what was typed into ⌘F. | `{text, date?, href?}[]` |
 
 A badge's `label` is one line, cut at 16 characters. Its `index` must be one
@@ -125,6 +126,16 @@ plugin.
 
 `href` is opened by the app when somebody clicks the marker. Your plugin is
 not asked anything at that point and does not run at all.
+
+`href` may instead be a `sidecar:` ref of your own — checked against your
+prefixes exactly as every other `sidecar:` href is (spec §4.1), and refused
+with a notice if it names a file outside them. Clicking a marker that names
+one of yours opens that note, which is how `task-notes` builds its `✎`.
+**A marker never creates a note** — the app opens it with no title to write,
+so a marker that turns out to name nothing gets a notice, not a file. In the
+detached window, clicking such a marker moves to the week the note's day
+sits in — that window has no block to put a caret in — switching to the week
+view if you clicked it from the someday tab.
 
 ### `theme.tokens`
 
@@ -441,6 +452,64 @@ elsewhere is held while the block has the caret and applied when it leaves.
 
 The title of a file that exists comes from the file's own first `# ` line, not
 from your answer: you name a note once, and after that it is somebody's writing.
+
+### `item.action`
+
+A gesture on a line, and a page of your own about it:
+
+```toml
+slots = ["item.action", "item.badge", "page.section"]
+
+[action]
+label = "Notes"
+
+[sidecars]
+prefixes = ["note"]
+```
+
+`label` is what the ⌘, pane calls your gesture, beside the tick that grants
+it. `⌘⇧N` on a focused line asks you, and this version asks **one** plugin: if
+two are ticked for `item.action` it says so and opens nothing, rather than
+choosing for you.
+
+```js
+// host -> plugin
+{ kind: 'item.action', now, date: '2026-09-02', index: 3, text: 'Review PR #4412' }
+// plugin -> host
+{ open: 'sidecar:2026-09-01/note-review-pr-4412' }
+```
+
+Answer with `open` — a `sidecar:` of yours to show, created if it is not
+there — or `null` when the line means nothing to you. Nothing else in this
+version: an action that changes the line is not something this API does.
+
+**Where a note may be made.** The app makes a file only when the ref's date is
+**the page being drawn**, which is the `date` in the question. A ref for any
+other day has to name a file that is already there; the app goes to that day
+and shows it. So a note you have written stays where you wrote it, and nothing
+you name can put a file in the vault on a day nobody is looking at.
+
+**Declare `page.section` too.** Sections are drawn only from `page.section`
+answers. A plugin that opened a note it could not list would show it once and
+lose it on the next draw.
+
+**A line has no identity, and this is the part to think about.** A line is a
+position and some words. The position moves under any edit above it, and
+carry-forward copies the words onto a new date every morning. So key a note on
+the *words*, and look back: list your sidecars for the window you care about
+in one call, and find the newest one on or before the question's `date`. That
+is what `task-notes` does, and why a line carried forward for a fortnight
+still carries its marker. Editing the words orphans the marker; the file stays,
+named for what the line said.
+
+The chord itself can cause the same orphan. It reads the line as it stands on
+screen, half-typed word and all — right for what it shows you, and the words
+you keyed the note on. Press `⌘⇧N` before a word is finished and finish typing
+afterwards, and the committed line no longer kebabs to the suffix your note was
+made under: the marker is gone, the same way an edit made afterwards orphans
+one. Nothing is lost — the file is still there, findable by `⌘F` — but the line
+and the note it named stop agreeing the moment either one keeps changing after
+the other stopped.
 
 ### `search.provide`
 

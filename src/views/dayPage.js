@@ -17,6 +17,7 @@ import { el, setText, setClass } from '../ui/dom.js'
 import { createAddRow } from './addRow.js'
 import { createHorizonStrip } from './horizonStrip.js'
 import { createItemList } from './itemList.js'
+import { indexOf, textOf } from './itemRow.js'
 import { createCarryBand } from './carryBand.js'
 import { createDaySections } from './daySections.js'
 import { createDayFooter } from './dayFooter.js'
@@ -316,4 +317,27 @@ function renderNote(element, doc) {
 export function sections() {
   if (page === null) throw new Error('sections before mount')
   return page.sections
+}
+
+/**
+ * The line holding the caret, as it reads on screen (spec §4.3).
+ *
+ * Null when the caret is somewhere that is not a line - the add row, the
+ * daily note, a block, the search field, or nowhere at all. A gesture about a
+ * line simply does not fire, rather than guessing at which line was meant.
+ *
+ * The note under a line counts as that line: `closest('.item')` resolves both
+ * to the row, which is the same rule dragging already follows.
+ *
+ * @returns {{index: number, text: string}|null}
+ */
+export function focusedLine() {
+  if (page === null) return null
+  const active = page.items.element.ownerDocument.activeElement
+  if (!(active instanceof HTMLElement)) return null
+
+  const index = indexOf(active)
+  const text = textOf(active)
+  if (index === null || text === null) return null
+  return { index, text }
 }

@@ -69,6 +69,8 @@ const HEADING = 40
  *   before any other plugin's claim is taken into account. The pane shows what
  *   the manifest says; who actually owns one is settled by `settlePrefixes`
  * @property {string} heading  what the day page calls this plugin's section
+ * @property {string} actionLabel  the gesture this plugin adds to a line, as
+ *   the ⌘, pane names it. Its folder name when the manifest gives none
  * @property {string[]} moves  the theme tokens this plugin says it moves, of
  *   the names this version knows. A name no theme has is dropped here rather
  *   than shown: the pane is a consent surface, and offering a tick over
@@ -114,6 +116,7 @@ export function installed(folders, configured) {
         approvedRun,
         prefixes: [],
         heading: folder.name,
+        actionLabel: folder.name,
         moves: [],
         approvedMoves: [],
         notices: [],
@@ -169,6 +172,11 @@ export function installed(folders, configured) {
       // never has this drawn - and a null would only mean every reader had to
       // check for one.
       heading: optionText(slotOptions(read, 'vault.contribute'), 'heading', HEADING) || folder.name,
+      // The gesture this plugin adds to a line, as the pane names it. Spec
+      // §4.3 puts this in the manifest for a pick list, which this version
+      // does not draw; the pane is its consumer instead, so the sentence you
+      // tick says which gesture rather than naming none.
+      actionLabel: optionText(slotOptions(read, 'item.action'), 'label', HEADING) || folder.name,
       moves,
       approvedMoves: both(moves, configEntry?.approvedMoves),
       notices,

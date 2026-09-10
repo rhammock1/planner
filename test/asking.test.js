@@ -437,3 +437,37 @@ test('each plugin is told only the sidecars its own prefixes own', () => {
   // disk where it was: it is somebody's writing.
   assert.equal(JSON.stringify(per).includes('orphan-thing'), false)
 })
+
+test('a question asked once goes straight to the door, cache untouched', async () => {
+  const stub = host()
+  const asking = createAsking(stub.deps)
+
+  const answering = asking.once('item.action', { date: '2026-09-01', index: 3, text: 'Review PR #4412' })
+
+  // Straight through: no key, and the params are exactly what was handed in.
+  assert.equal(stub.asked.length, 1)
+  assert.equal(stub.asked[0]?.slot, 'item.action')
+  assert.deepEqual(stub.asked[0]?.params, { date: '2026-09-01', index: 3, text: 'Review PR #4412' })
+
+  stub.asked[0]?.settle([{ plugin: 'task-notes', value: { open: 'sidecar:2026-09-01/note-x' } }])
+  const given = await answering
+  assert.deepEqual(given.answers, [{ plugin: 'task-notes', value: { open: 'sidecar:2026-09-01/note-x' } }])
+})
+
+test('asking once twice asks twice', async () => {
+  const stub = host()
+  const asking = createAsking(stub.deps)
+
+  const first = asking.once('item.action', { date: '2026-09-01', index: 3, text: 'x' })
+  const second = asking.once('item.action', { date: '2026-09-01', index: 3, text: 'x' })
+
+  // The whole difference from `answers`: there is no key and nothing is
+  // remembered, so an identical question in flight does not collapse into the
+  // first. A gesture that reused an answer would open the note for the line
+  // you pressed a chord on a minute ago.
+  assert.equal(stub.asked.length, 2)
+
+  stub.asked[0]?.settle([])
+  stub.asked[1]?.settle([])
+  await Promise.all([first, second])
+})

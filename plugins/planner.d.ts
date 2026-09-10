@@ -139,6 +139,27 @@ declare namespace Planner {
     items: Line[]
   }
 
+  /** The question behind the `item.action` slot. A line you picked, and the
+   *  page it is on. */
+  interface ActionQuestion {
+    now: Now
+    /** The page being drawn, `YYYY-MM-DD`. A note you make belongs beside
+     *  this day, not beside today - the app refuses any other. */
+    date: string
+    /** Where the line sits on the page. */
+    index: number
+    /** What the line says, as it reads on screen - which may be a word ahead
+     *  of the file if it is being typed into. */
+    text: string
+  }
+
+  /** The one thing an action may answer with: a `sidecar:` of yours to show,
+   *  creating it if it is not there. Answer `null` when this line means
+   *  nothing to you. */
+  interface ActionAnswer {
+    open: string
+  }
+
   /** The question behind the `theme.tokens` slot. The clock, and the colours
    *  the theme itself set - you are asked to *move* those, and cannot move
    *  what you were never shown. Not the page: what you do with colour is a
@@ -200,6 +221,8 @@ declare const planner: {
     Planner.Contribution[] | Promise<Planner.Contribution[]>): void
   on(slot: 'item.badge', handler: (question: Planner.BadgeQuestion) =>
     Planner.Badge[] | Promise<Planner.Badge[]>): void
+  on(slot: 'item.action', handler: (question: Planner.ActionQuestion) =>
+    Planner.ActionAnswer | null | Promise<Planner.ActionAnswer | null>): void
   on(slot: 'theme.tokens', handler: (question: Planner.TokensQuestion) =>
     Record<string, string> | Promise<Record<string, string>>): void
   on(slot: 'page.section', handler: (question: Planner.SectionQuestion) =>

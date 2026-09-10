@@ -38,6 +38,7 @@ import { today, nowTime } from './clock.js'
  * @property {() => boolean} vaultExists
  * @property {() => Promise<void>} syncPlugins
  * @property {(slot: string, key: string, params: Record<string, unknown>) => {plugin: string, value: unknown}[]} pluginAnswers
+ * @property {(slot: string, params: Record<string, unknown>) => Promise<{answers: {plugin: string, value: unknown}[], notices: string[]}>} askOnce  a gesture's question, awaited rather than cached
  * @property {() => void} refreshPlugins
  * @property {() => number} pluginGeneration
  * @property {() => import('./ipc/host.js').PluginState[]} pluginStates
@@ -248,6 +249,7 @@ export function createStore() {
       changed()
     },
     pluginAnswers: plugins.answers,
+    askOnce: plugins.once,
     refreshPlugins: plugins.refresh,
     pluginGeneration: plugins.generation,
     pluginStates: plugins.states,

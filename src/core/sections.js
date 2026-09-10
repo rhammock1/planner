@@ -106,7 +106,7 @@ function readOne(raw, plugin, prefixes, existing) {
 
   const suffix = fields['suffix']
   if (typeof suffix !== 'string' || !isSuffix(suffix)) return null
-  // The whole of the prefix rule, at the one place a plugin names a file.
+  // The whole of the prefix rule, at the one place this slot names a file.
   if (!owns(prefixes, suffix)) return null
 
   const onDisk = existing.get(suffix)
@@ -148,11 +148,20 @@ export function sectionKey(date, existing) {
 }
 
 /**
+ * One line, cut where Rust cuts it.
+ *
+ * Code points rather than UTF-16 units, because the string this measures came
+ * off disk through `title_of` in `src-tauri/src/vault_io/sidecars.rs`, which
+ * counts `chars()`. Measured differently, an astral title Rust had already
+ * cut would be cut a second time - an ellipsis after an ellipsis, and the
+ * slice landing inside a surrogate pair.
+ *
  * @param {unknown} raw
  * @returns {string}
  */
 function flatten(raw) {
   if (typeof raw !== 'string') return ''
   const line = raw.replace(/\s+/gu, ' ').trim()
-  return line.length <= LONGEST ? line : `${line.slice(0, LONGEST - 1)}…`
+  const points = [...line]
+  return points.length <= LONGEST ? line : `${points.slice(0, LONGEST - 1).join('')}…`
 }

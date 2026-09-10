@@ -43,16 +43,37 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
  */
 const BINARY_EXTENSIONS = ['.png']
 
-test('no tracked text file contains a NUL byte', () => {
+/**
+ * Every tracked file, from git rather than a directory walk - so it follows
+ * `.gitignore` and never wanders into `node_modules` or `src-tauri/target`.
+ *
+ * @returns {string[]}
+ */
+function tracked() {
   const listing = execFileSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8' })
   const files = listing.split('\u0000').filter((name) => name !== '')
   assert.ok(files.length > 0, 'git ls-files -z returned nothing; check the working directory')
+  return files
+}
 
-  for (const relative of files) {
+test('no tracked text file contains a NUL byte', () => {
+  for (const relative of tracked()) {
     if (BINARY_EXTENSIONS.includes(path.extname(relative))) continue
 
     const buffer = readFileSync(path.join(ROOT, relative))
     const offset = buffer.indexOf(0)
     assert.equal(offset, -1, `${relative} contains a NUL byte at offset ${offset}`)
+  }
+})
+
+test('every extension on the binary allowlist is still used by a tracked file', () => {
+  const used = new Set(tracked().map((relative) => path.extname(relative)))
+
+  for (const extension of BINARY_EXTENSIONS) {
+    assert.ok(
+      used.has(extension),
+      `${extension} is on BINARY_EXTENSIONS but no tracked file has it any more; ` +
+      'remove it, or the day a text file takes that extension it is exempt from this scan for no reason',
+    )
   }
 })

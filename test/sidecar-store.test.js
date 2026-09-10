@@ -1,4 +1,13 @@
 // @ts-check
+// This reference is program-wide, not file-scoped: once any file included
+// under `tsconfig.web.json` pulls in `@types/node`, its ambient globals
+// (`process`, `Buffer`, `require`, and the rest) resolve for every file in
+// that program, not just this one - TypeScript has no way to bring in
+// `@types/node`'s `node:test` and `node:assert/strict` module declarations
+// without its global ones too. Accepted anyway: the alternative, adding
+// `"node"` to that program's `"types"`, leaks the same globals but
+// permanently, where this leaves with the file that needs it.
+/// <reference types="node" />
 
 /**
  * `sidecarStore.js` against a stub Tauri host, so `sidecar:changed` can be
@@ -75,21 +84,19 @@ function flush() {
 test('a sidecar:changed for a day keeps serving its last listing while it refreshes', async () => {
   const stub = stubHost()
 
-  // Cast rather than declared as `Window`: this project's `tsconfig.json` (the
-  // one this test is checked under) carries no DOM lib on purpose - `core/`
-  // is meant to stay pure - and `sidecarStore.js` lives outside `core/` for
-  // exactly this reason, reaching a browser global through `ipc.js` that a
-  // pure module never would.
+  // Cast because `window` is read-only under the DOM lib and this test
+  // replaces it wholesale. Only the assignment is unchecked; the module below
+  // is imported by a literal specifier and is fully typed.
   /** @type {any} */
   const untyped = globalThis
   untyped.window = { __TAURI__: stub.tauri }
 
-  // A computed specifier, not a string literal: written out plainly this
-  // import would pull `ipc/host.js` and `dev/sampleVault.js` - both DOM code
-  // - into a program checked with no DOM lib, and fail on `window` and
-  // `document` for reasons that have nothing to do with this test.
-  const modulePath = ['..', 'src', 'sidecarStore.js'].join('/')
-  const { createSidecars } = await import(modulePath)
+  // A dynamic import, and it has to be: the stub above must be on `window`
+  // before `sidecarStore.js` is loaded, and a static import is hoisted above
+  // the line that puts it there. The specifier is a literal, though, so `tsc`
+  // follows it and a renamed export is a compile error - this file is checked
+  // under `tsconfig.web.json`, which has the DOM lib the module needs.
+  const { createSidecars } = await import('../src/sidecarStore.js')
   const sidecars = createSidecars({ onChanged: () => {}, notice: () => {} })
   await sidecars.start()
 

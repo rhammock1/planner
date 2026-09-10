@@ -14,7 +14,8 @@ import { el, setText, setClass } from '../ui/dom.js'
 import { weekOf } from '../core/calendar.js'
 import { addDays } from '../core/dates.js'
 import { openCount } from '../core/glance.js'
-import { createItemList, indexOf } from './itemList.js'
+import { createItemList } from './itemList.js'
+import { indexOf } from './itemRow.js'
 import { createAddRow } from './addRow.js'
 
 /** @typedef {import('./spreadPage.js').SpreadState} SpreadState */

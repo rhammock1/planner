@@ -153,6 +153,7 @@ test('a plugin that is switched off is still listed', () => {
     approvedRun: new Map(),
     prefixes: [],
     heading: 'macos-calendar',
+    actionLabel: 'macos-calendar',
     moves: [],
     notices: [],
     problem: null,
@@ -176,6 +177,7 @@ test('a plugin the config has never heard of is listed as off and ungranted', ()
     approvedRun: new Map(),
     prefixes: [],
     heading: 'macos-calendar',
+    actionLabel: 'macos-calendar',
     moves: [],
     notices: [],
     problem: null,
@@ -368,4 +370,27 @@ repo    = "settings.repo"
   assert.match(one?.notices[0] ?? '', /does not use/)
   // And the command it could not read is not offered as tickable.
   assert.deepEqual(one?.run, [])
+})
+
+test('a plugin with an action table is named by its label', () => {
+  const folders = [{ name: 'task-notes', manifest: [
+    'name = "task-notes"',
+    'entry = "index.js"',
+    'slots = ["item.action"]',
+    '',
+    '[action]',
+    'label = "Notes"',
+  ].join('\n') }]
+  const [plugin] = installed(folders, new Map())
+  assert.equal(plugin?.actionLabel, 'Notes')
+})
+
+test('a plugin with no action label is named by its folder', () => {
+  const folders = [{ name: 'task-notes', manifest: [
+    'name = "task-notes"',
+    'entry = "index.js"',
+    'slots = ["item.action"]',
+  ].join('\n') }]
+  const [plugin] = installed(folders, new Map())
+  assert.equal(plugin?.actionLabel, 'task-notes')
 })

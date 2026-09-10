@@ -357,6 +357,7 @@ check('the settings pane lists a plugin and what it asks for', () => {
     approvedRun: new Map(),
     prefixes: [],
     heading: 'macos-calendar',
+    actionLabel: 'macos-calendar',
     moves: [],
     notices: [],
     problem: null,

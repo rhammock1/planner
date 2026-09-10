@@ -163,3 +163,30 @@ fn a_plugin_is_shown_only_the_sidecars_its_prefixes_own() {
     assert!(!planner_lib::bridges::sidecars::owned(&["meeting".to_string()], "meetings-elsewhere"));
     assert!(planner_lib::bridges::sidecars::owned(&["meeting".to_string()], "meeting"));
 }
+
+#[test]
+fn a_title_is_cut_at_eighty_characters_counted_as_characters() {
+    let root = vault("titles");
+
+    // Exactly eighty: handed over whole.
+    let eighty = "a".repeat(80);
+    sidecars::write(&root, "2026-09-01", "note-eighty", &format!("# {eighty}\n")).unwrap();
+
+    // Eighty-one: cut to seventy-nine and an ellipsis.
+    let long = "b".repeat(81);
+    sidecars::write(&root, "2026-09-01", "note-long", &format!("# {long}\n")).unwrap();
+
+    // Eighty astral characters are eighty characters, not a hundred and
+    // sixty. This is the case the JavaScript side used to disagree about.
+    let astral = "\u{1D518}".repeat(80);
+    sidecars::write(&root, "2026-09-01", "note-astral", &format!("# {astral}\n")).unwrap();
+
+    let found = sidecars::list(&root, "2026-09-01", "2026-09-01");
+    let titled = |suffix: &str| {
+        found.iter().find(|one| one.suffix == suffix).expect("listed").title.clone()
+    };
+
+    assert_eq!(titled("note-eighty"), eighty);
+    assert_eq!(titled("note-long"), format!("{}…", "b".repeat(79)));
+    assert_eq!(titled("note-astral"), astral);
+}

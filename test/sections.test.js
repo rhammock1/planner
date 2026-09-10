@@ -135,3 +135,42 @@ test('the key changes when the day does, and when a file appears', () => {
   // titles: asking again is what redraws it.
   assert.notEqual(before, sectionKey('2026-09-01', new Map([['meeting-standup', 'Stand up']])))
 })
+
+test('a title of exactly eighty characters is not cut', () => {
+  const title = 'a'.repeat(80)
+  const existing = new Map([['note-x', title]])
+  const owned = new Map([['task-notes', ['note']]])
+  const { blocks } = readSections(
+    [{ plugin: 'task-notes', value: [{ suffix: 'note-x' }] }],
+    existing,
+    owned,
+  )
+  assert.equal(blocks[0]?.title, title)
+})
+
+test('a title of eighty-one characters is cut to seventy-nine and an ellipsis', () => {
+  const existing = new Map([['note-x', 'b'.repeat(81)]])
+  const owned = new Map([['task-notes', ['note']]])
+  const { blocks } = readSections(
+    [{ plugin: 'task-notes', value: [{ suffix: 'note-x' }] }],
+    existing,
+    owned,
+  )
+  assert.equal(blocks[0]?.title, `${'b'.repeat(79)}…`)
+})
+
+test('a title is measured in code points, the way Rust measures it', () => {
+  // Rust's `title_of` counts `chars()`, so eighty of these is a title it
+  // hands over whole. Measured with `.length` this is a hundred and sixty
+  // units, and the old cut sliced a string Rust had already decided was
+  // short enough - through the middle of a surrogate pair, at that.
+  const title = '𝔘'.repeat(80)
+  const existing = new Map([['note-x', title]])
+  const owned = new Map([['task-notes', ['note']]])
+  const { blocks } = readSections(
+    [{ plugin: 'task-notes', value: [{ suffix: 'note-x' }] }],
+    existing,
+    owned,
+  )
+  assert.equal(blocks[0]?.title, title)
+})

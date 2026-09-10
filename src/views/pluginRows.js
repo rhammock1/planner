@@ -68,7 +68,13 @@ function pluginRow(plugin, states, handlers) {
   // nobody was asked about is not consent (spec §1.1).
   for (const slot of plugin.slots) {
     block.append(tick(
-      sentenceFor(slot),
+      // `item.action` is the only slot whose sentence names a *gesture*, and
+      // which gesture is the part worth consenting to: "Notes — is shown the
+      // text of a line you pick". Named here rather than driven off the
+      // options table for the same reason `theme.tokens` below is - this is
+      // the only slot that does it, and a loop over one case would be a guess
+      // about the next.
+      slot === 'item.action' ? `${plugin.actionLabel} — ${sentenceFor(slot)}` : sentenceFor(slot),
       plugin.approvedSlots.includes(slot),
       'slot',
       (on) => writeBack(plugin, handlers, { approvedSlots: toggled(plugin.approvedSlots, slot, on) }),
