@@ -9,6 +9,14 @@
  *
  * This list grows one entry at a time, with the plugin that first needs it. A
  * slot with no consumer is a guess about an API.
+ *
+ * A slot that changes what it means is renamed rather than reworded.
+ * `config.toml` holds `approved_slots` as slot *names*, so a sentence changed
+ * under an old name would keep the tick it was given for the old meaning and
+ * apply it silently to the new one. A new name has no tick anywhere, so
+ * everybody is asked once, in the words that are now true. `approvedRun` has
+ * the other property - it stores the rendered line and compares it - and
+ * giving slots that machinery would be a mechanism where a rename does.
  */
 
 /**
@@ -38,8 +46,8 @@ export const SLOTS = [
     options: 'tokens',
   },
   {
-    name: 'page.section',
-    sentence: "Adds a block under the day, kept in a file beside the day's.",
+    name: 'page.note',
+    sentence: "Keeps a page of its own beside the day's file, which you open from the day.",
     options: null,
   },
   {

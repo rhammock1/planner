@@ -182,7 +182,7 @@ function newestFor(mine, suffix) {
  * button on the page. The host has already told us which of our files are on
  * this day, so nothing here needs the capability at all.
  */
-planner.on('page.section', ({ sidecars }) => sidecars.map((one) => ({ suffix: one.suffix })))
+planner.on('page.note', ({ sidecars }) => sidecars.map((one) => ({ suffix: one.suffix })))
 
 /**
  * `✎` after every line that has a note.

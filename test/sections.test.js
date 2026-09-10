@@ -1,7 +1,7 @@
 // @ts-check
 
 /**
- * `page.section`: what a plugin may put under a day, and what it may name.
+ * `page.note`: what a plugin may put under a day, and what it may name.
  */
 
 import { test } from 'node:test'

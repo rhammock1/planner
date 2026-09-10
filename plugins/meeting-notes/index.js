@@ -129,7 +129,7 @@ function sidecarRef(date, suffix) {
  * here needs `vault.sidecar.read` at all - which is the point of the question
  * carrying them. The capability below is for searching.
  */
-planner.on('page.section', async ({ date, sidecars }) => {
+planner.on('page.note', async ({ date, sidecars }) => {
   /** Suffix to block, so an event whose note exists is one block and not two. */
   const blocks = new Map()
 

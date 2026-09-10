@@ -2,7 +2,7 @@ name        = "meeting-notes"
 version     = "0.1.1"
 description = "A block under the day for each meeting, kept in a file beside it"
 entry       = "index.js"
-slots       = ["page.section", "search.provide"]
+slots       = ["page.note", "search.provide"]
 
 # One line, because `core/toml.js` reads single-line arrays and nothing else.
 [permissions]

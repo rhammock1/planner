@@ -94,7 +94,7 @@ declare namespace Planner {
     now: Now
   }
 
-  /** The question behind the `page.section` slot. */
+  /** The question behind the `page.note` slot. */
   interface SectionQuestion {
     now: Now
     /** The page being drawn, `YYYY-MM-DD`. */
@@ -225,7 +225,7 @@ declare const planner: {
     Planner.ActionAnswer | null | Promise<Planner.ActionAnswer | null>): void
   on(slot: 'theme.tokens', handler: (question: Planner.TokensQuestion) =>
     Record<string, string> | Promise<Record<string, string>>): void
-  on(slot: 'page.section', handler: (question: Planner.SectionQuestion) =>
+  on(slot: 'page.note', handler: (question: Planner.SectionQuestion) =>
     Planner.SectionAnswer[] | Promise<Planner.SectionAnswer[]>): void
   on(slot: 'search.provide', handler: (question: Planner.SearchQuestion) =>
     Planner.SearchHit[] | Promise<Planner.SearchHit[]>): void

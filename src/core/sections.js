@@ -1,7 +1,7 @@
 // @ts-check
 
 /**
- * `page.section`: the blocks a plugin puts under the day, and what it may
+ * `page.note`: the blocks a plugin puts under the day, and what it may
  * name (spec §4.2).
  *
  * A plugin is shown which of *its* sidecars exist for the day and answers

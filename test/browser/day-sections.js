@@ -20,7 +20,7 @@ if (!(found instanceof HTMLElement)) throw new Error('no stage')
 const stage = found
 
 /** One editor block, on one day, for every check here - the shape a plugin
- *  answering `page.section` would name for an existing sidecar. @type {Block} */
+ *  answering `page.note` would name for an existing sidecar. @type {Block} */
 const BLOCK = { plugin: 'meeting-notes', suffix: 'meeting-standup', title: 'Standup', kind: 'editor' }
 
 /**

@@ -77,7 +77,7 @@ export function sectionsFor(store, page) {
   // the popover has to ask again (spec §1.4).
   const key = `${sectionKey(page, existing)}:${store.pluginGeneration()}`
   return readSections(
-    store.pluginAnswers('page.section', key, { date: page, per }),
+    store.pluginAnswers('page.note', key, { date: page, per }),
     existing,
     owned,
   )
