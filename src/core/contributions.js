@@ -101,6 +101,27 @@ export function readContributions(answers, page, headings) {
 }
 
 /**
+ * Whether this section belongs under the day's own note rather than in a
+ * section of its own (spec §1.1).
+ *
+ * The tense, read off the data the question already returns. A line with no
+ * time on it is something that *happened* - three commits, a build that went
+ * red - which is the same tense as "how the day went", and it reads as a
+ * footnote to the reflection rather than as a section competing with it. A
+ * line with a time is about what is ahead, and a meeting at two o'clock is
+ * not a footnote to anything.
+ *
+ * No manifest key for this: it would be a plugin declaring something its own
+ * answer already says, and two places to get it wrong.
+ *
+ * @param {Section} section
+ * @returns {boolean}
+ */
+export function foldsUnderNote(section) {
+  return section.events.every((event) => event.time === null)
+}
+
+/**
  * @param {unknown} item
  * @param {string} page
  * @returns {Event|null|'elsewhere'} null when it is for this day but unusable

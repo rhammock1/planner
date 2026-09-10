@@ -160,7 +160,10 @@ export function mount(root, handlers) {
   })
 
   // The day's own line, under everything else, the way the bottom of a
-  // planner page is left blank for one (spec §5.1).
+  // planner page is left blank for one (spec §5.1). `sections.evidence`
+  // follows it: the untimed lines a plugin sent read as the same tense as
+  // this note, so they sit under it as dim corroboration rather than in a
+  // section of their own (spec §1.1).
   const note = el('div', 'note')
   note.setAttribute('contenteditable', 'plaintext-only')
   note.setAttribute('role', 'textbox')
@@ -171,7 +174,8 @@ export function mount(root, handlers) {
   const surface = el('div', 'page')
   surface.append(
     head, notices.element, carry.element, horizon.element, items.element,
-    add.element, sections.element, note, foot.element, search.element, settings.element,
+    add.element, sections.element, note, sections.evidence,
+    foot.element, search.element, settings.element,
   )
   root.replaceChildren(surface)
 

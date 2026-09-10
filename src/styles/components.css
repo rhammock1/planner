@@ -375,6 +375,45 @@
 
 .note[hidden] { display: none; }
 
+/* The lines a plugin sent with no time on them (spec §1.1): the same tense as
+   "how the day went", so they sit here as dim corroboration for the note
+   above rather than in a heading and a section of their own. The dashed rule
+   is what a footnote gets instead of a heading. */
+.evidence {
+  flex: none;
+  padding: 7px 16px 9px;
+  border-top: 1px dashed var(--edge-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.evidence[hidden] { display: none; }
+
+.evidence-row {
+  display: flex;
+  gap: 8px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--dim);
+}
+
+.evidence-src {
+  flex: none;
+  font-family: var(--font-meta);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--edge);
+}
+
+.evidence-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .page-foot {
   display: flex;
   align-items: center;
@@ -546,9 +585,10 @@
 
 .quick-preview[hidden] { display: none; }
 
-/* The sections a plugin contributed, one per plugin (spec §3.2). A column, so
-   each section keeps the rule above it that separates it from what it is
-   under - the list on one, the section before it on the rest. */
+/* The sections a plugin contributed that carry a time on them (spec §3.2,
+   §1.1) - an untimed section reads as `.evidence` under the note instead. A
+   column, so each section keeps the rule above it that separates it from
+   what it is under - the list on one, the section before it on the rest. */
 .givens {
   flex: none;
   display: flex;

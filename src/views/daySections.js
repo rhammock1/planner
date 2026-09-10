@@ -71,7 +71,7 @@ const SETTLE = 800
 
 /**
  * @param {SectionHandlers} handlers
- * @returns {{element: HTMLElement, render: (state: SectionsState) => void, reveal: (suffix: string) => boolean, flushAll: () => Promise<void>}}
+ * @returns {{element: HTMLElement, evidence: HTMLElement, render: (state: SectionsState) => void, reveal: (suffix: string) => boolean, flushAll: () => Promise<void>}}
  */
 export function createDaySections(handlers) {
   const given = createContributions()
@@ -81,6 +81,11 @@ export function createDaySections(handlers) {
 
   const element = el('div', 'day-sections')
   element.append(given.element, blocks)
+
+  // Exposed rather than appended here: the untimed lines read as evidence
+  // for the day's own note (spec §1.1), which `dayPage.js` places under that
+  // note, not under these sections.
+  const evidence = given.evidence
 
   /** @type {Map<string, Held>} */
   const held = new Map()
@@ -108,6 +113,7 @@ export function createDaySections(handlers) {
 
   return {
     element,
+    evidence,
 
     render: (state) => {
       given.render(state.contributed)

@@ -11,7 +11,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { readContributions } from '../src/core/contributions.js'
+import { readContributions, foldsUnderNote } from '../src/core/contributions.js'
 
 const HEADINGS = new Map([
   ['macos-calendar', 'On the calendar'],
@@ -158,4 +158,32 @@ test('an hour this app cannot read is a line without a time, not a dropped line'
   )
   assert.equal(read.sections[0]?.events[0]?.time, null)
   assert.deepEqual(read.notices, [])
+})
+
+test('a section with no times folds under the day note', () => {
+  assert.equal(foldsUnderNote({
+    plugin: 'git-activity',
+    heading: 'From Git',
+    events: [{ time: null, text: '3 commits to repos/node' }],
+  }), true)
+})
+
+test('a section with a time keeps its own section', () => {
+  assert.equal(foldsUnderNote({
+    plugin: 'macos-calendar',
+    heading: 'On the calendar',
+    events: [{ time: '08:45', text: 'Nahla Allergy Shot' }],
+  }), false)
+})
+
+test('one timed event is enough to keep a section', () => {
+  assert.equal(foldsUnderNote({
+    plugin: 'mixed',
+    heading: 'Mixed',
+    events: [{ time: null, text: 'all day' }, { time: '14:00', text: 'timed' }],
+  }), false)
+})
+
+test('a section with nothing in it folds, and shows nothing either way', () => {
+  assert.equal(foldsUnderNote({ plugin: 'quiet', heading: 'Quiet', events: [] }), true)
 })
