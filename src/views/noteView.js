@@ -345,7 +345,12 @@ export function createNoteView(handlers) {
     // A line merged into the one above has nothing to put back: its text went
     // with it, and this element is no longer in the note.
     if (line !== null && line.isConnected) {
-      line.dataset['raw'] = line.textContent ?? ''
+      // Read back only from a line that is showing its source. A painted one
+      // has spent its markers on the rendering, so taking its `textContent`
+      // would write `bold` where the file says `**bold**` - which is what a
+      // drag between two lines would otherwise do, by painting the line the
+      // text left before that drag's own edit arrives.
+      if (line.classList.contains('raw')) line.dataset['raw'] = line.textContent ?? ''
       paint(line)
     }
     const to = event.relatedTarget
@@ -356,6 +361,15 @@ export function createNoteView(handlers) {
   body.addEventListener('input', (event) => {
     const line = lineOf(event.target)
     if (line === null) return
+    // An edit to a line that is not showing its source is an edit to the
+    // rendering, and the rendering is not the file: text dragged out of a
+    // painted line arrives here after that line has been painted again. Put
+    // the line back the way its source says and let the edit go, rather than
+    // taking a rendering for a source and losing the markup in it.
+    if (!line.classList.contains('raw')) {
+      paint(line)
+      return
+    }
     // The line is showing its own source, so what it reads as is the file's
     // text rather than a rendering of it.
     const raw = line.textContent ?? ''
@@ -417,17 +431,26 @@ export function createNoteView(handlers) {
     insert(line, range, event.clipboardData?.getData('text/plain') ?? '')
   })
 
-  // A link is followed from here rather than from a handler per token: the
-  // body is rebuilt a line at a time as the caret moves, and one listener
-  // outlives all of that. Clicking one also puts the caret in its line, which
-  // is what a click inside a `contenteditable` means and is worth keeping -
-  // you get the link and its source at once.
+  // A `.mdlink` only exists in a line at rest, and a press on one would move
+  // the focus into that line - which `bare`s it, and takes the span out of the
+  // document before the click that was aimed at it can land. Refusing the
+  // press its default keeps both halves: the span survives to be clicked, and
+  // the caret stays where it was, because following a link out of a note is
+  // not an edit to the note. A dead link is left alone in both handlers: it is
+  // plain text, and a click in plain text puts the caret in it (spec §2.3).
+  body.addEventListener('mousedown', (event) => {
+    if (event.button !== 0 || liveLink(event.target) === null) return
+    event.preventDefault()
+  })
+
+  // Followed on the click rather than on that press, so that a link is
+  // followed the way anything else is: pressed and released on the same word,
+  // and let go of by dragging off it first.
   body.addEventListener('click', (event) => {
-    const target = event.target
-    if (!(target instanceof HTMLElement) || !target.classList.contains('mdlink')) return
-    const url = target.dataset['url'] ?? ''
-    if (target.classList.contains('dead')) return
-    if (target.classList.contains('inward')) handlers.onFollow(url)
+    const link = liveLink(event.target)
+    if (link === null) return
+    const url = link.dataset['url'] ?? ''
+    if (link.classList.contains('inward')) handlers.onFollow(url)
     else handlers.onOpenLink(url)
   })
 
@@ -590,6 +613,21 @@ function nodesOf(tokens) {
     }
   }
   return nodes
+}
+
+/**
+ * The live link a press landed on, or null.
+ *
+ * A dead link is not one here either: it renders as the plain text it is, and
+ * nothing follows it (spec §2.3).
+ *
+ * @param {EventTarget|null} target
+ * @returns {HTMLElement|null}
+ */
+function liveLink(target) {
+  if (!(target instanceof HTMLElement)) return null
+  if (!target.classList.contains('mdlink') || target.classList.contains('dead')) return null
+  return target
 }
 
 /**
