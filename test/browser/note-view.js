@@ -1,8 +1,9 @@
 // @ts-check
 
 /**
- * A note's autosave, driven straight against `createNoteView` - no app, no
- * plugin, exactly what `harness.js` exists for (spec §2.1).
+ * A note's autosave and what its text is allowed to become, driven straight
+ * against `createNoteView` - no app, no plugin, exactly what `harness.js`
+ * exists for (spec §2.1).
  *
  * This is `day-sections.js` moved with the thing it was watching. Two bugs
  * were found and fixed in the block editor's caret/disk race, and that race
@@ -15,6 +16,11 @@
  * ever opened with its text already in hand (`app.js`'s `showNote` will not
  * open one without). There is nothing left to lock, so there is nothing left
  * to check.
+ *
+ * What the block never had is the last two checks. Live Markdown arrived with
+ * the view, and with it the claim that a note is a file anything can be pasted
+ * into and nothing in it becomes an element this app did not build. That is a
+ * claim about the document, so it can only be made here.
  */
 
 import { check, equal, report } from './harness.js'
@@ -143,6 +149,47 @@ await check('reverting a typed edit to what disk holds still writes it, so disk 
 
   equal(written.length, 2, 'reverting to what disk already held did not write at all')
   equal(written[1]?.text, 'first line', 'the write did not carry the reverted text')
+})
+
+// The claim the whole of `core/markdown.js` and `nodesOf` exist to make: a
+// note is a file anything can have been pasted into, and none of it becomes
+// an element the note did not build itself. Nothing under `node --test` can
+// check this - it is about what is in the document.
+//
+// The markup goes on the *second* line throughout: a note opens with the
+// caret in its first line, and a line holding the caret shows its own source
+// rather than a rendering of it.
+check('markup in a note stays text, and only the closed subset becomes elements', () => {
+  const view = mount(recording().handlers)
+  view.open({ ...NOTE, text: '\n<img src=x onerror=alert(1)> **b** [z](javascript:a)' })
+
+  equal(stage.querySelector('img'), null, 'markup in a note became an element')
+  equal(stage.querySelectorAll('.md strong').length, 1, 'the bold in the same line was not rendered')
+  equal(stage.querySelectorAll('.mdlink.dead').length, 1, 'a javascript: link was not drawn as a dead one')
+  equal(stage.querySelectorAll('.mdlink.inward').length, 0, 'a javascript: link was drawn as one of ours')
+})
+
+check('a dead link is not followable, where a live one is', () => {
+  /** @type {string[]} */
+  const followed = []
+  const view = mount({
+    ...recording().handlers,
+    onFollow: (href) => { followed.push(`in:${href}`) },
+    onOpenLink: (url) => { followed.push(`out:${url}`) },
+  })
+  view.open({ ...NOTE, text: '\n[z](javascript:a) [y](https://x.test/a)' })
+
+  const dead = stage.querySelector('.mdlink.dead')
+  const live = stage.querySelector('.mdlink:not(.dead)')
+  if (dead === null || live === null) throw new Error('the note did not draw both links')
+
+  dead.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  equal(followed.length, 0, 'a link this app refuses to follow was followed anyway')
+
+  // The control: the same gesture on a link that *is* live does reach the
+  // host, so the check above is about the link and not about the click.
+  live.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  equal(followed.join(), 'out:https://x.test/a', 'a live link did not reach the host')
 })
 
 report()

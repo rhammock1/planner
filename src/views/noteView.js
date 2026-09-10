@@ -112,7 +112,12 @@ export function createNoteView(handlers) {
   const head = el('div', 'nv-head')
   head.append(back, heading, del)
 
+  // The same two attributes the daily note carries in `dayPage.js`, and that
+  // the block this view replaced carried before it: an editable div is a
+  // generic group to a screen reader until it says what it is.
   const body = el('div', 'nv-body')
+  body.setAttribute('role', 'textbox')
+  body.setAttribute('aria-label', 'The note')
 
   const path = el('span', 'path')
   const saved = el('span', 'saved')
@@ -324,18 +329,28 @@ export function createNoteView(handlers) {
     })
   })
 
+  // Every way back out of `Sure?` short of pressing it again: leaving the
+  // button, going back into the note by any route, Escape, and typing. Blur
+  // alone is not enough - WebKit does not focus a `<button>` on click, so an
+  // armed Delete may never have had focus to lose - and neither is `keydown`
+  // on the body, which a click into the text does not fire. `disarm` is a
+  // no-op when nothing is armed, so covering all four costs nothing.
   del.addEventListener('blur', disarm)
 
   // Escape belongs to the note while the note is up: the day underneath would
   // otherwise close the whole popover on the first press. On the element
-  // rather than the body, so it works from the two buttons too.
+  // rather than the body, so it works from the two buttons too. Disarmed
+  // here rather than left to `close`, because the host decides what `onClose`
+  // does and this view should not sit armed while it waits to find out.
   element.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return
     event.preventDefault()
+    disarm()
     handlers.onClose()
   })
 
   body.addEventListener('focusin', (event) => {
+    disarm()
     const line = lineOf(event.target)
     if (line !== null) bare(line)
   })
