@@ -206,7 +206,19 @@ pub fn delete_sidecar(
     date: String,
     suffix: String,
 ) -> Result<(), String> {
-    let root = vault.lock().expect("vault lock").root.clone().ok_or("no vault is open")?;
+    let root = {
+        let mut state = vault.lock().expect("vault lock");
+        let root = state.root.clone().ok_or("no vault is open")?;
+        let path = vault_io::sidecars::sidecar_path(&root, &date, &suffix)
+            .ok_or_else(|| format!("{date}.{suffix} is not a sidecar's name"))?;
+        // Recorded against empty content: a remove event reads the now-gone
+        // file back as "" (see `changes` in `watcher.rs`), so this is the
+        // echo that makes the watcher recognise its own move and not also
+        // announce it - the same reason `write_sidecar` records one before it
+        // writes.
+        state.echoes.record(&path, "");
+        root
+    };
 
     let at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
