@@ -71,6 +71,31 @@ export function sidecarPath(date, suffix) {
 }
 
 /**
+ * Where a deleted note goes (spec §2.4).
+ *
+ * A move rather than an unlink: the vault is a folder of plain files somebody
+ * owns, and an unrecoverable delete from a popover is a sharp edge on a
+ * gesture that exists because notes get made by accident.
+ *
+ * Stamped with the second it went, because deleting the same suffix twice -
+ * make a note, delete it, make it again, delete it again - is the ordinary
+ * case rather than the odd one, and two files cannot share a name.
+ *
+ * A dotfolder at the vault root, so `list` (which walks `YYYY/MM/`) never sees
+ * one and a trashed note leaves no marker and no offer behind.
+ *
+ * @param {string} date  `YYYY-MM-DD`
+ * @param {string} suffix
+ * @param {number} at  Unix time, in whole seconds
+ * @returns {string|null} null when this does not name a sidecar
+ */
+export function trashPath(date, suffix, at) {
+  if (sidecarPath(date, suffix) === null) return null
+  if (!Number.isSafeInteger(at) || at < 0) return null
+  return `.trash/${date}.${suffix}.${at}.md`
+}
+
+/**
  * A title, as a filename can hold it (spec §4.2).
  *
  * Lowercased, everything else collapsed to single hyphens, cut, and *then*
