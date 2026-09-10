@@ -115,7 +115,7 @@ that the manifest does not declare is never asked either.
 | `vault.contribute` | Nothing but the range of days. | `{date, time, text}[]` |
 | `item.badge` | `{date, items: [{index, text}]}` — every line the parser understood on the page being drawn, and where it sits. Not its note, not its tokens, not the daily note. | `{index, label, href}[]` |
 | `theme.tokens` | The clock, and `tokens` — every theme token as the theme set it. You are asked to *move* those, and cannot move what you were never shown. Not the page: what you do with colour is a function of the time of day. | `Record<string, string>` — a partial map of theme tokens |
-| `page.section` | `{date, sidecars: [{suffix, title}]}` — which of *your* files exist on that day, and never anybody else's. | `{suffix, title?}[]` |
+| `page.note` | `{date, sidecars: [{suffix, title}]}` — which of *your* files exist on that day, and never anybody else's. | `{suffix, title?}[]` |
 | `item.action` | `{date, index, text}` — the line under the caret when `⌘⇧N` was pressed. | `{open: 'sidecar:…'}` or `null` |
 | `search.provide` | `{query}` — exactly what was typed into ⌘F. | `{text, date?, href?}[]` |
 
@@ -136,6 +136,12 @@ so a marker that turns out to name nothing gets a notice, not a file. In the
 detached window, clicking such a marker moves to the week the note's day
 sits in — that window has no block to put a caret in — switching to the week
 view if you clicked it from the someday tab.
+
+A `sidecar:` ref is not only a plugin's to hand back, either: it is also
+something a person can type straight into their own note —
+`[Monday's standup](sidecar:2026-09-08/meeting-standup)` opens Monday's note
+the same way, resolved by the same route ([format.md](format.md)). One ref
+format, whoever wrote it.
 
 ### `theme.tokens`
 
@@ -414,41 +420,48 @@ at 500 with the newest kept. `read` rejects for a file that is not there and
 for a suffix that is not yours, with the same sentence — neither is a strike.
 
 **You cannot write one.** There is no `vault.sidecar.write`. You *name* a
-sidecar, and the app opens a block on the day page that the person types
+sidecar, and the app opens it in a page of its own for the person to type
 into, and the app writes it — the surface that lets you name one is
-`page.section`, below. A plugin relaying keystrokes back through the door to
+`page.note`, below. A plugin relaying keystrokes back through the door to
 write what the app already has is not a feature this API is missing.
 
-### `page.section`
+### `page.note`
 
-A block under the day, kept in a file beside the day's:
+A page of your own, kept in a file beside the day's, opened from the day:
 
 ```toml
-slots = ["page.section"]
+slots = ["page.note"]
 
 [sidecars]
 prefixes = ["meeting"]
 ```
 
 ```js
-planner.on('page.section', ({ date, sidecars }) => {
+planner.on('page.note', ({ date, sidecars }) => {
   // `sidecars` is which of *your* files exist on that day. Never anybody
   // else's, and you are not told that anybody else's exist.
   return [
-    { suffix: 'meeting-standup' },                                 // a block to type in
+    { suffix: 'meeting-standup' },                                 // a note to open
     { suffix: 'meeting-1-1-with-priya', title: '1:1 with Priya' },  // an offer of one
   ]
 })
 ```
 
-A suffix that exists is a block; one that does not is an offer, and needs a
+A suffix that exists is a note; one that does not is an offer, and needs a
 `title` to write on it. A suffix outside your prefixes is dropped, and a line
-in the day's notice band says how many. Twelve blocks per day, per plugin.
+in the day's notice band says how many. Twelve notes per day, per plugin.
 
-**You do not write the file.** Pressing the offer is what creates it, with the
-title as its first line, and every keystroke after that is written by the app —
-800 milliseconds after the last one, and on blur. A change arriving from
-elsewhere is held while the block has the caret and applied when it leaves.
+**A plugin no longer draws anything on the day page.** This slot used to open
+a block you typed into, in place, under the day; now it only says which notes
+exist and which could — the app decides whether and where a note-or-offer
+control appears from that answer, beside the row it's about when there is one
+(`macos-calendar` puts one on its own calendar rows), and draws nothing at all
+when there isn't. Pressing an offer creates the file, with the title as its
+first line, and opens it in the note view — the same page a suffix that
+already exists opens to. The typing happens there: 800 milliseconds after the
+last keystroke and on close, through the same `writeQueue.js` as before. A
+change arriving from elsewhere is held while the note has the caret and
+applied when it closes.
 
 The title of a file that exists comes from the file's own first `# ` line, not
 from your answer: you name a note once, and after that it is somebody's writing.
@@ -458,7 +471,7 @@ from your answer: you name a note once, and after that it is somebody's writing.
 A gesture on a line, and a page of your own about it:
 
 ```toml
-slots = ["item.action", "item.badge", "page.section"]
+slots = ["item.action", "item.badge", "page.note"]
 
 [action]
 label = "Notes"
@@ -489,9 +502,11 @@ other day has to name a file that is already there; the app goes to that day
 and shows it. So a note you have written stays where you wrote it, and nothing
 you name can put a file in the vault on a day nobody is looking at.
 
-**Declare `page.section` too.** Sections are drawn only from `page.section`
-answers. A plugin that opened a note it could not list would show it once and
-lose it on the next draw.
+**Declare `page.note` too.** A note-or-offer control on a row comes only from
+a `page.note` answer, matched back to the row it's about by suffix — without
+one, nothing appears there for a plugin whose row it is. `task-notes` declares
+it as well and draws nothing from it — none of its notes sit on a row. They
+are marked by `item.badge` and opened by `item.action` instead.
 
 **A line has no identity, and this is the part to think about.** A line is a
 position and some words. The position moves under any edit above it, and

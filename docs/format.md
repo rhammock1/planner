@@ -9,6 +9,7 @@ Edit them by hand, grep them, put them in git.
     ~/Planner/
       2026/08/2026-08-31.md    one file per day, created lazily
       someday.md               the back page
+      .trash/                                     notes you deleted
 
 A `someday.md` file may carry a daily note; it is preserved like any other.
 
@@ -43,14 +44,42 @@ declared — two plugins cannot own the same one.
 Such a file is **never parsed**. It is free text, LF, one trailing newline,
 never reflowed; nothing in it means anything to this app, and none of the four
 tokens work in it. It is not a day: it holds no items, it is not counted, it
-never carries forward, and it does not appear in the week or the month. The
-only thing the app ever reads inside one is its first `# ` line, to have
-something to call it in a list.
+never carries forward, and it does not appear in the week or the month.
+
+Two things reach past that wall, and both stop at reading. The app reads a
+sidecar's first `# ` line, to have something to call it in a list. And it may
+draw the whole file as Markdown — headings, lists, emphasis, links — when you
+open it to read or write it. Neither is parsing: the bytes on disk are exactly
+what you typed, drawing one feeds nothing back into it, and a sidecar you have
+never opened that way means exactly what it always did.
+
+A link so drawn may open: `http`, `https` and `mailto` only, and only because
+you wrote it yourself. That is not the check a plugin's own links get —
+[plugins.md](plugins.md) holds a plugin to the addresses its manifest
+declared and the pane ticked, and a link in your own note answers to neither,
+since that list exists to constrain a plugin's code, not the person whose
+vault this is. A `mailto:` loses its query and fragment before it opens, so a
+link cannot hand a compose window an attachment you never saw; a link whose
+address carries a username — `https://you@evil.io/`, which reads as one host
+and resolves to another — is refused, the same as a scheme this app will not
+open at all. Anything refused, and anything else typed as a link, is drawn as
+text rather than as a link nothing would follow.
 
 The back page has no date, and so has no files beside it.
 
 A plugin never writes one of these. It names one; the app writes it, atomically,
 the same way it writes a day.
+
+Deleting one does not erase it. The file moves to `.trash/` at the vault root,
+its name gaining a third part — the second it was deleted, so deleting the
+same suffix twice does not collide:
+
+    .trash/2026-09-01.meeting-standup.1757520000.md
+
+Still a plain file, still in git, still greppable. It keeps its date and its
+suffix, carries the second it was deleted, and — like the sidecar it was — is
+never listed, never carried forward, and never counted. Nothing offers to open
+it again.
 
 ## Checkbox states
 

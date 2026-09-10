@@ -104,15 +104,18 @@ is a contract and a plugin is not a party to it. Landed, whole.
    greppable, still in git. A path outside that shape is refused the way an
    entry that climbs out of its folder already is. Worth landing on its own,
    because both plugins below are built on it.
-8. **`meeting-notes`** — a block under the day you type into while a meeting
-   happens. Forces `page.section`. The title makes the filename, lowercased
-   and kebab-cased; two sources in order, the plugin supplying one when it can
-   (a calendar contribution already carries the event text) and asking when it
-   cannot. Autosaves through `writeQueue.js`, because there is no Save button
-   anywhere else in this app either. This is also where the note question gets
-   settled: the app has the `> ` under an item and the daily note after `---`,
-   and a meeting note is neither, because a contributed line is not in your
-   file.
+8. **`meeting-notes`** — landed as a block you typed into while a meeting
+   happened, then folded into `macos-calendar` once notes moved into a page of
+   their own (phase three, part two): its offers came entirely from
+   `macos.calendar.read`, so it was never independent enough to keep its own
+   manifest and its own tick. The `meeting-` prefix and the sidecars already
+   on disk moved with it; `plugins/meeting-notes/` is gone. The slot it forced
+   is renamed too, to `page.note` (docs/plugins.md), because it stopped
+   drawing anything of its own on the day page. The title still makes the
+   filename, lowercased and kebab-cased, from the calendar's own event text —
+   and the note question this plugin settled still holds: the app has the
+   `> ` under an item and the daily note after `---`, and a meeting note is
+   neither, because a contributed line is not in your file.
 9. **`task-notes`** — pick a line on the day page and open a page of your own
    about it, and the line carries a marker back to it. Forces `item.action`, a
    plugin adding a *gesture* to a line you wrote, which is a larger grant than
@@ -186,11 +189,15 @@ Three entries that belong here and have no phase:
   it know which lines are worth saying out loud? It does not, and it does not
   need to. The work it saves is the gathering, not the judgement.
 
-- **A heading that comes from the plugin.** The contributed section is headed
-  `On the calendar` because one plugin contributes to it. A second one would
-  need the heading to say whose lines those are, which means either a field in
-  the manifest or a section per plugin. `git-activity` is that second one, so
-  this is answered by phase two whether or not it is picked up before then.
+- **A heading that comes from the plugin.** Answered. `git-activity` was the
+  second contributor, and `[contribute] heading` (docs/plugins.md) is the
+  field: each plugin is drawn under the heading its own manifest asked for, in
+  name order. The note-view work gave that field a second use — a contributor
+  whose lines carry no time at all folds under the day's own note instead of
+  keeping a section, and its heading becomes the small tag on that line
+  instead of a full one (the fold rule). `git-activity`'s `From git` is that
+  case; `On the calendar` keeps its own section because a meeting carries a
+  time.
 
 ## Decided against, for now
 
@@ -221,3 +228,10 @@ Three entries that belong here and have no phase:
   section's heading, a tab's name, and now a gesture's label. Four manifest
   keys arriving separately in four phases is the same shape four times, which
   is past the point of watching for it: they were one thing.
+- How one plugin decorates another plugin's contributed line. Merging
+  `meeting-notes` into `macos-calendar` answered the meeting case by removing
+  it, not by answering it. `ticket-links` on a calendar row is the case that
+  brings it back.
+- A block region on the day page, removed rather than kept empty. If a plugin
+  appears that needs to draw under the day and is not a note, the region
+  comes back with that plugin.
