@@ -40,6 +40,8 @@ import { createSettingsPanel } from './settingsPanel.js'
  * @property {import('../core/carry.js').CarryGroup[]} carry  empty unless today
  * @property {import('../core/contributions.js').Section[]} sections  one per contributing plugin; today only
  * @property {import('../core/sections.js').Block[]} blocks  what the plugins named for this day
+ * @property {Map<string, string[]>} prefixes  who owns which sidecar prefix; a
+ *   contributed row's note is found through these, never through a name
  * @property {Map<number, import('../core/badges.js').Badge[]>} [badges]  markers, keyed by line index
  * @property {string[]} notices
  * @property {Action[]} actions  offered under the notices; usually none
@@ -294,7 +296,7 @@ export function render(state) {
   page.carry.render(state.carry, state.today)
   page.horizon.render(state.horizon)
   page.items.render(state.doc, state.badges)
-  page.sections.render({ contributed: state.sections, blocks: state.blocks })
+  page.sections.render({ contributed: state.sections, blocks: state.blocks, prefixes: state.prefixes })
   renderNote(page.note, state.doc)
 
   page.foot.render(openCount(state.doc))

@@ -26,17 +26,20 @@
  * A timed row also grows a trailing control for the note a plugin offers on
  * it, or already holds (spec §1.2). There is no other way to reach one: a
  * contributed event has no index into the day file the way an `item` does,
- * so `page.note`'s answer is matched back to the row it is about by
- * recomputing the suffix `macos-calendar` would compute for that row's own
- * title, the only key a contributed event has ever had. Untimed rows never
- * get one - they fold under the day's own note as evidence, in the tense of
- * something that already happened, and that is not what a note is for.
+ * so `page.note`'s answer is matched back to the row it is about by the
+ * suffix that row's own title makes - the only key a contributed event has
+ * ever had. That match is `blockForRow` in `core/sections.js`, over the
+ * prefixes the app settled and against the plugin that sent the row, so a
+ * second contributor's row can never reach the first's file. This view knows
+ * no plugin's name. Untimed rows never get a control - they fold under the
+ * day's own note as evidence, in the tense of something that already
+ * happened, and that is not what a note is for.
  */
 
 import { el, setText, setClass } from '../ui/dom.js'
 import { patchList } from '../ui/keyedList.js'
 import { foldsUnderNote } from '../core/contributions.js'
-import { suffixFor } from '../core/sidecars.js'
+import { blockForRow } from '../core/sections.js'
 
 /** @typedef {import('../core/contributions.js').Event} Event */
 /** @typedef {import('../core/contributions.js').Section} Section */
@@ -46,17 +49,8 @@ import { suffixFor } from '../core/sidecars.js'
 /** @typedef {{key: string, heading: string, text: string}} EvidenceLine */
 
 /**
- * The prefix `macos-calendar` claims for a meeting's sidecar - its own
- * `manifest.toml`, `[sidecars]`. Mirrored here rather than read off a block:
- * a row does not carry a suffix of its own, so the only way to find the
- * block that answers for it is to compute the same suffix its title would
- * make, the way the plugin already does.
- */
-const MEETING = 'meeting'
-
-/**
  * @param {{onOpen: (block: Block) => void}} handlers
- * @returns {{element: HTMLElement, evidence: HTMLElement, render: (sections: Section[], blocks: Block[]) => void}}
+ * @returns {{element: HTMLElement, evidence: HTMLElement, render: (sections: Section[], blocks: Block[], prefixes: Map<string, string[]>) => void}}
  */
 export function createContributions(handlers) {
   const stack = el('div', 'givens')
@@ -70,11 +64,8 @@ export function createContributions(handlers) {
   return {
     element: stack,
     evidence,
-    render: (sections, blocks) => {
+    render: (sections, blocks, prefixes) => {
       const timed = sections.filter((section) => !foldsUnderNote(section))
-      // By suffix, computed once per render rather than once per row: a row
-      // does not know its own suffix, only its title.
-      const bySuffix = new Map(blocks.map((block) => [block.suffix, block]))
 
       stack.hidden = timed.length === 0
       patchList(stack, timed, {
@@ -108,7 +99,9 @@ export function createContributions(handlers) {
               // with the timed ones rather than sitting out to the left alone.
               setText(time, event.time ?? '')
               setText(text, event.text)
-              if (offer instanceof HTMLButtonElement) updateOffer(offer, event, bySuffix, handlers)
+              if (offer instanceof HTMLButtonElement) {
+                updateOffer(offer, blockForRow(section.plugin, event.text, blocks, prefixes), handlers)
+              }
             },
           })
         },
@@ -155,23 +148,20 @@ export function createContributions(handlers) {
  *   - a note exists - `✎`, always shown, and `.done` rather than quiet: a
  *     note you already wrote is not something to hide behind a hover
  *
- * Hidden outright, rather than left blank, when the row's own title makes no
- * suffix at all (a title with no letters or digits in it) or no block
- * answered for it: there is nothing this control could open, and a button
- * that does nothing is worse than no button.
+ * Hidden outright, rather than left blank, when no block of the row's own
+ * plugin answered for it - which covers a title that makes no suffix at all
+ * (nothing but punctuation in it), a plugin that owns no prefix, and a row
+ * nobody offered a note on. There is nothing this control could open, and a
+ * button that does nothing is worse than no button.
  *
  * @param {HTMLButtonElement} offer
- * @param {Event} event
- * @param {Map<string, Block>} bySuffix
+ * @param {Block|null} block  what `blockForRow` matched, if anything
  * @param {{onOpen: (block: Block) => void}} handlers
  * @returns {void}
  */
-function updateOffer(offer, event, bySuffix, handlers) {
-  const suffix = suffixFor(MEETING, event.text)
-  const block = suffix === '' ? undefined : bySuffix.get(suffix)
-
-  offer.hidden = block === undefined
-  if (block === undefined) return
+function updateOffer(offer, block, handlers) {
+  offer.hidden = block === null
+  if (block === null) return
 
   const done = block.kind === 'editor'
   setClass(offer, 'done', done)

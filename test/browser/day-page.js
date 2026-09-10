@@ -85,6 +85,7 @@ function show(count, events, notices, actions) {
       })),
     }],
     blocks: [],
+    prefixes: new Map(),
     notices: notices ?? [],
     actions: actions ?? [],
   })
@@ -460,6 +461,7 @@ function contribute(sections) {
     carry: [],
     sections,
     blocks: [],
+    prefixes: new Map(),
     notices: [],
     actions: [],
   })

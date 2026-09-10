@@ -17,7 +17,7 @@
  * has it - the view sets `textContent` and the title is a string.
  */
 
-import { isSuffix, owns } from './sidecars.js'
+import { isSuffix, owns, suffixFor } from './sidecars.js'
 
 /**
  * @typedef {object} Block
@@ -119,6 +119,41 @@ function readOne(raw, plugin, prefixes, existing) {
   const title = flatten(fields['title'])
   if (title === '') return null
   return { plugin, suffix, title, kind: 'offer' }
+}
+
+/**
+ * The block that answers for one contributed row (spec §1.2).
+ *
+ * A contributed event has no index into the day file the way an `item` does,
+ * so there is no key to match on but the one the plugin itself used to name
+ * the file: the suffix its own title makes under one of its own prefixes.
+ * This recomputes exactly that, over the prefixes the app *settled* for that
+ * plugin rather than any prefix a view happens to know the name of.
+ *
+ * Both halves of the match matter. Asking only "does some block have this
+ * suffix" is how a reminder called Standup would open the calendar's meeting
+ * note, because a suffix is unique per plugin and not across plugins; the
+ * `block.plugin === plugin` test is what keeps one plugin's row from ever
+ * reaching another's file. And a plugin owning no prefix matches nothing,
+ * rather than falling back to a name compiled in somewhere.
+ *
+ * Pure, and here rather than in the view, because this is the rule the
+ * prefix model is made of and it should be readable and testable as one.
+ *
+ * @param {string} plugin  who contributed the row
+ * @param {string} text  the row's own title, the only key it has
+ * @param {Block[]} blocks  every block every plugin answered with
+ * @param {Map<string, string[]>} owned  who owns which prefix
+ * @returns {Block|null} null when nothing this plugin owns answers for it
+ */
+export function blockForRow(plugin, text, blocks, owned) {
+  for (const prefix of owned.get(plugin) ?? []) {
+    const suffix = suffixFor(prefix, text)
+    if (suffix === '') continue
+    const hit = blocks.find((block) => block.plugin === plugin && block.suffix === suffix)
+    if (hit !== undefined) return hit
+  }
+  return null
 }
 
 /**

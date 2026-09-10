@@ -15,8 +15,9 @@
  * (`noteView.js`), reached from a marker, a search hit, or a control on the
  * row it is about (spec §1.2). So a `page.note` answer never draws anything
  * of its own in this region - `contributions.js` matches each answered
- * block back to the timed row it belongs to, by the suffix that row's own
- * title would make, and draws the note-or-offer control there instead.
+ * block back to the timed row it belongs to (`blockForRow`, over the settled
+ * prefixes this state carries), and draws the note-or-offer control there
+ * instead.
  *
  * Thin as that leaves it, the file stays rather than folding into
  * `dayPage.js`, and the reason is the pairing: this is the one place holding
@@ -35,6 +36,9 @@ import { createContributions } from './contributions.js'
  * @typedef {object} SectionsState
  * @property {Section[]} contributed  one per contributing plugin; today only
  * @property {Block[]} blocks  what the plugins named for the day being shown
+ * @property {Map<string, string[]>} prefixes  who owns which sidecar prefix, as
+ *   the app settled it - the only thing that says which block answers for
+ *   which contributed row
  */
 
 /**
@@ -62,7 +66,7 @@ export function createDaySections(handlers) {
     evidence,
 
     render: (state) => {
-      given.render(state.contributed, state.blocks)
+      given.render(state.contributed, state.blocks, state.prefixes)
     },
   }
 }

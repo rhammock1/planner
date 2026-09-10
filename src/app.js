@@ -251,6 +251,10 @@ function draw() {
     carry: page === now ? unfinished(store.vault(), now, store.config().carryForwardScanDays) : [],
     sections: given.sections,
     blocks: blocked.blocks,
+    // Settled once, by the same store `sectionsFor` just asked: the view
+    // matches a contributed row to its note through these rather than
+    // through any prefix name of its own.
+    prefixes: store.pluginPrefixes(),
     badges: marked.badges,
     // The one thing a notice ever needs pressing for: the app will not put a
     // vault somewhere nobody asked for (spec §8).
