@@ -363,19 +363,50 @@ mod size {
     }
 }
 
-/// One capability call at a time, per plugin.
+/// A bounded number of capability calls at a time, per plugin.
 mod in_flight {
     use planner_lib::plugins::door::InFlight;
 
+    /// The one this exists for. A draw of the day page asks the same plugin
+    /// `vault.contribute` and `page.note` in the same tick, and
+    /// `macos-calendar` reads the calendar to answer either. Refusing the
+    /// second is the app tripping over its own feet: the plugin did not ask
+    /// twice, it was asked twice.
     #[test]
-    fn a_second_call_from_the_same_plugin_finds_the_slot_taken() {
+    fn two_questions_asked_at_once_can_both_reach_the_calendar() {
         let flight = InFlight::default();
 
-        assert!(flight.enter("macos-calendar"));
-        assert!(!flight.enter("macos-calendar"), "two calls were let through at once");
+        let contribute = flight.hold("macos-calendar");
+        let note = flight.hold("macos-calendar");
+
+        assert!(contribute.is_some(), "the first question could not read the calendar");
+        assert!(note.is_some(), "the second question was refused while the first was in the air");
+    }
+
+    #[test]
+    fn a_plugin_past_its_allowance_is_refused() {
+        let flight = InFlight::default();
+
+        // One per slot this app offers, and there are six. Five held here, so
+        // the sixth below is the last one that may be let through.
+        let held: Vec<_> = (0..5).map(|_| flight.hold("macos-calendar")).collect();
+        assert!(held.iter().all(Option::is_some), "a plugin could not answer five slots at once");
+
+        assert!(flight.enter("macos-calendar"), "a plugin could not answer every slot at once");
+        assert!(!flight.enter("macos-calendar"), "a plugin was let past its allowance");
+    }
+
+    #[test]
+    fn a_place_given_back_can_be_taken_again() {
+        let flight = InFlight::default();
+
+        for _ in 0..6 {
+            assert!(flight.enter("macos-calendar"));
+        }
+        assert!(!flight.enter("macos-calendar"), "the allowance was not reached");
 
         flight.leave("macos-calendar");
-        assert!(flight.enter("macos-calendar"), "the slot was not given back");
+        assert!(flight.enter("macos-calendar"), "the place was not given back");
     }
 
     #[test]
@@ -398,16 +429,19 @@ mod in_flight {
     /// call does not run when the future around it is dropped, and a plugin
     /// whose slot was never given back could never use a capability again.
     #[test]
-    fn a_dropped_call_gives_its_slot_back() {
+    fn a_dropped_call_gives_its_place_back() {
         let flight = InFlight::default();
 
+        // Five of the six taken and kept, so the sixth is the one at the edge.
+        let _held: Vec<_> = (0..5).map(|_| flight.hold("macos-calendar")).collect();
+
         {
-            let held = flight.hold("macos-calendar");
-            assert!(held.is_some());
-            assert!(flight.hold("macos-calendar").is_none(), "two at once");
+            let last = flight.hold("macos-calendar");
+            assert!(last.is_some());
+            assert!(flight.hold("macos-calendar").is_none(), "one past the allowance");
         }
 
-        assert!(flight.hold("macos-calendar").is_some(), "the slot never came back");
+        assert!(flight.hold("macos-calendar").is_some(), "the place never came back");
     }
 }
 

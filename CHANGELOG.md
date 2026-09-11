@@ -124,6 +124,20 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Fixed
 
+-   A meeting on the calendar offers a note again. A draw of the day page asks
+    one plugin two questions at once — `vault.contribute` for the events and
+    `page.note` for the notes on them — and the door allowed a plugin one
+    capability call at a time, so whichever question reached the calendar
+    second was refused. `macos-calendar` catches that refusal the way it is
+    meant to, which made the loss silent: a day with meetings on it drew no
+    offer and said nothing about why. The allowance is one call per slot this
+    app offers, so a plugin can always answer everything it was asked at once
+    and never more
+-   The offer of a note on a meeting is visible without being pointed at. It
+    rested at `opacity: 0` and appeared on hover, which is a reasonable way to
+    keep a row quiet and an unreasonable way to hold the only means of starting
+    a meeting note — it read as a feature that had been removed. It rests faint
+    and comes up to full on hover or focus
 -   A ⌘F query no longer opens every note `meeting-notes` can see. It reads at
     most sixty, newest first, and matches titles all the way back — a vault
     with hundreds of notes could spend the plugin's two seconds opening files

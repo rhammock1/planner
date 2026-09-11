@@ -4,7 +4,7 @@
 //! second question, answered by `Registry` against the capabilities the
 //! config granted it.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::sync::Mutex;
 
 use serde::Deserialize;
@@ -39,27 +39,57 @@ pub fn too_large(message: &Value) -> bool {
         > LIMIT
 }
 
-/// The plugins with a capability call in flight.
+/// How many capability calls one plugin may have in the air at once.
+///
+/// One per slot this app offers, because that is exactly how many questions
+/// the app can have outstanding at one plugin: `ask_all` spawns a round per
+/// slot, and a single draw of the day page puts `vault.contribute` and
+/// `page.note` to the same plugin in the same tick. A plugin that answers
+/// both out of one capability - `macos-calendar` reads the calendar for each
+/// - is not being impatient; it is answering the two questions it was just
+/// asked, and refusing the second is the app tripping over its own feet.
+///
+/// This was 1, and the cost was a day's meetings quietly offering no notes:
+/// `page.note` lost the race to `vault.contribute`, the plugin caught the
+/// refusal the way it is meant to, and a day with events on it drew no offer
+/// and said nothing about why.
+const MOST_AT_ONCE: usize = 6;
+
+/// The capability calls each plugin has in flight.
 ///
 /// `spawn_blocking` runs on a pool the whole app shares, and it is not a
 /// plugin's to fill: ten calls at once from one plugin would hold ten threads
-/// while the app's own work queued behind them. One at a time, per plugin.
+/// while the app's own work queued behind them. Capped rather than uncapped,
+/// at the number of questions this app can actually be waiting on.
 #[derive(Default)]
-pub struct InFlight(Mutex<HashSet<String>>);
+pub struct InFlight(Mutex<HashMap<String, usize>>);
 
 impl InFlight {
-    /// Takes the plugin's one slot, or says it was already taken.
+    /// Takes one of the plugin's places, or says they are all taken.
     pub fn enter(&self, name: &str) -> bool {
-        self.0.lock().expect("in-flight lock").insert(name.to_string())
+        let mut held = self.0.lock().expect("in-flight lock");
+        let count = held.entry(name.to_string()).or_insert(0);
+        if *count >= MOST_AT_ONCE {
+            return false;
+        }
+        *count += 1;
+        true
     }
 
-    /// Gives it back. Called on every way out of a call, including the ones
-    /// that failed.
+    /// Gives one back. Called on every way out of a call, including the ones
+    /// that failed - and harmless when nothing was taken, which is what an
+    /// error branch on the way out does.
     pub fn leave(&self, name: &str) {
-        self.0.lock().expect("in-flight lock").remove(name);
+        let mut held = self.0.lock().expect("in-flight lock");
+        let Some(count) = held.get_mut(name) else { return };
+        *count -= 1;
+        if *count == 0 {
+            held.remove(name);
+        }
     }
 
-    /// Takes the plugin's slot and hands back something that gives it up.
+    /// Takes one of the plugin's places and hands back something that gives
+    /// it up.
     pub fn hold(&self, name: &str) -> Option<Flying<'_>> {
         self.enter(name).then(|| Flying { flight: self, name: name.to_string() })
     }
@@ -188,9 +218,11 @@ async fn run_capability(
         }
     }
 
-    // Refused rather than queued, and never a strike: a plugin that asks
-    // twice at once is impatient, not dishonest, and the second call would
-    // hold a thread waiting for the first (spec §0.2, §6).
+    // Refused rather than queued, and never a strike: a plugin past its
+    // allowance is impatient, not dishonest, and a queued call would hold a
+    // thread waiting for the ones in front of it (spec §0.2, §6). The
+    // allowance is one per slot, so a plugin can always answer everything the
+    // app asked it at once and never more - see `MOST_AT_ONCE`.
     //
     // `inner()` rather than the `State` itself, because the guard has to
     // outlive the temporary and `State::inner` hands back a borrow with the
@@ -198,7 +230,7 @@ async fn run_capability(
     // function returns, however it returns.
     let flight = app.state::<InFlight>();
     let Some(_flying) = flight.inner().hold(name) else {
-        return Err(format!("{name} is already waiting on a capability"));
+        return Err(format!("{name} has too many capability calls in the air at once"));
     };
 
     // Cloned into the blocking task: everything alive across an await point
