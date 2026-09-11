@@ -9,6 +9,10 @@
 /// Public so the tests in `tests/` can reach the day arithmetic; nothing
 /// outside this crate has any business calling a bridge.
 pub mod bridges;
+
+/// Public so `main.rs` can answer the command line before Tauri starts, and
+/// so the tests in `tests/` can read the grammar without one.
+pub mod cli;
 mod links;
 mod notify;
 mod quick_add;
@@ -57,7 +61,10 @@ fn close_quick_add(app: AppHandle) {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
+pub fn run(intent: cli::Intent) {
+    // Acted on in the next commit, when there is a window to act on it with.
+    let _ = &intent;
+
     // Every invoke passes the gate before it reaches a command. A plugin
     // window may call one of them; the app's own windows may call any (see
     // `plugins::allowed`).
