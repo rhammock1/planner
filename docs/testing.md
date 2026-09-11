@@ -63,6 +63,31 @@ PLANNER_HOME="$TMPDIR/planner-home" npm run app
       has.
 - [ ] `⌘↩` opens the second window, and the footer's tabs switch it.
 
+**The command line**
+
+- [ ] `planner ~/Planner/A-RUMBLING-OF-THUNDER.md` with the app not running
+      launches it and opens the file.
+- [ ] The same command with the app already running opens the file in the
+      window that is already there, and no second menu bar icon appears.
+- [ ] The window comes to the front, rather than raising behind the terminal.
+      This is the one worth watching: the app is an accessory with no dock
+      icon, and whatever invoked it is a terminal that is frontmost.
+- [ ] Bare `planner` with the app already running opens today's page. This is
+      the way in when a full menu bar has hidden the icon.
+- [ ] `planner nope.txt`, `planner /nowhere/x.md` and `planner --wat` each
+      refuse on stderr and exit 2 — with the app running *and* without it.
+- [ ] `planner --help` and `planner --version` print and exit without
+      launching anything.
+- [ ] Editing the open file in nvim shows up in the window within a second or
+      two, and typing in the window shows up in nvim.
+- [ ] A file outside the vault opens, edits and saves, and the window says it
+      is not being watched.
+- [ ] `planner ~/Planner/new-one.md` on a file that is not there opens blank
+      saying **New file**, and the file appears on disk a second after the
+      first keystroke.
+- [ ] Type into the file and press ⌘W immediately. Reopen the window: the
+      text is there.
+
 **The vault**
 
 - [ ] An edit made in a text editor shows up in the app within a second.

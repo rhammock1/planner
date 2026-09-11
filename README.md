@@ -51,6 +51,25 @@ Edit them in any editor, grep them, put them in git. Anything the app does not
 recognise is preserved exactly as you wrote it. The full contract is in
 [docs/format.md](docs/format.md).
 
+## From the command line
+
+    planner                                       today's page
+    planner ~/Planner/A-RUMBLING-OF-THUNDER.md    that file, in the window
+
+The second one opens any Markdown file — a campaign, a long note, anything
+kept in prose — in the detached window, in the same editor a note beside a day
+opens in. The file need not be in the vault and need not exist yet; the folder
+holding it must. It is never parsed: it is not a day, it holds no items, and
+it never appears in the week, the month or the horizon.
+
+Typing `planner` while it is already running reaches the app that is running
+rather than starting a second one — which is also how the day page is reached
+when a full menu bar has hidden the icon.
+
+Edits made elsewhere show up while the file is open, as long as it is in the
+vault: that is the only folder being watched. A file kept outside it says so
+in the window.
+
 ## Plugins
 
 Calendar and Reminders are plugins rather than features, which is how the
