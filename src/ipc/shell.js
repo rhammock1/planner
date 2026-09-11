@@ -142,6 +142,41 @@ export async function onSpreadView(handler) {
 }
 
 /**
+ * Opens the detached window on a file, or brings it forward and shows that
+ * one (spec §2.4).
+ *
+ * @param {string} path  absolute
+ * @returns {Promise<void>}
+ */
+export async function openSpreadFile(path) {
+  return (await getHost()).openSpreadFile(path)
+}
+
+/**
+ * The file the detached window was last asked for, read as it starts.
+ *
+ * Asked for rather than passed in the URL, for the reason `spread_view`
+ * already is: the window outlives the invocation that opened it, and a second
+ * `planner <path>` arriving before this webview has finished loading must not
+ * be lost.
+ *
+ * @returns {Promise<string|null>} null when nothing has asked
+ */
+export async function spreadFile() {
+  return (await getHost()).spreadFile()
+}
+
+/**
+ * Fires when something asks the window for a different file.
+ *
+ * @param {(path: string) => void} handler
+ * @returns {Promise<void>}
+ */
+export async function onSpreadFile(handler) {
+  await (await getHost()).onSpreadFile(handler)
+}
+
+/**
  * Every plugin folder in `~/.planner/plugins`, installed or not, with its
  * manifest as text. Parsing it is core's job (`core/plugins.js`); there is
  * one TOML reader in this project and Rust is not it.

@@ -44,6 +44,13 @@
  * @property {(date: string, suffix: string, text: string) => Promise<void>} writeSidecar
  * @property {(date: string, suffix: string) => Promise<void>} deleteSidecar
  * @property {(handler: (change: {date: string, suffix: string}) => void) => void|Promise<void>} onSidecarChanged
+ * @property {(path: string) => Promise<string|null>} readFile
+ * @property {(path: string, text: string) => Promise<void>} writeFile
+ * @property {() => Promise<void>} closeFile
+ * @property {(handler: (path: string) => void) => void|Promise<void>} onFileChanged
+ * @property {(path: string) => Promise<void>} openSpreadFile
+ * @property {() => Promise<string|null>} spreadFile
+ * @property {(handler: (path: string) => void) => void|Promise<void>} onSpreadFile
  * @property {() => Promise<{name: string, manifest: string}[]>} listPlugins
  * @property {(grant: import('../core/plugins.js').Grant) => Promise<void>} startPlugin
  * @property {(name: string) => Promise<void>} stopPlugin
@@ -172,6 +179,22 @@ function tauriHost() {
     // window whose tabs quietly stop switching it.
     onSpreadView: (handler) =>
       tauri.event.listen('spread:view', (/** @type {any} */ event) => {
+        handler(String(event.payload ?? ''))
+      }),
+    readFile: (path) => invoke('read_file', { path }),
+    writeFile: (path, text) => invoke('write_file', { path, text }),
+    closeFile: () => invoke('close_file'),
+    // Same shape as `onSidecarChanged`: unwrapped and coerced here rather
+    // than handed the raw payload, so a malformed event cannot hand the rest
+    // of the app anything but a string.
+    onFileChanged: (handler) =>
+      tauri.event.listen('file:changed', (/** @type {any} */ event) => {
+        handler(String(event.payload?.path ?? ''))
+      }),
+    openSpreadFile: (path) => invoke('open_spread_file', { path }),
+    spreadFile: () => invoke('spread_file'),
+    onSpreadFile: (handler) =>
+      tauri.event.listen('spread:file', (/** @type {any} */ event) => {
         handler(String(event.payload ?? ''))
       }),
   }
