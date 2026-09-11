@@ -16,6 +16,7 @@ import { readContributions } from './core/contributions.js'
 import { badgesFor, sectionsFor, providedFor } from './plugins/pageAsking.js'
 import { openInEditor, pickVault } from './vaultActions.js'
 import { openSidecar, followHit, followRef, noteOnLine, openMarker } from './sidecarActions.js'
+import { readRef, sidecarRef, sidecarPath } from './core/sidecars.js'
 import { search } from './core/search.js'
 import { applyPluginTokens } from './plugins/theming.js'
 import { today } from './clock.js'
@@ -26,6 +27,11 @@ import { createAmbient } from './ambient.js'
 import * as ipc from './ipc.js'
 import * as dayPage from './views/dayPage.js'
 import * as startup from './startup.js'
+
+/** How a note's own day reads under its title. */
+const STAMP = new Intl.DateTimeFormat(undefined, {
+  weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC',
+})
 
 const store = createStore()
 // The day on screen. Not a `let` set at launch: this window outlives the day
@@ -56,10 +62,18 @@ async function start() {
     onBadge: (plugin, href) => { void openMarker(surface, plugin, href) },
     onOpenSidecar: (block) => { void openSidecar(surface, block) },
     note: {
-      // The note's own day, not `showing.page()`, which has moved on by the
+      // The note's own id, not `showing.page()`, which has moved on by the
       // time a note opened on one day and closed on another flushes.
-      onWrite: (date, suffix, text) => store.changeSidecar(date, suffix, text),
-      onDelete: (date, suffix) => remove(date, suffix),
+      onWrite: (id, text) => {
+        const named = readRef(id)
+        if (named === null) return Promise.resolve(false)
+        return store.changeSidecar(named.date, named.suffix, text)
+      },
+      onDelete: (id) => {
+        const named = readRef(id)
+        if (named === null) return Promise.resolve(false)
+        return remove(named.date, named.suffix)
+      },
       onFollow: (href) => { void followRef(surface, href) },
       onOpenLink: (url) => { void openLink(url) },
       onClose: () => { closeNote() },
@@ -284,7 +298,8 @@ function draw() {
     // edit made in a text editor reaches a note that is open; `open` holds it
     // until the caret leaves rather than taking the words out from under it.
     const shown = dayPage.noteView().showing()
-    if (shown !== null) showNote(shown.date, shown.suffix)
+    const named = shown === null ? null : readRef(shown)
+    if (named !== null) showNote(named.date, named.suffix)
   }
 
   // The search holds its own query; this is what puts a late answer under it.
@@ -311,7 +326,14 @@ function showNote(date, suffix) {
   if (named === undefined) return false
   const text = store.sidecar(date, suffix)
   if (text === null) return false
-  dayPage.noteView().open({ date, suffix, title: named.title, text })
+  dayPage.noteView().open({
+    id: sidecarRef(date, suffix),
+    title: named.title,
+    subtitle: `Note · ${STAMP.format(new Date(`${date}T00:00:00Z`))}`,
+    path: sidecarPath(date, suffix) ?? '',
+    text,
+    back: 'Back to the day',
+  })
   return true
 }
 
