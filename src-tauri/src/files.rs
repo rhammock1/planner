@@ -83,8 +83,14 @@ pub fn write(path: &Path, text: &str) -> Result<(), String> {
 }
 
 /// Reads a file, and remembers that this is the one a window is showing.
+///
+/// The three commands below are `pub(crate)` rather than `pub`: this module is
+/// public so the tests can reach the rules above, but a command is for
+/// `generate_handler!` in `lib.rs` and nothing outside this crate has any
+/// business calling one. (`vault.rs` gets this for free by being a private
+/// module; this one cannot.)
 #[tauri::command]
-pub fn read_file(app: AppHandle, path: String) -> Option<String> {
+pub(crate) fn read_file(app: AppHandle, path: String) -> Option<String> {
     let path = PathBuf::from(path);
     Opened::set(&app, Some(path.clone()));
     read(&path)
@@ -98,7 +104,7 @@ pub fn read_file(app: AppHandle, path: String) -> Option<String> {
 /// not announce it a second time. Exactly what `write_page` and
 /// `write_sidecar` do, for exactly the same reasons.
 #[tauri::command]
-pub fn write_file(
+pub(crate) fn write_file(
     app: AppHandle,
     vault: State<'_, SharedVault>,
     path: String,
@@ -126,6 +132,6 @@ pub fn write_file(
 
 /// The window saying it is no longer showing a file.
 #[tauri::command]
-pub fn close_file(app: AppHandle) {
+pub(crate) fn close_file(app: AppHandle) {
     Opened::set(&app, None);
 }
