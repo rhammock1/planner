@@ -157,6 +157,29 @@ export function expandHome(path, home) {
 }
 
 /**
+ * A path as a person writes it: the inverse of `expandHome`.
+ *
+ * The window's footer shows a path somebody has to recognise at a glance, and
+ * `/Users/rhammock/Planner/…` is four words of noise in front of the part
+ * that identifies the file.
+ *
+ * The separator is part of the comparison, for the reason `insideVault` in
+ * `core/files.js` gives: `/Users/xavier` starts with `/Users/x` and is not
+ * inside it.
+ *
+ * @param {string} path  absolute
+ * @param {string} home  the home directory; `''` leaves the path alone
+ * @returns {string}
+ */
+export function shortenHome(path, home) {
+  if (home === '' || !path.startsWith(home)) return path
+  const rest = path.slice(home.length)
+  if (rest === '') return '~'
+  if (!rest.startsWith('/')) return path
+  return `~${rest}`
+}
+
+/**
  * @param {TomlValue|TomlTable} raw
  * @param {FieldType} type
  * @returns {string|number|boolean|null} null when the value is unusable
