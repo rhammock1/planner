@@ -162,6 +162,15 @@ async function start() {
   }
 
   for (const notice of await startup.registerHotkey(store.config().hotkey)) store.notice(notice)
+
+  // Last, and after the first `draw()`: this is the page telling the shell it
+  // is worth showing, and `planner` typed with no path is what was waiting to
+  // hear it (spec §1.1). Not fatal - the menu bar icon still opens the page.
+  try {
+    await ipc.popoverReady()
+  } catch (error) {
+    store.notice(`Could not tell the shell this page is ready: ${message(error)}`)
+  }
 }
 
 /**

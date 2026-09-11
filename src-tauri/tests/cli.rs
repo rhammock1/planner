@@ -123,3 +123,23 @@ fn two_paths_are_refused_rather_than_one_of_them_chosen() {
     let root = folder("two-paths");
     assert!(matches!(read(&args(&["a.md", "b.md"]), &root, None), Intent::Refused(_)));
 }
+
+/// The second `planner` of the day is parsed from the argv the plugin hands
+/// over, which - unlike `std::env::args().skip(1)` - still has the
+/// executable's own name on the front. Getting this wrong reads the binary's
+/// path as the file to open.
+#[test]
+fn a_handed_over_argv_is_read_after_its_executable_name() {
+    let root = folder("handed-over");
+    let argv = args(&["/some/where/planner", "campaign.md"]);
+    assert_eq!(
+        read(&argv[1..], &root, None),
+        Intent::File(root.join("campaign.md")),
+    );
+}
+
+#[test]
+fn a_handed_over_argv_with_nothing_after_it_means_todays_page() {
+    let argv = args(&["/some/where/planner"]);
+    assert_eq!(read(&argv[1..], Path::new("/"), None), Intent::Today);
+}

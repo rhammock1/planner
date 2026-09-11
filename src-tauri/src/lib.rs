@@ -62,9 +62,6 @@ fn close_quick_add(app: AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run(intent: cli::Intent) {
-    // Acted on in the next commit, when there is a window to act on it with.
-    let _ = &intent;
-
     // Every invoke passes the gate before it reaches a command. A plugin
     // window may call one of them; the app's own windows may call any (see
     // `plugins::allowed`).
@@ -90,6 +87,7 @@ pub fn run(intent: cli::Intent) {
         tray::set_badge,
         notify::set_notifications,
         tray::close_popover,
+        tray::popover_ready,
         spread::open_spread,
         spread::spread_view,
         plugins::door::plugin_message,
@@ -103,6 +101,30 @@ pub fn run(intent: cli::Intent) {
     ]);
 
     tauri::Builder::default()
+        // First, and deliberately: this is what makes the second `planner` of
+        // the day reach the first one. Its setup exits this process when an
+        // app is already running, so nothing below it should have run yet.
+        //
+        // `argv` still carries the executable's own name, unlike
+        // `std::env::args().skip(1)` in `main.rs`, so it is sliced off here.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            let home = dirs::home_dir();
+            let asked = cli::read(
+                argv.get(1..).unwrap_or_default(),
+                std::path::Path::new(&cwd),
+                home.as_deref(),
+            );
+            match asked {
+                cli::Intent::Today => tray::show_popover(app),
+                // Task 9 replaces this with the file itself.
+                cli::Intent::File(_) => spread::open_spread(app.clone(), "week".to_string()),
+                // Refusals were said by the process that was invoked, before
+                // it ever reached this socket (spec §1.3). One arriving here
+                // is a folder that went away between the two, which is worth
+                // seeing but not worth a window.
+                other => eprintln!("planner: a second invocation asked for {other:?}"),
+            }
+        }))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
@@ -137,6 +159,10 @@ pub fn run(intent: cli::Intent) {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             app.manage(spread::View::default());
+            // What the command line asked for, kept until a window can act on
+            // it. `tray::install` below only *builds* the popover; its page
+            // has not loaded yet, so showing it here would show a blank one.
+            app.manage(tray::Launch::from(intent));
             tray::install(app.handle())?;
             // The one thread that holds real timers, because a hidden
             // webview's are throttled (spec §5.9).

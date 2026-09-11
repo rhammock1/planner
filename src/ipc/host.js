@@ -28,6 +28,7 @@
  * @property {(list: Alarm[]) => Promise<void>} setNotifications
  * @property {(handler: () => void) => void|Promise<void>} onScheduleRefresh
  * @property {() => Promise<void>} closePopover
+ * @property {() => Promise<void>} popoverReady
  * @property {(view: string) => Promise<void>} openSpread
  * @property {() => Promise<string|null>} spreadView
  * @property {(handler: (view: string) => void) => void|Promise<void>} onSpreadView
@@ -129,6 +130,7 @@ function tauriHost() {
     setNotifications: (list) => invoke('set_notifications', { list }),
     onScheduleRefresh: (handler) => tauri.event.listen('schedule:refresh', () => handler()),
     closePopover: () => invoke('close_popover'),
+    popoverReady: () => invoke('popover_ready'),
     openSpread: (view) => invoke('open_spread', { view }),
     spreadView: () => invoke('spread_view'),
     listPlugins: () => invoke('list_plugins'),

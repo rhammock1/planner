@@ -60,6 +60,9 @@ export function sampleHost() {
     setNotifications: async () => {},
     onScheduleRefresh: () => {},
     closePopover: async () => {},
+    // A browser tab is already open; there is nothing to show and nothing
+    // that asked for it.
+    popoverReady: async () => {},
     // A browser has tabs of its own: the window opens as a page, in a page.
     openSpread: async (view) => { location.href = `./spread.html?view=${view}` },
     spreadView: async () => new URLSearchParams(location.search).get('view'),

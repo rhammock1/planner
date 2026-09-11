@@ -98,6 +98,20 @@ export async function closePopover() {
 }
 
 /**
+ * The day page saying it has finished starting.
+ *
+ * `planner`, typed with no path, wants today's page - and the shell cannot
+ * show it at launch without showing a blank one, because building the webview
+ * is not loading it. So the page says when it is up and the shell decides
+ * whether anything was waiting for that (spec §1.1).
+ *
+ * @returns {Promise<void>}
+ */
+export async function popoverReady() {
+  return (await getHost()).popoverReady()
+}
+
+/**
  * Opens the detached window on one of its views, or brings it forward and
  * switches to that view (spec §5.6).
  *
