@@ -13,6 +13,9 @@ pub mod bridges;
 /// Public so `main.rs` can answer the command line before Tauri starts, and
 /// so the tests in `tests/` can read the grammar without one.
 pub mod cli;
+
+/// Public so the tests in `tests/` can reach the file rules.
+pub mod files;
 mod links;
 mod notify;
 mod quick_add;
@@ -83,6 +86,9 @@ pub fn run(intent: cli::Intent) {
         vault::list_sidecars,
         vault::write_sidecar,
         vault::delete_sidecar,
+        files::read_file,
+        files::write_file,
+        files::close_file,
         tray::set_pinned,
         tray::set_badge,
         notify::set_notifications,
@@ -129,6 +135,7 @@ pub fn run(intent: cli::Intent) {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(vault::SharedVault::default())
+        .manage(files::Opened::default())
         .manage(notify::Alarms::default())
         .manage(plugins::Registry::default())
         .manage(plugins::door::InFlight::default())

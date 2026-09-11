@@ -73,7 +73,7 @@ fn file(raw: &str, cwd: &Path, home: Option<&Path>) -> Intent {
     let asked = expand(raw, home);
     let joined = if asked.is_absolute() { asked } else { cwd.join(asked) };
 
-    if !is_markdown(&joined) {
+    if !crate::files::is_markdown(&joined) {
         return Intent::Refused(format!("planner: {} is not a .md file", joined.display()));
     }
     // Checked before the parent, so a folder called `campaign.md` is named
@@ -110,9 +110,4 @@ fn expand(raw: &str, home: Option<&Path>) -> PathBuf {
         Some(rest) => home.join(rest),
         None => PathBuf::from(raw),
     }
-}
-
-fn is_markdown(path: &Path) -> bool {
-    path.extension()
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("md"))
 }
