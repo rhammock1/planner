@@ -96,6 +96,8 @@ pub fn run(intent: cli::Intent) {
         tray::popover_ready,
         spread::open_spread,
         spread::spread_view,
+        spread::open_spread_file,
+        spread::spread_file,
         plugins::door::plugin_message,
         plugins::list_plugins,
         plugins::start_plugin,
@@ -122,8 +124,7 @@ pub fn run(intent: cli::Intent) {
             );
             match asked {
                 cli::Intent::Today => tray::show_popover(app),
-                // Task 9 replaces this with the file itself.
-                cli::Intent::File(_) => spread::open_spread(app.clone(), "week".to_string()),
+                cli::Intent::File(path) => spread::open_file(app, path),
                 // Refusals were said by the process that was invoked, before
                 // it ever reached this socket (spec §1.3). One arriving here
                 // is a folder that went away between the two, which is worth
@@ -166,11 +167,19 @@ pub fn run(intent: cli::Intent) {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             app.manage(spread::View::default());
-            // What the command line asked for, kept until a window can act on
-            // it. `tray::install` below only *builds* the popover; its page
-            // has not loaded yet, so showing it here would show a blank one.
-            app.manage(tray::Launch::from(intent));
+            app.manage(spread::Asked::default());
             tray::install(app.handle())?;
+
+            // A file asked for at launch can be opened at once: unlike the
+            // popover, this window asks what it should be showing as it
+            // starts, so there is no blank one to show (see `spread_file`).
+            if let cli::Intent::File(path) = &intent {
+                spread::open_file(app.handle(), path.clone());
+            }
+            // Whatever is left, until a page says it is ready to act on it.
+            // `tray::install` above only *builds* the popover; its page has
+            // not loaded yet, so showing it here would show a blank one.
+            app.manage(tray::Launch::from(intent));
             // The one thread that holds real timers, because a hidden
             // webview's are throttled (spec §5.9).
             notify::hold(app.handle().clone());
