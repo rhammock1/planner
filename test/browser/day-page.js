@@ -19,6 +19,10 @@ const found = document.querySelector('#stage')
 if (!(found instanceof HTMLElement)) throw new Error('no stage')
 const stage = found
 
+/** The block the last press of a meeting's note control asked to open.
+ *  @type {import('../../src/core/sections.js').Block|null} */
+let opened = null
+
 /**
  * @param {number} count
  * @returns {string}
@@ -52,7 +56,7 @@ function show(count, events, notices, actions) {
     onRemove: async () => true,
     onBadge: () => {},
     onDailyNote: async () => true,
-    onOpenSidecar: () => {},
+    onOpenSidecar: (block) => { opened = block },
     onAdd: async () => true,
     onCarry: () => {},
     onPin: () => {},
@@ -450,9 +454,12 @@ check('a negative number of days is put back rather than written', () => {
  * only the sections differ between them.
  *
  * @param {import('../../src/core/contributions.js').Section[]} sections
+ * @param {import('../../src/core/sections.js').Block[]} [blocks]  what the
+ *   plugins named for the day; a meeting's control is drawn from these
+ * @param {Map<string, string[]>} [prefixes]  who owns which sidecar prefix
  * @returns {void}
  */
-function contribute(sections) {
+function contribute(sections, blocks, prefixes) {
   dayPage.render({
     today: '2026-09-01',
     page: '2026-09-01',
@@ -460,8 +467,8 @@ function contribute(sections) {
     horizon: [],
     carry: [],
     sections,
-    blocks: [],
-    prefixes: new Map(),
+    blocks: blocks ?? [],
+    prefixes: prefixes ?? new Map(),
     notices: [],
     actions: [],
   })
@@ -506,6 +513,99 @@ check('two timed plugins get two headed sections', () => {
   const heads = [...stage.querySelectorAll('.given-head')].map((one) => one.textContent)
   equal(heads.join(' | '), 'From git | On the calendar', 'the two sections are not headed by their plugins')
   equal(stage.querySelectorAll('.evidence-row').length, 0, 'a timed line folded under the note')
+})
+
+/**
+ * The note control on a meeting's row, in whichever of its three states
+ * applies (spec §1.2).
+ *
+ * Here rather than in a node test because every one of these is a question
+ * about what is *on screen*: `hidden`, computed opacity and a real press.
+ * The three states had no browser cover at all until a day with two meetings
+ * on it looked, correctly, like a day the feature had been removed from -
+ * every check in this file rendered `blocks: []`, so the control had never
+ * once been drawn under a layout engine.
+ */
+const MEETING = [{
+  plugin: 'macos-calendar',
+  heading: 'On the calendar',
+  events: [{ time: '09:30', text: 'Standup' }],
+}]
+const OWNED = new Map([['macos-calendar', ['meeting']]])
+
+/**
+ * What the last press asked to open.
+ *
+ * Read through a call rather than off the variable: the handler that writes
+ * it runs inside the view, so a checker following this file alone narrows
+ * `opened` to the `null` it was last assigned here and refuses the read.
+ *
+ * @returns {import('../../src/core/sections.js').Block|null}
+ */
+function lastOpened() {
+  return opened
+}
+
+/**
+ * @param {string} selector
+ * @returns {HTMLButtonElement}
+ */
+function offerIn(selector) {
+  const one = stage.querySelector(selector)
+  ok(one instanceof HTMLButtonElement, `no note control in ${selector}`)
+  return /** @type {HTMLButtonElement} */ (one)
+}
+
+// Nothing this plugin owns answered for the row, so there is nothing a press
+// could open. A button that does nothing is worse than no button.
+check('a meeting no plugin offered a note on has no control', () => {
+  show(6)
+  contribute(MEETING, [], OWNED)
+  ok(offerIn('.given-item .offer').hidden, 'a control was drawn with nothing behind it')
+})
+
+// The regression this file is being extended for: at rest the offer must be
+// readable without being pointed at. It is the only way to start a meeting
+// note, and `opacity: 0` made it unfindable.
+check('an offered note is legible at rest and reaches full strength on focus', () => {
+  show(6)
+  contribute(MEETING, [{
+    plugin: 'macos-calendar', suffix: 'meeting-standup', title: 'Standup', kind: 'offer',
+  }], OWNED)
+
+  const offer = offerIn('.given-item .offer')
+  equal(offer.hidden, false, 'the offer was hidden')
+  equal(offer.textContent, '＋ notes', 'the offer does not say what pressing it makes')
+
+  const resting = Number(getComputedStyle(offer).opacity)
+  ok(resting >= 0.3, `the offer rests at ${resting}, which is too faint to find`)
+  ok(resting < 1, `the offer rests at ${resting}, which is as loud as the meeting itself`)
+  ok(offer.getBoundingClientRect().width > 0, 'the offer takes up no room')
+
+  // The keyboard half of the reveal rule. Hover cannot be driven from script;
+  // `:focus-within` is the same declaration and is reachable by Tab.
+  offer.focus()
+  equal(getComputedStyle(offer).opacity, '1', 'focus did not bring the offer up to full')
+})
+
+// A note you already wrote is not something to hide behind a hover, and it
+// says so by being the accent colour rather than the quiet one.
+check('a note that exists is shown at full strength, and opens when pressed', () => {
+  show(6)
+  /** @type {import('../../src/core/sections.js').Block} */
+  const block = {
+    plugin: 'macos-calendar', suffix: 'meeting-standup', title: 'Standup', kind: 'editor',
+  }
+  contribute(MEETING, [block], OWNED)
+
+  const offer = offerIn('.given-item .offer')
+  equal(offer.textContent, '✎', 'a note that exists is not marked as one')
+  ok(offer.classList.contains('done'), 'a note that exists is still drawn as an offer')
+  equal(getComputedStyle(offer).opacity, '1', 'a note that exists was left faint')
+
+  opened = null
+  offer.click()
+  equal(lastOpened()?.suffix, 'meeting-standup', 'the press did not ask for the meeting\'s own note')
 })
 
 report()

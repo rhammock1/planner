@@ -660,7 +660,14 @@
    same rule `.block-offer` used to hold when this lived in its own row under
    the section rather than at the end of the meeting's own.
    Quiet by default - `opacity` rather than `hidden` or `display`, so a
-   keyboard reaches it by Tab whether or not a mouse is anywhere near. */
+   keyboard reaches it by Tab whether or not a mouse is anywhere near.
+
+   Quiet, but never invisible. This was `opacity: 0` until somebody with two
+   meetings on the day went looking for the control, hovered both rows, and
+   concluded the feature had been removed - the offer is the only way to
+   start a meeting note, so a resting state of nothing is a feature that
+   exists and cannot be found. Faint enough to read as chrome rather than as
+   a third column, dark enough to be seen without being pointed at. */
 .offer {
   flex: none;
   padding: 2px 5px;
@@ -670,7 +677,7 @@
   font-size: 11px;
   color: var(--dim);
   cursor: pointer;
-  opacity: 0;
+  opacity: 0.45;
 }
 
 .given-item:hover .offer,
