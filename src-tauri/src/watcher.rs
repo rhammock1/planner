@@ -101,6 +101,41 @@ fn start<W: Watcher + Send + 'static>(
     Ok(Box::new(watcher))
 }
 
+/// What a changed path is, decided before it is read.
+///
+/// A vault holds the `.tmp` file every atomic write makes and whatever else
+/// the person keeps in there. Reading each of those to decide it was nothing
+/// is work this app has never done, so the kind is settled from the path
+/// alone - which also makes the rule testable without a filesystem, a
+/// watcher, or a screen.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Change {
+    Page(String),
+    Sidecar(String, String),
+    /// The one loose file a window has open (spec §2.5).
+    File,
+    Nothing,
+}
+
+/// The kind of a changed path.
+///
+/// `opened` is the file a window is showing, or `None`. A loose Markdown file
+/// that nobody is looking at is `Nothing`: this app will not read every file
+/// in the vault because one of them changed, and the registry names one file
+/// rather than a category.
+pub fn classify(root: &Path, path: &Path, opened: Option<&Path>) -> Change {
+    if let Some(page) = vault_io::page_for_path(root, path) {
+        return Change::Page(page);
+    }
+    if let Some((date, suffix)) = vault_io::sidecars::sidecar_for_path(root, path) {
+        return Change::Sidecar(date, suffix);
+    }
+    if opened == Some(path) {
+        return Change::File;
+    }
+    Change::Nothing
+}
+
 /// Built fresh for each attempt: a closure that has been handed to one watcher
 /// cannot be handed to another.
 fn changes(app: AppHandle, root: PathBuf) -> impl Fn(notify::Result<notify::Event>) {
@@ -111,16 +146,10 @@ fn changes(app: AppHandle, root: PathBuf) -> impl Fn(notify::Result<notify::Even
         }
 
         for path in event.paths {
-            // What kind of file it is, before it is read. A vault holds the
-            // `.tmp` file every atomic write makes and whatever else the
-            // person keeps in there; reading each of those to decide it was
-            // nothing is work the old code never did and this must not start.
-            let page = vault_io::page_for_path(&root, &path);
-            let sidecar = match page {
-                Some(_) => None,
-                None => vault_io::sidecars::sidecar_for_path(&root, &path),
-            };
-            if page.is_none() && sidecar.is_none() {
+            // What kind of file it is, before it is read. See `classify`.
+            let opened = crate::files::Opened::held(&app);
+            let change = classify(&root, &path, opened.as_deref());
+            if change == Change::Nothing {
                 continue;
             }
 
@@ -134,21 +163,28 @@ fn changes(app: AppHandle, root: PathBuf) -> impl Fn(notify::Result<notify::Even
                 continue;
             }
 
-            if let Some(page) = page {
-                if let Err(error) = app.emit("vault:changed", serde_json::json!({ "page": page })) {
-                    eprintln!("planner: could not announce a change to {page}: {error}");
+            let announced = match &change {
+                Change::Page(page) => {
+                    app.emit("vault:changed", serde_json::json!({ "page": page }))
                 }
-                continue;
-            }
+                // A file beside a day. Announced under its own name, because
+                // nothing that listens for `vault:changed` knows what to do
+                // with one and the block that does is not the page (spec §4.1).
+                Change::Sidecar(date, suffix) => {
+                    app.emit("sidecar:changed", serde_json::json!({ "date": date, "suffix": suffix }))
+                }
+                // A file of somebody's own, open in the window. Its own name
+                // again, for the same reason: it is not a page, it is not
+                // beside a day, and the only thing that knows what to do with
+                // it is the window showing it (spec §2.5).
+                Change::File => {
+                    app.emit("file:changed", serde_json::json!({ "path": path.to_string_lossy() }))
+                }
+                Change::Nothing => Ok(()),
+            };
 
-            // A file beside a day. Announced under its own name, because
-            // nothing that listens for `vault:changed` knows what to do with
-            // one and the block that does is not the page (spec §4.1).
-            if let Some((date, suffix)) = sidecar {
-                let payload = serde_json::json!({ "date": date, "suffix": suffix });
-                if let Err(error) = app.emit("sidecar:changed", payload) {
-                    eprintln!("planner: could not announce a change to {date}.{suffix}: {error}");
-                }
+            if let Err(error) = announced {
+                eprintln!("planner: could not announce a change to {}: {error}", path.display());
             }
         }
     }
@@ -183,6 +219,60 @@ pub fn watching(app: &AppHandle) -> Watching {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::path::PathBuf;
+
+    fn root() -> PathBuf {
+        PathBuf::from("/Users/x/Planner")
+    }
+
+    #[test]
+    fn a_day_file_is_the_page_it_names() {
+        assert_eq!(
+            classify(&root(), &root().join("2026/09/2026-09-01.md"), None),
+            Change::Page("2026-09-01".to_string()),
+        );
+    }
+
+    #[test]
+    fn a_file_beside_a_day_is_a_sidecar() {
+        assert_eq!(
+            classify(&root(), &root().join("2026/09/2026-09-01.meeting-standup.md"), None),
+            Change::Sidecar("2026-09-01".to_string(), "meeting-standup".to_string()),
+        );
+    }
+
+    /// The property this whole function exists to keep: a vault holds the
+    /// `.tmp` file every atomic write makes, and whatever else the person
+    /// keeps in there. Reading each of those to decide it was nothing is work
+    /// this app has never done and must not start.
+    #[test]
+    fn a_loose_file_nobody_is_looking_at_is_nothing() {
+        assert_eq!(classify(&root(), &root().join("A-RUMBLING-OF-THUNDER.md"), None), Change::Nothing);
+        assert_eq!(classify(&root(), &root().join(".campaign.md.tmp"), None), Change::Nothing);
+    }
+
+    #[test]
+    fn the_one_loose_file_a_window_has_open_is_worth_announcing() {
+        let open = root().join("A-RUMBLING-OF-THUNDER.md");
+        assert_eq!(classify(&root(), &open, Some(&open)), Change::File);
+    }
+
+    /// A second loose file changing while a different one is open is still
+    /// nothing: the registry names one file, not a category.
+    #[test]
+    fn a_different_loose_file_is_still_nothing() {
+        let open = root().join("A-RUMBLING-OF-THUNDER.md");
+        assert_eq!(classify(&root(), &root().join("bestiary.md"), Some(&open)), Change::Nothing);
+    }
+
+    /// A day file stays a day file even when it is the one a window has open,
+    /// so the page on screen still hears about it as a page.
+    #[test]
+    fn a_page_is_a_page_even_when_it_is_the_open_file() {
+        let day = root().join("2026/09/2026-09-01.md");
+        assert_eq!(classify(&root(), &day, Some(&day)), Change::Page("2026-09-01".to_string()));
+    }
 
     /// The frontend switches on these three strings to decide whether to say
     /// anything. Renaming a variant without renaming them there would take
