@@ -11,6 +11,17 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 
 ### Added
 
+-   `planner <path>.md` opens any Markdown file — a campaign, a long note,
+    anything kept in prose — in the detached window, in the same editor a note
+    beside a day opens in. The file need not be in the vault and need not
+    exist yet; the folder holding it must. It is never parsed, never indexed
+    and never carried forward. A file outside the vault says so, because the
+    vault is the only folder being watched
+-   `planner`, with no path, opens today's page — a way in when a full menu
+    bar has hidden the menu bar icon
+-   `planner --help` and `planner --version`, answered by the process that was
+    invoked rather than by the app, so they work whether or not one is running
+
 -   `task-notes`, the fourth reference plugin: press ⌘⇧N on a line and get a
     page of your own about it, kept in a file beside the day and typed into on
     the page. The line carries a `✎` back to it. A line has no identity — it is
@@ -90,6 +101,13 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 -   Project toolchain - `node --test`, TypeScript as a checker only, no build step, zero runtime dependencies
 
 ### Changed
+
+-   A second `planner` reaches the app that is already running instead of
+    starting a second one with a second menu bar icon and a second watcher on
+    one vault
+-   The note view addresses what it is showing by an opaque id rather than by
+    a date and a suffix, so one editor serves both a note beside a day and a
+    file opened by name. It no longer knows what a date is
 
 -   `dusk` reads the sky rather than a clock. Through twilight the surfaces deepen and a real sunset appears in `texture` — the glow entering from the sun's own bearing and sinking as it sets, the Belt of Venus rising on the edge opposite — and nothing that is *read* moves at all. At civil dusk the page turns over into a night page, inverted out of the theme's own two colours so it still works on a theme it has never seen, and left alone on a theme that is already dark. **It moves nine colours where it moved six**, so `texture`, `accent` and `alert` arrive unticked and want one visit to the ⌘, pane
 -   The turn is a cut and not a fade, because it has to be: there is no continuous path from dark ink on light paper to light ink on dark that avoids the two passing through the same luminance, and the same luminance is a page you cannot read. So the page deepens to something that still holds its own dark ink, and then turns, at the hour a person reaches for a lamp anyway

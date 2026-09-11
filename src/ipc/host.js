@@ -28,6 +28,7 @@
  * @property {(list: Alarm[]) => Promise<void>} setNotifications
  * @property {(handler: () => void) => void|Promise<void>} onScheduleRefresh
  * @property {() => Promise<void>} closePopover
+ * @property {() => Promise<void>} popoverReady
  * @property {(view: string) => Promise<void>} openSpread
  * @property {() => Promise<string|null>} spreadView
  * @property {(handler: (view: string) => void) => void|Promise<void>} onSpreadView
@@ -43,6 +44,13 @@
  * @property {(date: string, suffix: string, text: string) => Promise<void>} writeSidecar
  * @property {(date: string, suffix: string) => Promise<void>} deleteSidecar
  * @property {(handler: (change: {date: string, suffix: string}) => void) => void|Promise<void>} onSidecarChanged
+ * @property {(path: string) => Promise<string|null>} readFile
+ * @property {(path: string, text: string) => Promise<void>} writeFile
+ * @property {() => Promise<void>} closeFile
+ * @property {(handler: (path: string) => void) => void|Promise<void>} onFileChanged
+ * @property {(path: string) => Promise<void>} openSpreadFile
+ * @property {() => Promise<string|null>} spreadFile
+ * @property {(handler: (path: string) => void) => void|Promise<void>} onSpreadFile
  * @property {() => Promise<{name: string, manifest: string}[]>} listPlugins
  * @property {(grant: import('../core/plugins.js').Grant) => Promise<void>} startPlugin
  * @property {(name: string) => Promise<void>} stopPlugin
@@ -129,6 +137,7 @@ function tauriHost() {
     setNotifications: (list) => invoke('set_notifications', { list }),
     onScheduleRefresh: (handler) => tauri.event.listen('schedule:refresh', () => handler()),
     closePopover: () => invoke('close_popover'),
+    popoverReady: () => invoke('popover_ready'),
     openSpread: (view) => invoke('open_spread', { view }),
     spreadView: () => invoke('spread_view'),
     listPlugins: () => invoke('list_plugins'),
@@ -170,6 +179,22 @@ function tauriHost() {
     // window whose tabs quietly stop switching it.
     onSpreadView: (handler) =>
       tauri.event.listen('spread:view', (/** @type {any} */ event) => {
+        handler(String(event.payload ?? ''))
+      }),
+    readFile: (path) => invoke('read_file', { path }),
+    writeFile: (path, text) => invoke('write_file', { path, text }),
+    closeFile: () => invoke('close_file'),
+    // Same shape as `onSidecarChanged`: unwrapped and coerced here rather
+    // than handed the raw payload, so a malformed event cannot hand the rest
+    // of the app anything but a string.
+    onFileChanged: (handler) =>
+      tauri.event.listen('file:changed', (/** @type {any} */ event) => {
+        handler(String(event.payload?.path ?? ''))
+      }),
+    openSpreadFile: (path) => invoke('open_spread_file', { path }),
+    spreadFile: () => invoke('spread_file'),
+    onSpreadFile: (handler) =>
+      tauri.event.listen('spread:file', (/** @type {any} */ event) => {
         handler(String(event.payload ?? ''))
       }),
   }

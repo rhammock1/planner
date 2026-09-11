@@ -6,6 +6,20 @@ the README is not planned.
 
 ## Next
 
+- **More than one file open at once.** `planner <path>.md` opens one file and
+  a second replaces it. A window that holds several is a file list, a way to
+  close one, and a decision about what the tab strip becomes — worth doing
+  when one file stops being enough, and not before.
+- **Watching a file outside the vault.** The watcher runs on the vault root,
+  so a file kept anywhere else does not follow edits made in an editor; the
+  window says so rather than looking like it is keeping up. The fix is a
+  second watcher on that file's folder, and it is worth making when somebody
+  is actually bitten by it.
+- **Opening a day by name** — `planner 2026-09-14`, or `planner tomorrow`.
+  `core/nldate.js` could already parse it. Genuinely tempting, and a different
+  command from the one that opens a file, so it gets its own design rather
+  than being smuggled into this one.
+
 - **Token help while typing** — the four tokens (`@10:30`, `!2026-09-04`,
   `~3d`, `>2026-09-02`) already work anywhere a line is typed, because the
   line is re-parsed on the way to disk. Nothing says so. Two candidates, in

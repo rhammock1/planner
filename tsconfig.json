@@ -23,6 +23,7 @@
   ],
   "exclude": [
     "test/browser/**",
-    "test/sidecar-store.test.js"
+    "test/sidecar-store.test.js",
+    "test/file-store.test.js"
   ]
 }

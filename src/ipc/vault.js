@@ -179,3 +179,55 @@ export async function onSidecarChanged(handler) {
 export async function openInEditor(path, editor) {
   return (await getHost()).openInEditor(path, editor)
 }
+
+/**
+ * A Markdown file opened by name (spec §2). Null when it is not there - which
+ * is how the window tells a new file from an empty one.
+ *
+ * Not a page and not a sidecar: nothing about this file is parsed, indexed or
+ * carried forward. Asking for it is also how the shell learns which loose
+ * file is worth telling this window about (spec §2.5).
+ *
+ * @param {string} path  absolute
+ * @returns {Promise<string|null>}
+ */
+export async function readFile(path) {
+  return (await getHost()).readFile(path)
+}
+
+/**
+ * Writes such a file whole, atomically.
+ *
+ * @param {string} path
+ * @param {string} text
+ * @returns {Promise<void>}
+ */
+export async function writeFile(path, text) {
+  return (await getHost()).writeFile(path, text)
+}
+
+/**
+ * The window saying it is no longer showing a file.
+ *
+ * The shell reads exactly one loose path when the watcher fires, so leaving a
+ * closed file named there would have it read a file nobody is looking at.
+ *
+ * @returns {Promise<void>}
+ */
+export async function closeFile() {
+  return (await getHost()).closeFile()
+}
+
+/**
+ * Fires when the open file changes on disk, whoever changed it.
+ *
+ * Only for the file a window has open, and only inside the vault: the watcher
+ * runs on the vault root, so a file kept anywhere else is never announced and
+ * the window says as much (spec §2.5).
+ *
+ * @param {(path: string) => void} handler
+ * @returns {Promise<void>}
+ */
+export async function onFileChanged(handler) {
+  await (await getHost()).onFileChanged(handler)
+}

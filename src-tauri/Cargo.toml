@@ -50,3 +50,8 @@ objc2-core-location = { version = "0.3", default-features = false, features = [
     "CLLocationManager",
 ] }
 block2 = "0.6"
+# So that `planner <path>` typed a second time reaches the app that is already
+# running rather than starting another one. On macOS the plugin keys its
+# socket on the bundle identifier - /tmp/io_hammock_planner_si.sock - so the
+# bare debug binary and Planner.app are correctly treated as the same app.
+tauri-plugin-single-instance = "2"

@@ -31,6 +31,11 @@ export function sampleHost() {
   const sidecars = new Map()
   /** @type {((change: {date: string, suffix: string}) => void)[]} */
   const sidecarHandlers = []
+  /** Files opened by name, keyed by path. A browser has no filesystem, so
+   *  this is the whole of one. @type {Map<string, string>} */
+  const files = new Map()
+  /** @type {((path: string) => void)[]} */
+  const fileHandlers = []
 
   return {
     // ?theme=console picks a bundled theme, so the three can be compared
@@ -60,6 +65,9 @@ export function sampleHost() {
     setNotifications: async () => {},
     onScheduleRefresh: () => {},
     closePopover: async () => {},
+    // A browser tab is already open; there is nothing to show and nothing
+    // that asked for it.
+    popoverReady: async () => {},
     // A browser has tabs of its own: the window opens as a page, in a page.
     openSpread: async (view) => { location.href = `./spread.html?view=${view}` },
     spreadView: async () => new URLSearchParams(location.search).get('view'),
@@ -104,6 +112,22 @@ export function sampleHost() {
       for (const handler of sidecarHandlers) handler({ date, suffix })
     },
     onSidecarChanged: (handler) => { sidecarHandlers.push(handler) },
+
+    readFile: async (path) => files.get(path) ?? null,
+    writeFile: async (path, text) => {
+      files.set(path, text)
+      // Announced the way the watcher would, on a later turn of the loop, so
+      // the browser exercises the real round trip rather than a shortcut.
+      queueMicrotask(() => { for (const handler of fileHandlers) handler(path) })
+    },
+    // Nothing is watching in a browser, so there is nothing to stop watching.
+    closeFile: async () => {},
+    onFileChanged: (handler) => { fileHandlers.push(handler) },
+    // A browser tab is not opened from a command line. `?file=` is the
+    // nearest thing, so the view can be looked at without the shell.
+    openSpreadFile: async (path) => { location.href = `./spread.html?file=${encodeURIComponent(path)}` },
+    spreadFile: async () => new URLSearchParams(location.search).get('file'),
+    onSpreadFile: () => {},
 
     // No plugin host in a browser: nothing to install, nothing to start.
     listPlugins: async () => [],

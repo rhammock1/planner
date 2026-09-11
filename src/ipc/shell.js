@@ -98,6 +98,20 @@ export async function closePopover() {
 }
 
 /**
+ * The day page saying it has finished starting.
+ *
+ * `planner`, typed with no path, wants today's page - and the shell cannot
+ * show it at launch without showing a blank one, because building the webview
+ * is not loading it. So the page says when it is up and the shell decides
+ * whether anything was waiting for that (spec §1.1).
+ *
+ * @returns {Promise<void>}
+ */
+export async function popoverReady() {
+  return (await getHost()).popoverReady()
+}
+
+/**
  * Opens the detached window on one of its views, or brings it forward and
  * switches to that view (spec §5.6).
  *
@@ -125,6 +139,41 @@ export async function spreadView() {
  */
 export async function onSpreadView(handler) {
   await (await getHost()).onSpreadView(handler)
+}
+
+/**
+ * Opens the detached window on a file, or brings it forward and shows that
+ * one (spec §2.4).
+ *
+ * @param {string} path  absolute
+ * @returns {Promise<void>}
+ */
+export async function openSpreadFile(path) {
+  return (await getHost()).openSpreadFile(path)
+}
+
+/**
+ * The file the detached window was last asked for, read as it starts.
+ *
+ * Asked for rather than passed in the URL, for the reason `spread_view`
+ * already is: the window outlives the invocation that opened it, and a second
+ * `planner <path>` arriving before this webview has finished loading must not
+ * be lost.
+ *
+ * @returns {Promise<string|null>} null when nothing has asked
+ */
+export async function spreadFile() {
+  return (await getHost()).spreadFile()
+}
+
+/**
+ * Fires when something asks the window for a different file.
+ *
+ * @param {(path: string) => void} handler
+ * @returns {Promise<void>}
+ */
+export async function onSpreadFile(handler) {
+  await (await getHost()).onSpreadFile(handler)
 }
 
 /**

@@ -9,6 +9,7 @@ use tauri::{
     AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 
+use crate::cli::Intent;
 use crate::popover::{self, Bounds};
 
 /// The day page. Public so alarms can ask it for a fresh schedule.
@@ -37,6 +38,27 @@ struct Pinned(AtomicBool);
 /// `popover::opens`.
 #[derive(Default)]
 struct HiddenAt(Mutex<Option<Instant>>);
+
+/// What the command line asked for at launch, until a window can act on it.
+///
+/// Taken rather than read: a launch happens once, and a page that reloads
+/// should not reopen what the first load already opened.
+#[derive(Default)]
+pub struct Launch(Mutex<Option<Intent>>);
+
+impl From<Intent> for Launch {
+    fn from(intent: Intent) -> Self {
+        Launch(Mutex::new(Some(intent)))
+    }
+}
+
+impl Launch {
+    /// The intent, once. `None` every time after that.
+    pub fn take(app: &AppHandle) -> Option<Intent> {
+        app.try_state::<Launch>()
+            .and_then(|launch| launch.0.lock().ok().and_then(|mut held| held.take()))
+    }
+}
 
 /// Pins or unpins the popover. Called by the pin in the page header.
 #[tauri::command]
@@ -78,6 +100,52 @@ pub fn close_popover(app: AppHandle) {
         if let Err(error) = window.hide() {
             eprintln!("planner: could not hide the popover: {error}");
         }
+    }
+}
+
+/// The day page saying it has finished starting.
+///
+/// This is the moment the popover can be shown without showing a blank one:
+/// `create_popover` builds the webview at launch, but building it is not
+/// loading it. The same race `spread_view` answers by having the window ask
+/// as it starts - and the same answer, from the other direction.
+#[tauri::command]
+pub fn popover_ready(app: AppHandle) {
+    if let Some(Intent::Today) = Launch::take(&app) {
+        show_popover(&app);
+    }
+}
+
+/// Shows the popover where the menu bar item would have shown it.
+///
+/// The tray icon's rectangle is asked for rather than handed in, because
+/// nobody clicked anything: this is `planner`, typed. A pinned page stays
+/// where it was put, and an icon that will not report its rectangle - a full
+/// menu bar hides the item, which is one of the cases this exists for - falls
+/// back to wherever the window already is. Visible and slightly wrong beats
+/// hidden and exactly right, which is the rule `popover::origin` already
+/// follows.
+pub fn show_popover(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(POPOVER) else {
+        eprintln!("planner: the popover is missing");
+        return;
+    };
+
+    if !is_pinned(app) {
+        if let Some(icon) = app.tray_by_id(TRAY).and_then(|tray| tray.rect().ok().flatten()) {
+            position(app, &window, icon);
+        }
+    }
+
+    if let Err(error) = window.show() {
+        eprintln!("planner: could not show the popover: {error}");
+    }
+    let _ = window.set_focus();
+
+    // The same refresh a click gets, for the same reason: opening the page is
+    // asking what today looks like.
+    if let Err(error) = window.emit("popover:shown", ()) {
+        eprintln!("planner: could not tell the page it was opened: {error}");
     }
 }
 

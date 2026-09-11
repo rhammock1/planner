@@ -31,22 +31,27 @@ if (!(found instanceof HTMLElement)) throw new Error('no stage')
 const stage = found
 
 /** The one note every check here opens. */
-const NOTE = { date: '2026-09-01', suffix: 'note-standup', title: 'Standup' }
+const NOTE = {
+  id: 'sidecar:2026-09-01/note-standup',
+  title: 'Standup',
+  subtitle: 'Note · Tue, 1 Sept',
+  path: '2026/09/2026-09-01.note-standup.md',
+}
 
 /**
  * A fake host that only ever records what it was asked to write - never
  * refuses, never delays - so a check can assert on `written` without a
  * bigger stand-in than the bug needs.
  *
- * @returns {{handlers: import('../../src/views/noteView.js').NoteHandlers, written: {date: string, suffix: string, text: string}[]}}
+ * @returns {{handlers: import('../../src/views/noteView.js').NoteHandlers, written: {id: string, text: string}[]}}
  */
 function recording() {
-  /** @type {{date: string, suffix: string, text: string}[]} */
+  /** @type {{id: string, text: string}[]} */
   const written = []
   return {
     handlers: {
-      onWrite: async (date, suffix, text) => {
-        written.push({ date, suffix, text })
+      onWrite: async (id, text) => {
+        written.push({ id, text })
         return true
       },
       onDelete: async () => true,

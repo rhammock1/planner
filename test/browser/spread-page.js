@@ -83,12 +83,21 @@ function showAt(anchor, view, count = 0, days = [], lines = '') {
     onProviders: () => ({ groups: [], notices: [] }),
     onJump: () => {},
     onFollow: () => {},
+    // These checks are about the tab strip and the three views behind it; the
+    // file view is driven by `note-view.js`, against the editor itself.
+    file: {
+      onWrite: async () => true,
+      onFollow: () => {},
+      onOpenLink: () => {},
+      onClose: () => {},
+    },
   })
 
   spreadPage.render({
     view,
     today: '2026-09-01',
     anchor,
+    file: null,
     vault: buildIndex([
       { page: 'someday', doc: parse(backPageOf(count)) },
       ...days.map((day) => ({

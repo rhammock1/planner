@@ -13,6 +13,12 @@
  * note needs a view rather than the one `plaintext-only` block it replaces:
  * per-line rendering needs one element per line.
  *
+ * It does not know what it is showing. A note is a title, a subtitle, a path
+ * and an id, and the id is opaque: the day page hands it a `sidecar:` ref and
+ * the detached window hands it a filename. Every date in this file used to be
+ * a date; now the caller has already turned it into words, because only the
+ * caller knows whether there was a date involved at all.
+ *
  * **A line's source is `dataset.raw`, never the nodes drawn from it.** A
  * rendering is lossy by construction - `**bold**` is drawn as a `<strong>`
  * with no asterisks anywhere in it - so re-deriving the source by reading
@@ -33,26 +39,36 @@
 
 import { el, setText } from '../ui/dom.js'
 import { blockOf, inlineOf } from '../core/markdown.js'
-import { sidecarPath } from '../core/sidecars.js'
 
 /** @typedef {import('../core/markdown.js').Block} Block */
 /** @typedef {import('../core/markdown.js').Inline} Inline */
 
 /**
  * @typedef {object} Note
- * @property {string} date  `YYYY-MM-DD`, the day the note sits beside
- * @property {string} suffix
+ * @property {string} id  what the handlers name this note by, and the only
+ *   thing this view holds about which file it is showing. A `sidecar:` ref
+ *   from the day page, an absolute path from the window - the view never
+ *   looks inside it, which is what lets one editor serve both
  * @property {string} title  what the header calls it
+ * @property {string} subtitle  under the title: the day a note sits beside,
+ *   or the folder a file is in. The caller's to compute, because only the
+ *   caller knows which of those this is
+ * @property {string} path  what the footer shows
  * @property {string} text  the file, whole
+ * @property {string} [back]  the back button's accessible name; 'Back' by default
+ * @property {string} [state]  what the footer says before anything is typed;
+ *   'Saved' by default, and 'New file' for one that is not on disk yet
  */
 
 /**
  * @typedef {object} NoteHandlers
- * @property {(date: string, suffix: string, text: string) => Promise<boolean>} onWrite
- *   the note's own date, not whatever day is on screen when the write finally
- *   goes: a note is flushed as it is put away, which is exactly the moment the
- *   two can differ
- * @property {(date: string, suffix: string) => Promise<boolean>} onDelete
+ * @property {(id: string, text: string) => Promise<boolean>} onWrite
+ *   the note's own id, not whatever is on screen when the write finally goes:
+ *   a note is flushed as it is put away, which is exactly the moment the two
+ *   can differ
+ * @property {(id: string) => Promise<boolean>} [onDelete]  absent means no
+ *   Delete button. A sidecar has one (spec §2.4); a file you named and put
+ *   somewhere you chose does not
  * @property {(href: string) => void} onFollow  a `sidecar:` ref from a link in the body
  * @property {(url: string) => void} onOpenLink  http, https or mailto (spec §2.3)
  * @property {() => void} onClose  `‹`, Escape, or a note that has just been deleted
@@ -60,10 +76,6 @@ import { sidecarPath } from '../core/sidecars.js'
 
 /** How long after the last keystroke a note goes to disk. */
 const SETTLE = 800
-
-const STAMP = new Intl.DateTimeFormat(undefined, {
-  weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC',
-})
 
 /**
  * What the note on screen is holding that disk does not know about yet.
@@ -74,8 +86,7 @@ const STAMP = new Intl.DateTimeFormat(undefined, {
  * and a note is only ever opened with its text in hand.
  *
  * @typedef {object} Held
- * @property {string} date
- * @property {string} suffix
+ * @property {string} id
  * @property {ReturnType<typeof setTimeout>|null} timer
  * @property {string|null} arrived  text that came from disk while the caret
  *   was in the note, waiting for it to leave
@@ -92,14 +103,14 @@ const STAMP = new Intl.DateTimeFormat(undefined, {
  *   open: (note: Note) => void,
  *   close: () => void,
  *   isOpen: () => boolean,
- *   showing: () => {date: string, suffix: string}|null,
+ *   showing: () => string|null,
  *   flush: () => Promise<void>,
  * }}
  */
 export function createNoteView(handlers) {
   const back = el('button', 'nv-back', '‹')
   back.setAttribute('type', 'button')
-  back.setAttribute('aria-label', 'Back to the day')
+  back.setAttribute('aria-label', 'Back')
 
   const title = el('b')
   const stamp = el('small')
@@ -108,6 +119,10 @@ export function createNoteView(handlers) {
 
   const del = el('button', 'nv-del', 'Delete')
   del.setAttribute('type', 'button')
+  // A file of your own has no Delete: you named it and put it where it is,
+  // and the gesture exists because notes get made by accident - which is not
+  // how a file opened by path came to exist (spec §3.2).
+  del.hidden = handlers.onDelete === undefined
 
   const head = el('div', 'nv-head')
   head.append(back, heading, del)
@@ -192,7 +207,7 @@ export function createNoteView(handlers) {
       return
     }
 
-    const done = await handlers.onWrite(holding.date, holding.suffix, text)
+    const done = await handlers.onWrite(holding.id, text)
     // Only on success: a failed write leaves disk holding the old text, and if
     // `was` claimed otherwise the next flush would compare equal and drop the
     // retry, leaving the edit stranded in the DOM. The footer keeps saying
@@ -308,7 +323,8 @@ export function createNoteView(handlers) {
   // (spec §2.4).
   del.addEventListener('click', () => {
     const holding = held
-    if (holding === null) return
+    const remove = handlers.onDelete
+    if (holding === null || remove === undefined) return
     if (!armed) {
       armed = true
       setText(del, 'Sure?')
@@ -320,7 +336,7 @@ export function createNoteView(handlers) {
       clearTimeout(holding.timer)
       holding.timer = null
     }
-    void handlers.onDelete(holding.date, holding.suffix).then((done) => {
+    void remove(holding.id).then((done) => {
       // A refused delete leaves the note exactly as it was, still editable and
       // still holding its text; the app says why in the notice band.
       if (!done) return
@@ -477,7 +493,7 @@ export function createNoteView(handlers) {
       // arriving rather than a new note, and it must never take the words out
       // from under whoever is typing them - held, and applied when the caret
       // leaves, exactly as a block holds one.
-      if (held !== null && held.date === note.date && held.suffix === note.suffix) {
+      if (held !== null && held.id === note.id) {
         if (body.contains(body.ownerDocument.activeElement)) {
           if (note.text !== sourceOf()) held.arrived = note.text
           return
@@ -496,12 +512,13 @@ export function createNoteView(handlers) {
 
       element.hidden = false
       setText(title, note.title)
-      setText(stamp, `Note · ${STAMP.format(new Date(`${note.date}T00:00:00Z`))}`)
-      setText(path, sidecarPath(note.date, note.suffix) ?? '')
-      setText(saved, 'Saved')
+      setText(stamp, note.subtitle)
+      setText(path, note.path)
+      setText(saved, note.state ?? 'Saved')
+      back.setAttribute('aria-label', note.back ?? 'Back')
       disarm()
 
-      held = { date: note.date, suffix: note.suffix, timer: null, arrived: null, was: note.text }
+      held = { id: note.id, timer: null, arrived: null, was: note.text }
       fill(note.text)
       const first = body.firstElementChild
       if (first instanceof HTMLElement) focusLine(first, 0)
@@ -516,7 +533,7 @@ export function createNoteView(handlers) {
 
     isOpen: () => !element.hidden,
 
-    showing: () => (held === null ? null : { date: held.date, suffix: held.suffix }),
+    showing: () => (held === null ? null : held.id),
 
     /** Writes the note if it is holding an unsaved edit. */
     flush: async () => { await write() },

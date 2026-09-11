@@ -17,6 +17,9 @@ import { readRef, owns } from './core/sidecars.js'
 import { badgesFor, providedFor, openBadge } from './plugins/pageAsking.js'
 import { weekOf } from './core/calendar.js'
 import { SOMEDAY } from './core/vaultIndex.js'
+import { createFiles } from './fileStore.js'
+import { titleOf, folderOf, insideVault } from './core/files.js'
+import { expandHome, shortenHome } from './core/config.js'
 import { createStore } from './store.js'
 import { createPageEdits } from './pageEdits.js'
 import * as ipc from './ipc.js'
@@ -34,6 +37,15 @@ let view = VIEWS[0] ?? ''
  * October rather than back on today.
  */
 let anchor = today()
+
+// The one file this window has open, if it has been handed one (spec §3.3).
+const files = createFiles({
+  onChanged: () => { draw() },
+  notice: (line) => { store.notice(line) },
+})
+
+/** The home directory, for showing a path the way a person writes it. */
+let home = ''
 
 async function start() {
   const root = document.querySelector('#app')
@@ -105,6 +117,22 @@ async function start() {
       spreadPage.search().close()
       draw()
     },
+    file: {
+      onWrite: (path, text) => files.change(path, text),
+      // No `onDelete`: you named this file and put it where it is (spec §3.2).
+      onFollow: (href) => {
+        const ref = readRef(href)
+        if (ref === null) return
+        // This window draws weeks and months, not a day's notes, so a
+        // `sidecar:` link inside a file lands on the week that day sits in -
+        // which is what a provider's hit already does here (spec §4.3).
+        view = 'week'
+        anchor = ref.date
+        draw()
+      },
+      onOpenLink: (url) => { void openLink(url) },
+      onClose: () => { closeFile() },
+    },
   })
 
   // The same shortcut the popover has, over the same vault (spec §5.7).
@@ -116,7 +144,8 @@ async function start() {
     else panel.open()
   })
 
-  await store.start(draw)
+  const started = await store.start(draw)
+  home = started.home
 
   // Which view the window was opened on, and every later switch. Asked for
   // rather than passed in the URL, because a second click can arrive before
@@ -130,6 +159,33 @@ async function start() {
   } catch (error) {
     store.notice(`The footer's tabs will not switch this window: ${message(error)}`)
   }
+
+  // A file open here follows an edit made in nvim the same way a day does -
+  // but only inside the vault, which is the only folder being watched. Not
+  // fatal: the file still opens and still saves.
+  try {
+    await files.start()
+  } catch (error) {
+    store.notice(`A file open here will save but not follow edits made elsewhere: ${message(error)}`)
+  }
+
+  // What this window was handed, and everything handed to it later. Asked for
+  // rather than passed in the URL, because a second `planner <path>` can
+  // arrive before this webview has finished loading (see spread.rs).
+  try {
+    const asked = await ipc.spreadFile()
+    if (asked !== null && asked !== '') await files.open(asked)
+    await ipc.onSpreadFile((path) => { void files.open(path) })
+  } catch (error) {
+    store.notice(`This window will not be handed a file: ${message(error)}`)
+  }
+
+  // A window that is put away keeps its timers but stops being looked at.
+  // ⌘W a keystroke after typing would otherwise sit on the settle window with
+  // nothing to end it.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) void spreadPage.file().flush()
+  })
 
   // The same fifteen-minute wake the popover hears, for the same reason: it
   // is what moves a plugin's generation, and this window asks plugins too
@@ -176,6 +232,42 @@ async function move(from, index, to) {
   }
 }
 
+/**
+ * Opens an address somebody typed into a file (spec §2.3).
+ *
+ * The same one the day page has, for the same reason: you typed the link, so
+ * there is no plugin to name and no approved list to check it against - only
+ * the scheme check, made in `core/markdown.js` before the link is drawn and
+ * again in Rust before it is handed to the shell.
+ *
+ * @param {string} url
+ * @returns {Promise<void>}
+ */
+async function openLink(url) {
+  try {
+    await ipc.openLink(url)
+  } catch (error) {
+    store.notice(`Could not open ${url}: ${message(error)}`)
+  }
+}
+
+/**
+ * Puts the file away.
+ *
+ * Flushed first, then let go of: `‹` is a way out, not a way to lose the last
+ * thing typed. The shell is told too, so it stops reading that path when the
+ * watcher fires (spec §2.5).
+ *
+ * @returns {void}
+ */
+function closeFile() {
+  void spreadPage.file().flush().finally(() => ipc.closeFile().catch(() => {}))
+  files.close()
+  // The tab is about to go, so the window cannot stay on it.
+  if (view === 'file') view = VIEWS[0] ?? ''
+  draw()
+}
+
 function draw() {
   // What the plugins have to say about every page a line can be drawn on:
   // the week's seven columns and the back page (spec §2.1). Asked for the
@@ -196,13 +288,36 @@ function draw() {
   // talk to each other, and each keeps its own minute clock.
   const warmed = applyPluginTokens(store, draw)
 
+  // The file this window is holding, as the view wants it: a title, a
+  // subtitle, a path and an id it never looks inside (spec §3.1).
+  const open = files.showing()
+  /** @type {import('./views/noteView.js').Note|null} */
+  const file = open === null ? null : {
+    id: open.path,
+    title: titleOf(open.text, open.path),
+    subtitle: shortenHome(folderOf(open.path), home),
+    path: shortenHome(open.path, home),
+    text: open.text,
+    back: 'Close the file',
+    state: open.exists ? 'Saved' : 'New file',
+  }
+
+  // Said out loud rather than looking like it is keeping up: the watcher runs
+  // on the vault, so a file kept anywhere else will be written over by this
+  // window's autosave if it is edited elsewhere at the same time (spec §2.5).
+  const root = expandHome(store.config().vault, home)
+  const unwatched = open === null || insideVault(open.path, root)
+    ? []
+    : [`${shortenHome(open.path, home)} is outside the vault, so edits made to it elsewhere will not show here.`]
+
   spreadPage.render({
     view,
     today: today(),
     anchor,
     vault: store.vault(),
     badges,
-    notices: [...store.notices(), ...badgeNotices, ...warmed],
+    file,
+    notices: [...store.notices(), ...badgeNotices, ...warmed, ...unwatched],
   })
 
   // The search holds its own query; this is what puts a late answer under it.

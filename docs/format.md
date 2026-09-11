@@ -141,6 +141,17 @@ not treated as the daily-note separator. A leading `---` with no closing
 `---` is not frontmatter — it is an ordinary rule, and the file is read the
 normal way.
 
+## Anything else in the folder
+
+A vault may hold Markdown that is neither a day nor a file beside one —
+`A-RUMBLING-OF-THUNDER.md` at the root, say. Such a file is ignored entirely:
+not indexed, not counted, never carried forward, and absent from the week, the
+month and the horizon. Nothing in it is parsed.
+
+The app will open one by name — `planner <path>.md` — and read its first `# `
+line to have something to call it in the window. That is the same single
+exception already made for a file beside a day, for the same reason.
+
 ## Anything else
 
 Any line the parser does not recognise — tables, prose, links, plain bullets,

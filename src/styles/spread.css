@@ -231,3 +231,27 @@
 /* The column a line would land in, marked while the pointer is over it. */
 .day-column.dropping { background: var(--surface); }
 .day-column.dropping .day-head { box-shadow: inset 0 2px 0 var(--accent); }
+
+/*
+ * A file fills the window rather than lying over it.
+ *
+ * `.note-view` is built for the popover, where it is an overlay that covers
+ * the day underneath (`components.css`). Here there is nothing underneath and
+ * a tab strip above, so it is a flex child like every other view - and an
+ * absolutely positioned one would sit over the tabs and take the way out with
+ * it.
+ */
+.file-view .note-view {
+  position: static;
+  z-index: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* A file's tab carries the file's own name, which may be a sentence. */
+.spread-head .tab {
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

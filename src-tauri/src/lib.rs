@@ -9,6 +9,13 @@
 /// Public so the tests in `tests/` can reach the day arithmetic; nothing
 /// outside this crate has any business calling a bridge.
 pub mod bridges;
+
+/// Public so `main.rs` can answer the command line before Tauri starts, and
+/// so the tests in `tests/` can read the grammar without one.
+pub mod cli;
+
+/// Public so the tests in `tests/` can reach the file rules.
+pub mod files;
 mod links;
 mod notify;
 mod quick_add;
@@ -57,7 +64,7 @@ fn close_quick_add(app: AppHandle) {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
+pub fn run(intent: cli::Intent) {
     // Every invoke passes the gate before it reaches a command. A plugin
     // window may call one of them; the app's own windows may call any (see
     // `plugins::allowed`).
@@ -79,12 +86,18 @@ pub fn run() {
         vault::list_sidecars,
         vault::write_sidecar,
         vault::delete_sidecar,
+        files::read_file,
+        files::write_file,
+        files::close_file,
         tray::set_pinned,
         tray::set_badge,
         notify::set_notifications,
         tray::close_popover,
+        tray::popover_ready,
         spread::open_spread,
         spread::spread_view,
+        spread::open_spread_file,
+        spread::spread_file,
         plugins::door::plugin_message,
         plugins::list_plugins,
         plugins::start_plugin,
@@ -96,10 +109,34 @@ pub fn run() {
     ]);
 
     tauri::Builder::default()
+        // First, and deliberately: this is what makes the second `planner` of
+        // the day reach the first one. Its setup exits this process when an
+        // app is already running, so nothing below it should have run yet.
+        //
+        // `argv` still carries the executable's own name, unlike
+        // `std::env::args().skip(1)` in `main.rs`, so it is sliced off here.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            let home = dirs::home_dir();
+            let asked = cli::read(
+                argv.get(1..).unwrap_or_default(),
+                std::path::Path::new(&cwd),
+                home.as_deref(),
+            );
+            match asked {
+                cli::Intent::Today => tray::show_popover(app),
+                cli::Intent::File(path) => spread::open_file(app, path),
+                // Refusals were said by the process that was invoked, before
+                // it ever reached this socket (spec §1.3). One arriving here
+                // is a folder that went away between the two, which is worth
+                // seeing but not worth a window.
+                other => eprintln!("planner: a second invocation asked for {other:?}"),
+            }
+        }))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(vault::SharedVault::default())
+        .manage(files::Opened::default())
         .manage(notify::Alarms::default())
         .manage(plugins::Registry::default())
         .manage(plugins::door::InFlight::default())
@@ -130,7 +167,19 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             app.manage(spread::View::default());
+            app.manage(spread::Asked::default());
             tray::install(app.handle())?;
+
+            // A file asked for at launch can be opened at once: unlike the
+            // popover, this window asks what it should be showing as it
+            // starts, so there is no blank one to show (see `spread_file`).
+            if let cli::Intent::File(path) = &intent {
+                spread::open_file(app.handle(), path.clone());
+            }
+            // Whatever is left, until a page says it is ready to act on it.
+            // `tray::install` above only *builds* the popover; its page has
+            // not loaded yet, so showing it here would show a blank one.
+            app.manage(tray::Launch::from(intent));
             // The one thread that holds real timers, because a hidden
             // webview's are throttled (spec §5.9).
             notify::hold(app.handle().clone());
