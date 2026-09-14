@@ -18,6 +18,11 @@ use serde::Serialize;
 /// this file is already at its length (spec §4.1).
 pub mod sidecars;
 
+/// The folder a plugin may own in the vault (spec §2.5). Its own module for
+/// the same reason, and beside sidecars because it is the other answer to
+/// "where does a file that is not a day go".
+pub mod folders;
+
 /// The back page's key. A date names every other page.
 pub const SOMEDAY: &str = "someday";
 

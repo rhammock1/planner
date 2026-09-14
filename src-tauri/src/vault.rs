@@ -194,6 +194,42 @@ pub fn write_sidecar(
     Ok(())
 }
 
+/// One of a plugin's own files in the vault, or `None` when it is not there -
+/// which is how a board tells "no board yet" from "a board somebody emptied".
+///
+/// The app's own windows only. A plugin never reads its own board: the app
+/// reads the file, hands the text to the plugin with the question, and holds
+/// the pen for the answer - the same bargain a sidecar keeps (spec §2.5).
+#[tauri::command]
+pub fn read_plugin_file(
+    vault: State<'_, SharedVault>,
+    name: String,
+    file: String,
+) -> Option<String> {
+    let root = vault.lock().expect("vault lock").root.clone()?;
+    vault_io::folders::read(&root, &name, &file)
+}
+
+/// Writes one of a plugin's own files.
+///
+/// No event, unlike `write_page` and `write_sidecar`. Nothing under a plugin's
+/// folder is a page, so nothing on screen is showing this file's old text: the
+/// window that asked for the write is the window that draws it, and it draws
+/// it from what it just wrote.
+#[tauri::command]
+pub fn write_plugin_file(
+    vault: State<'_, SharedVault>,
+    name: String,
+    file: String,
+    text: String,
+) -> Result<(), String> {
+    let root = vault.lock().expect("vault lock").root.clone().ok_or("no vault is open")?;
+    vault_io::folders::write(&root, &name, &file, &text).map_err(|error| {
+        eprintln!("planner: could not write {name}/{file}: {error}");
+        error.to_string()
+    })
+}
+
 /// Deletes a sidecar by moving it aside (spec §2.4).
 ///
 /// The app's own gesture: no plugin declares it, no capability grants it, and
