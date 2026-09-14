@@ -13,6 +13,8 @@
  */
 
 import { linesOf, badgeKey, readBadges } from '../core/badges.js'
+import { BOARD, boardLinesOf, boardKey, readBoard } from '../core/board.js'
+import { vaultFolder } from '../core/plugins.js'
 import { readSections, sectionKey } from '../core/sections.js'
 import { boxQuestion, readBox, paints } from '../core/box.js'
 import { readProvided } from '../core/provided.js'
@@ -22,6 +24,9 @@ import * as ipc from '../ipc.js'
 
 /** @typedef {import('../core/badges.js').Badge} Badge */
 /** @typedef {import('../core/provided.js').Provided} Provided */
+/** @typedef {import('../core/board.js').Answer} Answer */
+/** One plugin's board: its tab, its file as it stands, and what it last said
+ *  about the day. @typedef {{plugin: string, tab: string, board: string, answer: Answer|null}} Board */
 /** @typedef {import('../store.js').Store} Store */
 
 /**
@@ -119,6 +124,79 @@ export function boxFor(store, page, glance, tokens) {
     store.pluginAnswers('page.box', key, question),
     new Map(store.installed().map((one) => [one.name, one.box])),
   )
+}
+
+/**
+ * What each board plugin makes of the day in front of you (spec §2.2).
+ *
+ * One entry per plugin that keeps a board, in the order `installed` lists
+ * them, so a strip of tabs is drawn in a settled order and two launches put
+ * the same tab first. A plugin that has not answered yet is still in the list
+ * with a null answer: its tab exists because its manifest says so, and a tab
+ * that appeared only once its plugin had replied would appear late and move
+ * the ones beside it.
+ *
+ * The board *file* goes out in a `per` table, keyed by plugin name, for the
+ * reason `sectionsFor` sends sidecars that way: the envelope merges only the
+ * asking plugin's entry and drops the rest, so no plugin is ever shown
+ * another's board (`waiting.rs`).
+ *
+ * One question for all of them, not one each. The cache holds every answer to
+ * a slot under one key, so a key per plugin would ask every board plugin once
+ * per board plugin and file each round of answers under the wrong question.
+ * The key is therefore every board's own key joined: it changes exactly when
+ * one of them would have changed, and never otherwise.
+ *
+ * Draw-on-miss like the rest, and the file is read the same way: `pluginFile`
+ * answers null until the read lands and redraws the window when it does.
+ *
+ * @param {Store} store
+ * @param {string} page  `YYYY-MM-DD`
+ * @returns {{boards: Board[], notices: string[]}}
+ */
+export function boardsFor(store, page) {
+  const lines = boardLinesOf(store.page(page))
+
+  // A board is kept in the plugin's folder in the vault, so a plugin whose
+  // name cannot be a folder has nowhere to keep one. `plan` has already said
+  // so in the pane (spec §2.5); here it is simply not a tab.
+  const keeping = store.installed().filter((one) =>
+    one.enabled
+    && one.approvedSlots.includes('spread.board')
+    && vaultFolder(one.name) !== null)
+  if (keeping.length === 0) return { boards: [], notices: [] }
+
+  /** @type {Map<string, string>} */
+  const files = new Map(keeping.map((one) => [one.name, store.pluginFile(one.name, BOARD) ?? '']))
+  /** @type {Record<string, {board: string}>} */
+  const per = {}
+  for (const [name, board] of files) per[name] = { board }
+
+  const key = keeping
+    .map((one) => `${one.name}:${boardKey(page, lines, files.get(one.name) ?? '')}`)
+    // `boxFor`'s separator, for `boxFor`'s reason, written as an escape for
+    // `board.js`'s: the byte may go through a key and may not sit in a file
+    // this repo tracks.
+    .join('\u0000')
+  const answers = store.pluginAnswers('spread.board', key, { date: page, items: lines, per })
+
+  /** @type {Board[]} */
+  const boards = []
+  /** @type {string[]} */
+  const notices = []
+  for (const one of keeping) {
+    const mine = answers.find((answer) => answer.plugin === one.name)
+    const read = readBoard(mine?.value ?? null, lines)
+    for (const line of read.notices) notices.push(`${one.tab}: ${line}`)
+    boards.push({
+      plugin: one.name,
+      tab: one.tab,
+      board: files.get(one.name) ?? '',
+      answer: read.answer,
+    })
+  }
+
+  return { boards, notices }
 }
 
 /**
