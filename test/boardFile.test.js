@@ -8,7 +8,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { cardOf, lineOf, FRESH, parseBoard, serialiseBoard, appendArchive } from '../src/core/boardFile.js'
+import { cardOf, lineOf, FRESH, parseBoard, serialiseBoard, appendArchive, mergeBoard } from '../src/core/boardFile.js'
 
 /** @typedef {import('../src/core/boardFile.js').Card} Card */
 
@@ -198,4 +198,155 @@ test('an archive that lost its trailing newline gets one before the next line', 
     appendArchive('# Archive\n\n- Older  done 2026-09-01 ^000aaa', [DONE]),
     '# Archive\n\n- Older  done 2026-09-01 ^000aaa\n- Review PR #4412 - printer retry  done 2026-09-14 ^d4e5f6\n',
   )
+})
+
+/**
+ * `mergeBoard` - an answer's arrangement written back onto the file.
+ *
+ * This is the write the app makes after a board plugin answers, and the
+ * rules it has to hold are the ones §9 argues for: an omission is not a
+ * deletion, and a file nobody rearranged comes back byte for byte.
+ */
+
+const TODAY = '2026-09-14'
+
+const MERGE_BOARD = [
+  '# Board',
+  '',
+  'a note somebody left here',
+  '',
+  '## To do',
+  '- Chase the printer firmware sign-off ^b40e17',
+  'a line the parser does not understand',
+  '- Book the rehearsal room ^c1d2e3',
+  '',
+  '## Doing',
+  '- Pair with Dana on the offline queue ^a3f9k2',
+  '',
+  '## Done',
+  '',
+].join('\n')
+
+/**
+ * The columns of a board, as the answer reader hands them over.
+ *
+ * @param {string} text
+ * @returns {{name: string, cards: {id: string, text: string, ended: 'done'|'dropped'|null}[]}[]}
+ */
+function columnsOf(text) {
+  const { board } = parseBoard(text)
+  assert.ok(board !== null, 'the fixture does not parse')
+  return board.columns.map((column) => ({
+    name: column.name,
+    cards: column.entries.flatMap((entry) =>
+      entry.kind === 'card' ? [{ id: entry.card.id, text: entry.card.text, ended: entry.card.ended }] : []),
+  }))
+}
+
+test('a board nobody rearranged comes back byte for byte', () => {
+  assert.equal(mergeBoard(MERGE_BOARD, columnsOf(MERGE_BOARD), TODAY), MERGE_BOARD)
+})
+
+test('a card moved to another column moves, and nothing else does', () => {
+  const columns = columnsOf(MERGE_BOARD)
+  const moved = columns[0]?.cards.shift()
+  assert.ok(moved !== undefined)
+  columns[1]?.cards.push(moved)
+
+  assert.equal(mergeBoard(MERGE_BOARD, columns, TODAY), [
+    '# Board',
+    '',
+    'a note somebody left here',
+    '',
+    '## To do',
+    '- Book the rehearsal room ^c1d2e3',
+    'a line the parser does not understand',
+    '',
+    '## Doing',
+    '- Pair with Dana on the offline queue ^a3f9k2',
+    '- Chase the printer firmware sign-off ^b40e17',
+    '',
+    '## Done',
+    '',
+  ].join('\n'))
+})
+
+test('a card the answer leaves out stays where the file has it', () => {
+  // Design §9: an omission is not a deletion. A plugin that answered with
+  // half a board must not be able to empty the file.
+  const columns = columnsOf(MERGE_BOARD)
+  const first = columns[0]
+  assert.ok(first !== undefined)
+  first.cards = []
+
+  const merged = mergeBoard(MERGE_BOARD, columns, TODAY)
+  assert.ok(merged !== null)
+  assert.match(merged, /- Chase the printer firmware sign-off \^b40e17/)
+  assert.match(merged, /- Book the rehearsal room \^c1d2e3/)
+})
+
+test('an answer that names nothing at all changes nothing', () => {
+  assert.equal(mergeBoard(MERGE_BOARD, [], TODAY), MERGE_BOARD)
+})
+
+test('a line the parser does not understand keeps its place', () => {
+  const merged = mergeBoard(MERGE_BOARD, columnsOf(MERGE_BOARD), TODAY)
+  assert.ok(merged !== null)
+  const lines = merged.split('\n')
+  assert.equal(lines.indexOf('a line the parser does not understand'), 6)
+})
+
+test('a card that just ended is stamped with the day it ended', () => {
+  const columns = columnsOf(MERGE_BOARD)
+  const card = columns[1]?.cards[0]
+  assert.ok(card !== undefined)
+  card.ended = 'done'
+
+  const merged = mergeBoard(MERGE_BOARD, columns, TODAY)
+  assert.ok(merged !== null)
+  assert.match(merged, /- Pair with Dana on the offline queue {2}done 2026-09-14 \^a3f9k2/)
+})
+
+test('a card that ended earlier keeps the day it ended, not today', () => {
+  // The marker is the only clock ageing has, so rewriting it on every draw
+  // would mean a finished card never got old enough to leave.
+  const ended = '## Done\n- Ticked a week ago  done 2026-09-07 ^d4e5f6\n'
+  assert.equal(mergeBoard(ended, columnsOf(ended), TODAY), ended)
+})
+
+test('a card whose words changed is written again, and its neighbours are not', () => {
+  const columns = columnsOf(MERGE_BOARD)
+  const card = columns[0]?.cards[0]
+  assert.ok(card !== undefined)
+  card.text = 'Chase the printer firmware sign-off again'
+
+  const merged = mergeBoard(MERGE_BOARD, columns, TODAY)
+  assert.ok(merged !== null)
+  assert.match(merged, /- Chase the printer firmware sign-off again \^b40e17/)
+  assert.match(merged, /- Book the rehearsal room \^c1d2e3/)
+})
+
+test('a column the answer never mentions is left alone', () => {
+  const columns = columnsOf(MERGE_BOARD).filter((column) => column.name !== 'Doing')
+  const merged = mergeBoard(MERGE_BOARD, columns, TODAY)
+  assert.ok(merged !== null)
+  assert.match(merged, /## Doing\n- Pair with Dana on the offline queue \^a3f9k2/)
+})
+
+test('a column the answer adds is written at the end', () => {
+  const columns = columnsOf(MERGE_BOARD)
+  columns.push({ name: 'Blocked', cards: [{ id: 'a1b2c3', text: 'Waiting on legal', ended: null }] })
+
+  const merged = mergeBoard(MERGE_BOARD, columns, TODAY)
+  assert.ok(merged !== null)
+  assert.ok(merged.endsWith('## Blocked\n- Waiting on legal ^a1b2c3'), merged)
+})
+
+test('a board that is not there yet is merged onto the three default columns', () => {
+  const merged = mergeBoard('', [{ name: 'To do', cards: [{ id: 'a1b2c3', text: 'First ever', ended: null }] }], TODAY)
+  assert.equal(merged, '# Board\n\n## To do\n- First ever ^a1b2c3\n\n## Doing\n\n## Done\n')
+})
+
+test('a board nobody could read is merged to nothing, so the file is left alone', () => {
+  assert.equal(mergeBoard('# Board\n- Stray ^a1b2c3\n\n## To do\n', [], TODAY), null)
 })

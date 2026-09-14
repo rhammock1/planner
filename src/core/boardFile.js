@@ -201,4 +201,144 @@ function appendArchive(text, cards) {
   return `${held}${cards.map(lineOf).join('\n')}\n`
 }
 
-export { CARD, HEADING, FRESH, cardOf, lineOf, parseBoard, serialiseBoard, appendArchive }
+/**
+ * @typedef {object} Placed
+ * @property {string} id
+ * @property {string} text
+ * @property {'done'|'dropped'|null} ended
+ */
+
+/**
+ * @typedef {object} PlacedColumn
+ * @property {string} name
+ * @property {Placed[]} cards
+ */
+
+/**
+ * The board file with an answer's arrangement written onto it.
+ *
+ * This is the write the app makes once a board plugin has answered and every
+ * card it named has a name (design §9). It is the one place the file's two
+ * promises have to hold at the same time:
+ *
+ *   - **An omission is not a deletion.** A card the file holds that the
+ *     answer never mentions is left exactly where the file has it. A plugin
+ *     that answered with half a board, or answered late, or was switched off
+ *     between the question and the write, cannot empty the file - so the
+ *     worst a broken plugin does is fail to rearrange.
+ *   - **A board nobody rearranged comes back byte for byte.** A card whose
+ *     words, column and ending are all what they were is written back from
+ *     the `raw` line it was read from, never re-rendered, so an unchanged
+ *     file is not rewritten and a hand-made line keeps the spaces in it.
+ *
+ * The arrangement is applied by filling slots rather than by rebuilding a
+ * column: every card the answer names anywhere leaves its old line vacant,
+ * the vacancies in each column are filled in the answer's order, and
+ * everything else - prose, blank lines, a card nobody mentioned - keeps the
+ * place it had. That is what stops a note somebody wrote between two cards
+ * from migrating to the top of the column the first time anything moves.
+ *
+ * A card that is ending now is stamped with `today`; a card that ended on
+ * some earlier day keeps the day it has. The marker is the only clock the
+ * ageing rule has, so rewriting it on every draw would mean a finished card
+ * never got old enough to leave.
+ *
+ * @param {string} text  the board as it stands, `''` when there is none
+ * @param {PlacedColumn[]} columns  the arrangement, cards already named
+ * @param {string} today  `YYYY-MM-DD`, for a card that is ending now
+ * @returns {string|null}  null when the file cannot be read, so it is left alone
+ */
+function mergeBoard(text, columns, today) {
+  const { board } = parseBoard(text.trim() === '' ? FRESH : text)
+  if (board === null) return null
+
+  /** Every card the file holds, by name, first one winning - the same rule
+   *  the board is drawn under, so a file with one id twice merges the way it
+   *  reads. @type {Map<string, {card: Card, entry: Entry}>} */
+  const before = new Map()
+  for (const column of board.columns) {
+    for (const entry of column.entries) {
+      if (entry.kind === 'card' && !before.has(entry.card.id)) {
+        before.set(entry.card.id, { card: entry.card, entry })
+      }
+    }
+  }
+
+  /** @type {Map<string, Placed[]>} */
+  const wanted = new Map()
+  /** @type {Set<string>} */
+  const named = new Set()
+  for (const column of columns) {
+    if (!wanted.has(column.name)) wanted.set(column.name, column.cards)
+    for (const card of column.cards) named.add(card.id)
+  }
+
+  /**
+   * One card as a line, reusing the one it came from when nothing about it
+   * changed.
+   *
+   * @param {Placed} card
+   * @returns {Entry}
+   */
+  function entryFor(card) {
+    const held = before.get(card.id)?.card ?? null
+    const endedOn = card.ended === null
+      ? null
+      : held !== null && held.ended === card.ended && held.endedOn !== null
+        ? held.endedOn
+        : today
+    const was = before.get(card.id)?.entry
+    if (was !== undefined && held !== null
+      && held.text === card.text && held.ended === card.ended && held.endedOn === endedOn) {
+      return was
+    }
+    const made = { id: card.id, text: card.text, ended: card.ended, endedOn }
+    return { kind: 'card', card: made, raw: lineOf(made) }
+  }
+
+  /** @type {Column[]} */
+  const merged = board.columns.map((column) => {
+    const cards = wanted.get(column.name)
+    // A column the answer never mentioned is not a column the answer emptied.
+    if (cards === undefined) return column
+
+    const queue = [...cards]
+    /** @type {Entry[]} */
+    const entries = []
+    for (const entry of column.entries) {
+      if (entry.kind === 'card' && named.has(entry.card.id)) {
+        // A vacancy. It takes the next card the answer put in this column,
+        // and closes if the answer has none left.
+        const next = queue.shift()
+        if (next !== undefined) entries.push(entryFor(next))
+        continue
+      }
+      entries.push(entry)
+    }
+
+    // Cards the column did not have room for go after its last card, rather
+    // than after whatever blank line ends the column.
+    let at = entries.length
+    for (let n = entries.length - 1; n >= 0; n -= 1) {
+      if (entries[n]?.kind === 'card') { at = n + 1; break }
+      if (n === 0) at = 0
+    }
+    entries.splice(at, 0, ...queue.map(entryFor))
+    return { ...column, entries }
+  })
+
+  const have = new Set(board.columns.map((column) => column.name))
+  for (const column of columns) {
+    if (have.has(column.name)) continue
+    have.add(column.name)
+    merged.push({
+      name: column.name,
+      heading: `## ${column.name}`,
+      entries: column.cards.map(entryFor),
+    })
+  }
+
+  return serialiseBoard({ preamble: board.preamble, columns: merged })
+}
+
+export { CARD, HEADING, FRESH, cardOf, lineOf, parseBoard, serialiseBoard, appendArchive, mergeBoard }
