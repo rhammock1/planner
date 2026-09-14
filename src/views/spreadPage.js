@@ -46,6 +46,11 @@ import { createSearchPanel } from './searchPanel.js'
  * @property {(anchor: string) => void} onAnchor  '' means today
  * @property {(from: string, index: number, to: string) => void} onMove  a line
  *   dragged from one page onto another
+ * @property {(plugin: string, id: string, column: string, before: string|null) => void} onCard
+ *   a card dropped in another of a board's columns
+ * @property {(id: string) => void} onFinish  a card dropped on the last
+ *   column, which is not a drop target: a card gets there by its line being
+ *   ticked (kanban design §6)
  * @property {(plugin: string, href: string) => void} onBadge
  * @property {(query: string) => {groups: import('../core/search.js').Group[], found: number}} onSearch
  * @property {(query: string) => {groups: {plugin: string, hits: import('../core/provided.js').Provided[]}[], notices: string[]}} onProviders
@@ -87,7 +92,7 @@ export function mount(root, handlers) {
     // One view for however many boards there are (spec §2.2). Which one it
     // draws is whichever the strip has picked, so it is here under one name
     // rather than being built and torn down as plugins come and go.
-    ['board', createBoardView(() => boardShowing())],
+    ['board', createBoardView(() => boardShowing(), handlers.onCard, handlers.onFinish)],
   ])
 
   /** @type {Map<string, HTMLElement>} */

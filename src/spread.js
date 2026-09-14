@@ -15,7 +15,8 @@ import { moveItem } from './core/move.js'
 import { search } from './core/search.js'
 import { readRef, owns } from './core/sidecars.js'
 import { badgesFor, boardsFor, providedFor, openBadge } from './plugins/pageAsking.js'
-import { keepBoards } from './plugins/boardWrites.js'
+import { keepBoards, dropCard } from './plugins/boardWrites.js'
+import { lineWithId } from './core/ids.js'
 import { weekOf } from './core/calendar.js'
 import { SOMEDAY } from './core/vaultIndex.js'
 import { createFiles } from './fileStore.js'
@@ -61,6 +62,32 @@ async function start() {
       draw()
     },
     onMove: (from, index, to) => { void move(from, index, to) },
+    onCard: (plugin, id, column, before) => { void dropCard(store, plugin, id, column, before) },
+
+    /**
+     * A card dropped on the last column, which is not a drop target: a card
+     * gets there by its line being ticked, and ticking a line is a write into
+     * your day file that a board does not make (kanban design §6).
+     *
+     * The refusal does the useful half. In the popover that is the day page
+     * with the caret on the line; this window has no day page and no caret,
+     * so it does what a search hit and a provider's hit both already do here
+     * and moves to the week that day sits in - where the line is on screen
+     * with its checkbox, one click from the tick (spec §5.7).
+     */
+    onFinish: (id) => {
+      const found = lineWithId(store.vault(), id)
+      if (found === null) {
+        // A card whose task is nowhere in the vault. Said out loud, because
+        // unlike a stale drawing this one does not fix itself: the card will
+        // sit on the board being undroppable until somebody knows why.
+        store.notice('That card’s line is not in the vault, so there is nothing to tick.')
+        return
+      }
+      view = found.page === SOMEDAY ? 'someday' : 'week'
+      if (found.page !== SOMEDAY) anchor = found.page
+      draw()
+    },
     onBadge: (plugin, href) => {
       const ref = readRef(href)
       // A note of somebody's, and this window cannot show one: it draws weeks

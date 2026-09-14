@@ -30,7 +30,7 @@
 import { BOARD, ARCHIVE } from '../core/board.js'
 import { stampAll } from '../core/ids.js'
 import { appendArchive, mergeBoard } from '../core/boardFile.js'
-import { unnamed, placeBoard, archiving } from '../core/boardWrite.js'
+import { unnamed, placeBoard, archiving, moveCard } from '../core/boardWrite.js'
 
 /** @typedef {import('../store.js').Store} Store */
 /** @typedef {import('./pageAsking.js').Board} Board */
@@ -197,4 +197,42 @@ async function archiveEnded(store, board, held, asked) {
   const done = await store.changePluginFile(board.plugin, ARCHIVE, appendArchive(before, cards))
   if (!done) return null
   return cards.map((card) => card.id)
+}
+
+/**
+ * A card dropped in another of a board's columns.
+ *
+ * The gesture is the app's end to end (design §5): the plugin is not asked
+ * whether the move is allowed and does not hear about it until it is next
+ * asked, which is what makes a drop survive a plugin that is slow, switched
+ * off, or put away mid-drag.
+ *
+ * Nothing here undoes itself on the next draw, and the reason is worth saying
+ * because it is not local to this function: `boardsFor` keys the answer cache
+ * on the file's own text, so the write below is a new question, and the
+ * arrangement `keepBoards` merges a moment later is the one the plugin made
+ * *after* seeing the card move. Were it keyed on the day alone, the stale
+ * answer would fill the vacancy this write just made and put the card back.
+ *
+ * Silent when the move cannot be made - the card or the column is not in the
+ * file. That is a board drawn from a file that has since changed, the same
+ * stale-drawing case a stale line index is, and the next draw is the answer
+ * to it rather than a line in the notice band. A file nothing can read is
+ * already said once per draw by the write path, so it is not said twice here.
+ *
+ * @param {Store} store
+ * @param {string} plugin
+ * @param {string} id  the card being dropped
+ * @param {string} column  the column it is dropped in, by name
+ * @param {string|null} before  the card it lands in front of, or null for last
+ * @returns {Promise<void>}
+ */
+export async function dropCard(store, plugin, id, column, before) {
+  // The same read-before-write rule the merge has, and here it is the whole
+  // of the check: a board nobody has read is a board with no card to move.
+  if (!store.pluginFileKnown(plugin, BOARD)) return
+  const held = store.pluginFile(plugin, BOARD) ?? ''
+  const moved = moveCard(held, id, column, before)
+  if (moved === null || moved === held) return
+  await store.changePluginFile(plugin, BOARD, moved)
 }

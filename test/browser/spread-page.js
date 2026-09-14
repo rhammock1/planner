@@ -31,6 +31,14 @@ const viewed = []
 /** @type {string[]} */
 const moved = []
 
+/** Cards dropped in a column, as `id -> column` or `id -> column before id`. */
+/** @type {string[]} */
+const dropped = []
+
+/** Cards dropped on the last column, which is not a drop target. */
+/** @type {string[]} */
+const finished = []
+
 /**
  * @param {number} count
  * @returns {string}
@@ -111,6 +119,10 @@ function showAt(anchor, view, count = 0, days = [], lines = '', boards = []) {
     onView: (next) => { viewed.push(next) },
     onAnchor: (next) => { anchored.push(next) },
     onMove: (from, index, to) => { moved.push(`${from}:${index} -> ${to}`) },
+    onCard: (plugin, id, column, before) => {
+      dropped.push(`${plugin}/${id} -> ${column}${before === null ? '' : ` before ${before}`}`)
+    },
+    onFinish: (id) => { finished.push(id) },
     onBadge: () => {},
     onSearch: () => ({ groups: [], found: 0 }),
     onProviders: () => ({ groups: [], notices: [] }),
@@ -579,6 +591,95 @@ check('a board longer than the window scrolls its own cards, not the window', ()
   const window = box('.spread')
   ok(cards.getBoundingClientRect().bottom <= window.bottom + 1, 'and it ends inside the window')
   equal(stage.querySelector('.spread')?.scrollHeight, window.height, 'the window itself does not scroll')
+})
+
+/* ── a card dragged between columns ──────────────────────── */
+
+/**
+ * The whole gesture, on the elements themselves: `dragstart` on the card,
+ * `dragover` on where it is going, `drop` there.
+ *
+ * One `DataTransfer` for all three, which is what the browser does - and the
+ * reason a check can be written at all, since the payload is what the drop
+ * reads and a synthetic event with a fresh transfer per step would carry
+ * nothing.
+ *
+ * @param {Element|null|undefined} card  the card being picked up
+ * @param {Element|null|undefined} onto  what the pointer comes up over
+ * @returns {void}
+ */
+function drag(card, onto) {
+  if (!(card instanceof HTMLElement) || !(onto instanceof HTMLElement)) {
+    throw new Error('nothing to drag')
+  }
+  const dataTransfer = new DataTransfer()
+  card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer }))
+  onto.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer }))
+  onto.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer }))
+}
+
+/** @returns {import('../../src/plugins/pageAsking.js').Board[]} */
+function threeColumns() {
+  return [board('kanban', 'Kanban', [
+    { name: 'To do', cards: [card('Fix the gate', 'k4m2qa')] },
+    { name: 'Doing', cards: [card('Call the vet', 'p9x1bb')] },
+    { name: 'Done', cards: [card('Water the plants', 'q7r3cc', 'done')] },
+  ])]
+}
+
+check('a named card can be picked up; one the answer pointed at by line cannot', () => {
+  showBoards('board:kanban', [board('kanban', 'Kanban', [
+    { name: 'To do', cards: [card('Fix the gate', 'k4m2qa'), { id: null, index: 3, text: 'New', ended: null }] },
+  ])])
+  const cards = [...onScreen().querySelectorAll('.board-card')]
+  ok(cards[0] instanceof HTMLElement && cards[0].draggable, 'the named one')
+  ok(cards[1] instanceof HTMLElement && !cards[1].draggable, 'the one with no name yet')
+})
+
+check('a card dropped on another column says which card and which column', () => {
+  showBoards('board:kanban', threeColumns())
+  dropped.length = 0
+  const columns = [...onScreen().querySelectorAll('.board-column')]
+  drag(onScreen().querySelector('.board-card'), find('.board-cards', columns[1] ?? undefined))
+  equal(dropped[0], 'kanban/k4m2qa -> Doing', 'what the drop asked for')
+})
+
+check('and dropped on a card, it lands in front of that one', () => {
+  showBoards('board:kanban', threeColumns())
+  dropped.length = 0
+  const columns = [...onScreen().querySelectorAll('.board-column')]
+  drag(onScreen().querySelector('.board-card'), find('.board-card', columns[1] ?? undefined))
+  equal(dropped[0], 'kanban/k4m2qa -> Doing before p9x1bb', 'what the drop asked for')
+})
+
+// The last column is not a drop target (kanban design §6): a card gets there
+// by its line being ticked, which is the one write a board does not make.
+check('a card dropped on the last column is not moved, and asks about the line instead', () => {
+  showBoards('board:kanban', threeColumns())
+  dropped.length = 0
+  finished.length = 0
+  const columns = [...onScreen().querySelectorAll('.board-column')]
+  drag(onScreen().querySelector('.board-card'), find('.board-cards', columns[2] ?? undefined))
+  equal(dropped.length, 0, 'nothing was moved')
+  equal(finished[0], 'k4m2qa', 'and the card it was about')
+})
+
+check('the column under the pointer is marked, and the last one is marked as the refusal it is', () => {
+  showBoards('board:kanban', threeColumns())
+  const columns = [...onScreen().querySelectorAll('.board-column')]
+  const card = onScreen().querySelector('.board-card')
+  if (!(card instanceof HTMLElement)) throw new Error('no card')
+
+  const dataTransfer = new DataTransfer()
+  card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer }))
+  columns[1]?.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer }))
+  ok(columns[1]?.classList.contains("dropping") === true, 'an ordinary column takes it')
+  ok(!columns[1]?.classList.contains('refusing'), 'and does not refuse')
+
+  columns[2]?.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer }))
+  ok(columns[2]?.classList.contains("refusing") === true, 'the last one says no')
+  ok(!columns[2]?.classList.contains('dropping'), 'and is not a drop target')
+  ok(!columns[1]?.classList.contains('dropping'), 'and the mark moved off the one before')
 })
 
 report()

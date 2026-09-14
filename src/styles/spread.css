@@ -334,3 +334,25 @@
 .board-card.ended { opacity: 0.55; }
 .board-card.ended.done .board-card-text { text-decoration: line-through; }
 .board-card.ended.dropped .board-card-text { text-decoration: line-through wavy; }
+
+/* ── a card in flight ───────────────────────────────────── */
+
+.board-card[draggable='true'] { cursor: grab; }
+
+.board-card.lifting { opacity: 0.4; }
+
+/* The column a card would land in, marked the way a day column is. */
+.board-column.dropping { background: var(--surface); }
+.board-column.dropping .board-column-name { box-shadow: inset 0 2px 0 var(--accent); }
+
+/*
+ * The last column, which is not a drop target (kanban design §6): a card gets
+ * there by its line being ticked, and the board's answer to the gesture is to
+ * show you that line rather than to move the card.
+ *
+ * Marked while the pointer is over it, and marked as the different answer it
+ * is - dimmed rather than lit - so the refusal is legible before the mouse
+ * comes up rather than only after.
+ */
+.board-column.refusing { background: var(--edge-soft); }
+.board-column.refusing .board-column-name { box-shadow: inset 0 2px 0 var(--dim); }

@@ -34,7 +34,7 @@
 /** @typedef {import('./boardFile.js').Card} FileCard */
 
 import { lineWithId } from './ids.js'
-import { parseBoard, FRESH } from './boardFile.js'
+import { parseBoard, serialiseBoard, FRESH } from './boardFile.js'
 
 /**
  * The columns the file holds, which are the only columns an answer may name.
@@ -208,4 +208,98 @@ export function archiving(text, ids) {
     notices.push(`the board asked to archive ${refused} ${refused === 1 ? 'card' : 'cards'} nothing has finished`)
   }
   return { cards, notices }
+}
+
+/**
+ * The board with one card moved into another column.
+ *
+ * This is the drop (design §5). A drag is the app's gesture end to end - the
+ * plugin never sees a pointer event and is not asked whether the move is
+ * allowed - so this rearranges the file directly, and the plugin learns of it
+ * the next time it is asked. Which is also what makes a drop survive a plugin
+ * that is slow, switched off, or put away mid-gesture.
+ *
+ * The card is moved, never re-rendered: the `raw` line it was read from is
+ * what goes back in, so a card keeps its exact words, its ending marker and
+ * any spacing somebody typed by hand. A drop says where a card is, and
+ * nothing else about it.
+ *
+ * `before` is the card the moved one lands in front of, or null for the end
+ * of the column - which is how a drop on the empty space below the last card
+ * differs from a drop on a card. A `before` the column does not hold is read
+ * as the end rather than refused: the board under the pointer is a drawing of
+ * the file as it was read, and a card that has since moved is a stale drawing
+ * rather than a bad gesture.
+ *
+ * Null when the move cannot be made, and the caller leaves the file alone:
+ * the file cannot be read, no column has that name, or no card has that id.
+ * A move to the column the card is already in is a real move - that is how a
+ * card is reordered inside a column - but one that changes nothing comes back
+ * as the text it was given, so a drop that put a card back where it was is
+ * not a write.
+ *
+ * @param {string} text  the board as it stands
+ * @param {string} id  the card being dropped
+ * @param {string} column  the column it is dropped in, by name
+ * @param {string|null} before  the card it lands in front of, or null for last
+ * @returns {string|null}
+ */
+export function moveCard(text, id, column, before) {
+  const { board } = parseBoard(text.trim() === '' ? FRESH : text)
+  if (board === null) return null
+  if (!board.columns.some((one) => one.name === column)) return null
+
+  /** @type {import('./boardFile.js').Entry|null} */
+  let moving = null
+  const without = board.columns.map((one) => ({
+    ...one,
+    entries: one.entries.filter((entry) => {
+      // First one wins, the same rule the draw and the merge both follow, so
+      // a file holding one id twice moves the card it draws.
+      if (entry.kind !== 'card' || entry.card.id !== id || moving !== null) return true
+      moving = entry
+      return false
+    }),
+  }))
+  if (moving === null) return null
+  // Read out of the closure the filter wrote it in, so what follows is
+  // holding an entry rather than a variable that was one a moment ago.
+  const card = moving
+  const merged = without.map((one) => {
+    if (one.name !== column) return one
+    const at = before === null
+      ? slotIn(one.entries)
+      : one.entries.findIndex((entry) => entry.kind === 'card' && entry.card.id === before)
+    const entries = [...one.entries]
+    entries.splice(at === -1 ? slotIn(one.entries) : at, 0, card)
+    return { ...one, entries }
+  })
+
+  return serialiseBoard({ preamble: board.preamble, columns: merged })
+}
+
+/**
+ * Where a card appended to a column goes: after its last card, or - in a
+ * column that has none - after the blank line the heading is followed by.
+ *
+ * The first half is `mergeBoard`'s rule, and for its reason: a card written
+ * after whatever blank line ends the column lands against the next heading and
+ * reads as belonging to it.
+ *
+ * The second half is this function's own, and it is about a column a card has
+ * just left. `## To do` holding one card is a blank line, the card, a blank
+ * line; take the card out and looking for the last card finds none, so the
+ * card would come back at the top and push the blank line below it. A drop
+ * that put a card back where it was would rewrite the file - which is exactly
+ * the write this is meant not to make.
+ *
+ * @param {import('./boardFile.js').Entry[]} entries
+ * @returns {number}
+ */
+function slotIn(entries) {
+  for (let n = entries.length - 1; n >= 0; n -= 1) {
+    if (entries[n]?.kind === 'card') return n + 1
+  }
+  const first = entries[0]
+  return first !== undefined && first.kind === 'text' && first.line.trim() === '' ? 1 : 0
 }

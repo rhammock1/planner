@@ -15,7 +15,8 @@ import assert from 'node:assert/strict'
 
 import { parse } from '../src/core/parse.js'
 import { buildIndex } from '../src/core/vaultIndex.js'
-import { columnsOf, unnamed, endingFor, placeBoard, archiving } from '../src/core/boardWrite.js'
+import { parseBoard } from '../src/core/boardFile.js'
+import { columnsOf, unnamed, endingFor, placeBoard, archiving, moveCard } from '../src/core/boardWrite.js'
 
 const BOARD = `# Board
 
@@ -290,3 +291,85 @@ describe('what goes into the archive', () => {
     assert.deepEqual(archiving('- A card above every heading ^k4m2qa\n', ['k4m2qa']).cards, [])
   })
 })
+
+describe('a card dropped in another column', () => {
+  test('leaves the one it was in and joins the one it was dropped on', () => {
+    const moved = moveCard(BOARD, 'k4m2qa', 'Doing', null)
+    assert.ok(moved !== null)
+    assert.deepEqual(columnCards(moved), {
+      'To do': [],
+      Doing: ['p9x1bb', 'k4m2qa'],
+      Done: ['q7r3cc'],
+    })
+  })
+
+  test('lands in front of the card it was dropped on', () => {
+    const moved = moveCard(BOARD, 'k4m2qa', 'Doing', 'p9x1bb')
+    assert.deepEqual(columnCards(String(moved))['Doing'], ['k4m2qa', 'p9x1bb'])
+  })
+
+  // The line is carried, not rewritten, so a marker the app put on stays put.
+  test('carries the line it had, marker and all', () => {
+    const moved = String(moveCard(BOARD, 'q7r3cc', 'To do', null))
+    assert.ok(moved.includes('- Water the plants  done 2026-09-10 ^q7r3cc'), moved)
+  })
+
+  test('and the prose in the column it left stays where it was', () => {
+    const moved = String(moveCard(BOARD, 'p9x1bb', 'To do', null))
+    assert.ok(moved.includes('Waiting on the timber.'), moved)
+  })
+
+  // Not a no-op: this is how a card is reordered inside a column. But a drop
+  // that put it back where it was is not a write.
+  test('a drop in its own column that changes nothing writes nothing', () => {
+    assert.equal(moveCard(BOARD, 'k4m2qa', 'To do', null), BOARD)
+  })
+
+  test('and a drop in its own column that reorders it does', () => {
+    const board = '# Board\n\n## To do\n\n- One ^aaa111\n- Two ^bbb222\n'
+    assert.deepEqual(
+      columnCards(String(moveCard(board, 'bbb222', 'To do', 'aaa111')))['To do'],
+      ['bbb222', 'aaa111'],
+    )
+  })
+
+  // The board under the pointer is a drawing of the file as it was read. A
+  // card that has moved since is a stale drawing, not a bad gesture.
+  test('a card to land in front of that the column no longer holds means the end of it', () => {
+    assert.deepEqual(
+      columnCards(String(moveCard(BOARD, 'k4m2qa', 'Doing', 'zzz999')))['Doing'],
+      ['p9x1bb', 'k4m2qa'],
+    )
+  })
+
+  test('a card the file does not hold moves nothing', () => {
+    assert.equal(moveCard(BOARD, 'zzz999', 'Doing', null), null)
+  })
+
+  test('a column the file does not have is not a column to drop in', () => {
+    assert.equal(moveCard(BOARD, 'k4m2qa', 'Blocked', null), null)
+  })
+
+  test('and a file nothing can read is left alone', () => {
+    assert.equal(moveCard('- A card above every heading ^k4m2qa\n', 'k4m2qa', 'To do', null), null)
+  })
+})
+
+/**
+ * Which cards each column holds, by name, for asserting on an arrangement
+ * rather than on a file's whitespace.
+ *
+ * @param {string} text
+ * @returns {Record<string, string[]>}
+ */
+function columnCards(text) {
+  const { board } = parseBoard(text)
+  /** @type {Record<string, string[]>} */
+  const held = {}
+  for (const column of board?.columns ?? []) {
+    held[column.name] = column.entries
+      .filter((entry) => entry.kind === 'card')
+      .map((entry) => (entry.kind === 'card' ? entry.card.id : ''))
+  }
+  return held
+}
