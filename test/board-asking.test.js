@@ -19,6 +19,7 @@ import assert from 'node:assert/strict'
 
 import { parse } from '../src/core/parse.js'
 import { boardsFor } from '../src/plugins/pageAsking.js'
+import { moveCard } from '../src/core/boardWrite.js'
 
 const PAGE = `- [ ] Review PR #4412 @14:00
 - [x] Water the plants ^k4m2qa
@@ -172,6 +173,20 @@ describe('when a board is asked again', () => {
   test('and when the other does, which a single shared file would have missed', () => {
     const before = keyFor({ 'kanban/board': 'one', 'scrum/board': 'a' })
     assert.notEqual(before, keyFor({ 'kanban/board': 'one', 'scrum/board': 'b' }))
+  })
+
+  // What keeps a drag from being undone, written as a test because it is a
+  // property of *this* key that code in `boardWrites.js` depends on and
+  // cannot see. The merge fills a vacancy from the plugin's last answer, and
+  // that answer holds the board from before the drop - so were this key the
+  // day alone, the next draw would re-use it and put the card back. It is not
+  // the day alone: the file's own text is in it, the drop rewrites the file,
+  // and the plugin is asked again about the board it now has.
+  test('when a card has been dragged into another column', () => {
+    const board = '# Board\n\n## To do\n\n- Order the timber ^40ries\n\n## Doing\n\n## Done\n'
+    const dropped = moveCard(board, '40ries', 'Doing', null)
+    assert.notEqual(dropped, null)
+    assert.notEqual(keyFor({ 'kanban/board': board }), keyFor({ 'kanban/board': String(dropped) }))
   })
 })
 
