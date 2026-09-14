@@ -15,7 +15,9 @@ in this repo.
 - The browser checks run against `node tools/serve.js` on port 8731: 45 of 45.
 
 `~/gotab/workflow/bin/worktree-bootstrap` would make this worktree hold its own
-`node_modules` and satisfy the probe directly. It was denied here by the
+`node_modules` and satisfy the probe directly, though it would buy little else:
+this repo's whole dependency set is `typescript` and `@types/node`, so the
+clone is a local `tsc` and nothing the tests need. It was denied here by the
 permission classifier as `[Irreversible Local Destruction]`, and working around
 a denial is not something a session should do on its own judgement - so it is
 in the report for Robert to run or to allow instead.
