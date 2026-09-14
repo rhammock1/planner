@@ -2,8 +2,9 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import { parse } from '../src/core/parse.js'
-import { SOMEDAY, buildIndex } from '../src/core/vaultIndex.js'
-import { openCount, glance, badge } from '../src/core/glance.js'
+import { SOMEDAY, buildIndex, getPage } from '../src/core/vaultIndex.js'
+import { openCount, glance, badge, dayGlances, blank } from '../src/core/glance.js'
+import { horizon } from '../src/core/horizon.js'
 
 const TODAY = '2026-08-31'
 const LEAD = 7
@@ -110,5 +111,114 @@ describe('what the icon carries', () => {
 
   test('both off is a bare icon whatever the day holds', () => {
     assert.equal(badge({ open: 3, near: true }, { count: false, dot: false }), null)
+  })
+})
+
+describe('what a day amounts to', () => {
+  const YESTERDAY = '2026-08-30'
+
+  /** @returns {import('../src/core/vaultIndex.js').VaultIndex} */
+  function mixed() {
+    return vault({
+      [YESTERDAY]: [
+        `# ${YESTERDAY}`,
+        '',
+        '- [x] Send the invoice',
+        '- [-] Rewrite the deploy script',
+        `- [>] Call the landlord >${TODAY}`,
+        '',
+      ].join('\n'),
+      [TODAY]: [
+        `# ${TODAY}`,
+        '',
+        '- [ ] Order the connectors',
+        '- [ ] Call the landlord',
+        '- [x] Book the van',
+        '- [ ] Firmware sign-off !2026-09-02',
+        '- [ ] Renew the domain !2026-08-01',
+        '',
+      ].join('\n'),
+      '2026-09-20': '# 2026-09-20\n\n- [ ] Pack\n',
+    })
+  }
+
+  test('open and done are counted, per page', () => {
+    const counted = dayGlances(mixed(), TODAY, LEAD)
+    assert.equal(counted.get(TODAY)?.open, 4)
+    assert.equal(counted.get(TODAY)?.done, 1)
+    assert.equal(counted.get(YESTERDAY)?.done, 1)
+  })
+
+  // A dropped line was decided against and a migrated one has been copied onto
+  // another day, where the copy is what is still owed.
+  test('a dropped line and a migrated one are neither open nor done', () => {
+    const day = dayGlances(mixed(), TODAY, LEAD).get(YESTERDAY)
+    assert.equal(day?.open, 0)
+    assert.equal(day?.done, 1)
+  })
+
+  test('a deadline inside its lead time is due, and a passed one is overdue', () => {
+    const day = dayGlances(mixed(), TODAY, LEAD).get(TODAY)
+    assert.equal(day?.due, 1)
+    assert.equal(day?.overdue, 1)
+  })
+
+  test('the two are disjoint, and never double-count a line', () => {
+    const day = dayGlances(mixed(), TODAY, LEAD).get(TODAY) ?? blank()
+    assert.ok(day.due + day.overdue <= day.open)
+  })
+
+  // The counts are of a page, but the dates are judged from today - so a
+  // deadline further out than its lead time is on its page and in neither
+  // column yet.
+  test('a deadline beyond its lead time is neither due nor overdue', () => {
+    assert.deepEqual(dayGlances(mixed(), TODAY, LEAD).get('2026-09-20'), { ...blank(), open: 1 })
+  })
+
+  test('a page holding no items still gets four zeroes', () => {
+    const index = vault({ [TODAY]: `# ${TODAY}\n\n## Notes\nhand-written\n` })
+    assert.deepEqual(dayGlances(index, TODAY, LEAD).get(TODAY), blank())
+  })
+
+  test('a day with no file at all is absent, and blank() is what to read then', () => {
+    const counted = dayGlances(mixed(), TODAY, LEAD)
+    assert.equal(counted.get('2026-07-04'), undefined)
+    assert.deepEqual(blank(), { open: 0, done: 0, due: 0, overdue: 0 })
+  })
+
+  test('the back page is counted like any other', () => {
+    const index = vault({ [SOMEDAY]: '# Someday\n\n- [ ] Learn to solder\n' })
+    assert.equal(dayGlances(index, TODAY, LEAD).get(SOMEDAY)?.open, 1)
+  })
+})
+
+// The whole reason these counts live in core: several places on screen say a
+// number about a day, and none of them may disagree with another.
+describe('nobody disagrees about a count', () => {
+  const index = vault({
+    [TODAY]: `# ${TODAY}\n\n- [ ] Order the connectors\n- [x] Send the invoice\n- [ ] Renew the domain !2026-08-01\n`,
+    '2026-09-04': '# 2026-09-04\n\n- [ ] Book the van\n- [ ] Pack\n',
+    [SOMEDAY]: '# Someday\n\n- [ ] Learn to solder properly\n',
+  })
+
+  test('the footer, the columns and the box read what openCount reads', () => {
+    const counted = dayGlances(index, TODAY, LEAD)
+    for (const page of counted.keys()) {
+      assert.equal(counted.get(page)?.open, openCount(getPage(index, page)), page)
+    }
+  })
+
+  test('the icon reads what the box reads', () => {
+    assert.equal(glance(index, TODAY, LEAD).open, dayGlances(index, TODAY, LEAD).get(TODAY)?.open)
+  })
+
+  test('the dot is up exactly when the strip has something in it', () => {
+    assert.equal(glance(index, TODAY, LEAD).near, horizon(index, TODAY, LEAD).length > 0)
+  })
+
+  test('and is down when the strip is empty', () => {
+    const clear = today('- [ ] Order the connectors\n')
+    assert.equal(glance(clear, TODAY, LEAD).near, false)
+    assert.equal(horizon(clear, TODAY, LEAD).length, 0)
   })
 })
