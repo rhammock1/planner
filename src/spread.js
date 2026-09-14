@@ -297,6 +297,12 @@ function closeFile() {
 }
 
 function draw() {
+  // The day this draw is about, settled once. `today()` read twice in one draw
+  // can straddle midnight and give two answers, and the board's writes are
+  // decided against one of them and written into the page named by the other -
+  // an id stamped on the wrong day. One value cannot disagree with itself.
+  const day = today()
+
   // What the plugins have to say about every page a line can be drawn on:
   // the week's seven columns and the back page (spec §2.1). Asked for the
   // week even when another view is on screen - cheap, cache-only reads, so
@@ -316,16 +322,22 @@ function draw() {
   // talk to each other, and each keeps its own minute clock.
   const warmed = applyPluginTokens(store, draw)
 
-  // The boards, which are tabs of their own (spec §2.2). Asked for the day
-  // the window is anchored on rather than for the week: a board is one
-  // arrangement, and the day it is an arrangement *of* is the one a card
-  // dragged onto it would land on.
-  const kept = boardsFor(store, anchor)
+  // The boards, which are tabs of their own (spec §2.2). Asked about today,
+  // whatever week the window happens to be showing: a board is an arrangement
+  // of the day you are on, and asking about the anchored day would make
+  // walking back through the weeks stamp ids into those old pages - browsing
+  // that writes to files.
+  //
+  // A task on an older day reaches the board by being carried forward, which
+  // leaves the old line `migrated` and the carried copy live. Seeding the old
+  // line instead would mint a second name for a task that already has one,
+  // which is the case `migrated` exists to refuse.
+  const kept = boardsFor(store, day)
   // What the answer means for the three files it may change (kanban design
   // §6). Not awaited: a draw is what the window owes the person in front of
   // it, and a write is what it owes the vault afterwards. A no-op on almost
   // every draw, and it tells the window when it is not.
-  void keepBoards(store, anchor, kept.boards, today())
+  void keepBoards(store, day, kept.boards, day)
 
   // The file this window is holding, as the view wants it: a title, a
   // subtitle, a path and an id it never looks inside (spec §3.1).
@@ -351,7 +363,7 @@ function draw() {
 
   spreadPage.render({
     view,
-    today: today(),
+    today: day,
     anchor,
     vault: store.vault(),
     badges,

@@ -1,5 +1,5 @@
 ---
-approved: no
+approved: yes
 ---
 
 # The board is an arrangement of today

@@ -632,10 +632,8 @@ name = "Kanban"
 
 ```js
 planner.on('spread.board', ({ date, items, board }) => {
-  // `board` is your own board.md as it stands. Parse it, decide where the
-  // day's lines belong, and hand back the arrangement you want drawn.
-  // Seeding from every open line, as here, seeds from whichever day is
-  // being looked at — see `date` below before you copy this.
+  // `board` is your own board.md as it stands. Parse it, decide where
+  // today's lines belong, and hand back the arrangement you want drawn.
   const open = items.filter((line) => line.state === 'open')
   return {
     columns: [
@@ -648,12 +646,11 @@ planner.on('spread.board', ({ date, items, board }) => {
 })
 ```
 
-**`date` is the day the tab is an arrangement of**, which is today until
-somebody walks back through the weeks — the spread window asks about the day it
-is anchored on, because that is the day a card dragged onto the board would land
-on. `now` is the clock. The two are not the same thing, and a board that seeds
-itself from whatever `items` holds will seed from whichever day is being looked
-at.
+**`date` is today**, whatever week the spread window happens to be showing, and
+`now` is the clock. A task on an older day reaches the board by being carried
+forward to today, which leaves the old line marked as carried and the copy on
+today's page live; seeding the old line instead would put one task on the board
+under a second name, which is why a `migrated` line is refused as a card.
 
 **The file is the board; your answer is an arrangement of it.** You are handed
 the text of `board.md` and you hand back columns — the app merges the two, so a

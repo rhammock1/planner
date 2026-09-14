@@ -59,6 +59,17 @@ const inFlight = new Set()
  * two files, and a plugin whose write fails has no business holding up the
  * one beside it.
  *
+ * Writes nothing at all for a page that is not today, which is not an
+ * assertion about the caller and is not dead code. A caller that reads its
+ * clock more than once in a draw can straddle midnight: the answer is decided
+ * against one day and `stampNames` would write the ids into the other day's
+ * page, which is a name minted on a page nobody was looking at. This is what
+ * makes that a dropped draw rather than a bad write - the following draw, a
+ * minute later, does the work with one day in hand.
+ *
+ * Silent, for the same reason. A straddle fixes itself on the next draw, and a
+ * notice would be alarming about something already handled.
+ *
  * @param {Store} store
  * @param {string} page  the day the boards were asked about
  * @param {Board[]} boards  exactly what `boardsFor` returned
@@ -66,6 +77,7 @@ const inFlight = new Set()
  * @returns {Promise<void>}
  */
 export async function keepBoards(store, page, boards, today) {
+  if (page !== today) return
   for (const board of boards) await keepBoard(store, page, board, today)
 }
 

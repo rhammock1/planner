@@ -24,11 +24,15 @@
  *   - **Age.** A card the app has marked `done` or `dropped` is named in
  *     `archive` once `hide_done_after` days have passed.
  *
- * "The page" is the day the spread window is anchored on, which is today
- * until somebody walks back through the weeks - the question's `date`, not
- * `now.date`. Only the seeding rule reads it, and only `now` is used as a
- * clock: a card ages off the board against the actual day, so a board does
- * not un-archive itself because somebody looked at last month.
+ * "The page" is always today. The spread window asks about today whatever
+ * week it happens to be showing, so `items` is today's lines and the
+ * question's `date` is `now.date`. A task on an older page reaches the board
+ * by being carried forward, which leaves the old line `migrated` and the
+ * carried copy live - seeding the old line instead would mint a second name
+ * for a task that already has one, which is the case `migrated` exists to
+ * refuse. `now` is also the clock: a card ages off the board against the
+ * actual date, so a board does not un-archive itself because somebody looked
+ * at last month.
  *
  * It never decides that a task finished - a tick is a decision recorded on
  * the day page and the app is what notices it (design §6). It never writes,

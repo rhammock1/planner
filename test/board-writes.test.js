@@ -155,6 +155,49 @@ describe('a draw that changes nothing', () => {
   })
 })
 
+describe('a draw whose day is not today', () => {
+  const page = `# Monday
+
+- [ ] Order the timber
+`
+
+  /** An answer that would certainly write: a line to name, and the board to
+   *  rewrite with the name in it. */
+  const naming = () => board({
+    answer: {
+      columns: [
+        column('To do', [{ id: 'k4m2qa', text: 'Fix the gate' }, { index: 2, text: 'Order the timber' }]),
+        column('Doing', [{ id: 'p9x1bb', text: 'Call the vet' }]),
+        column('Done', []),
+      ],
+      archive: [],
+    },
+  })
+
+  // A draw that reads its clock twice can straddle midnight: the answer was
+  // decided against one day and this would write the ids into the other day's
+  // page. Dropping the draw costs a minute; the name would have been minted
+  // on a page nobody was looking at.
+  test('writes nothing, and names nothing', async () => {
+    const { store, wrote, pages } = storeWith({ page })
+    await keepBoards(store, PAGE, [naming()], '2026-09-15')
+    assert.deepEqual(wrote, [])
+    assert.equal(pages[PAGE], page)
+  })
+
+  test('and says nothing about it, because the next draw does the work', async () => {
+    const { store, notices } = storeWith({ page })
+    await keepBoards(store, PAGE, [naming()], '2026-09-15')
+    assert.deepEqual(notices, [])
+  })
+
+  test('where the same answer on the day it was asked about does write', async () => {
+    const { store, wrote } = storeWith({ page })
+    await keepBoards(store, PAGE, [naming()], PAGE)
+    assert.notDeepEqual(wrote, [])
+  })
+})
+
 describe('a card the answer pointed at by line', () => {
   const page = `# Monday
 
