@@ -14,7 +14,7 @@ import { applyPluginTokens } from './plugins/theming.js'
 import { moveItem } from './core/move.js'
 import { search } from './core/search.js'
 import { readRef, owns } from './core/sidecars.js'
-import { badgesFor, providedFor, openBadge } from './plugins/pageAsking.js'
+import { badgesFor, boardsFor, providedFor, openBadge } from './plugins/pageAsking.js'
 import { weekOf } from './core/calendar.js'
 import { SOMEDAY } from './core/vaultIndex.js'
 import { createFiles } from './fileStore.js'
@@ -288,6 +288,12 @@ function draw() {
   // talk to each other, and each keeps its own minute clock.
   const warmed = applyPluginTokens(store, draw)
 
+  // The boards, which are tabs of their own (spec §2.2). Asked for the day
+  // the window is anchored on rather than for the week: a board is one
+  // arrangement, and the day it is an arrangement *of* is the one a card
+  // dragged onto it would land on.
+  const kept = boardsFor(store, anchor)
+
   // The file this window is holding, as the view wants it: a title, a
   // subtitle, a path and an id it never looks inside (spec §3.1).
   const open = files.showing()
@@ -317,7 +323,14 @@ function draw() {
     vault: store.vault(),
     badges,
     file,
-    notices: [...store.notices(), ...badgeNotices, ...warmed, ...unwatched],
+    boards: kept.boards,
+    notices: [
+      ...store.notices(),
+      ...badgeNotices,
+      ...kept.notices,
+      ...warmed,
+      ...unwatched,
+    ],
   })
 
   // The search holds its own query; this is what puts a late answer under it.

@@ -52,14 +52,47 @@ function show(count, view = 'someday', days = [], lines = '') {
 }
 
 /**
+ * The window with boards in it, which is the only thing the strip needs to
+ * draw a board's tab.
+ *
+ * @param {string} view
+ * @param {import('../../src/plugins/pageAsking.js').Board[]} boards
+ * @returns {void}
+ */
+function showBoards(view, boards) {
+  showAt('2026-09-01', view, 0, [], '', boards)
+}
+
+/**
+ * @param {string} plugin
+ * @param {string} tab
+ * @param {import('../../src/core/board.js').Column[]|null} columns
+ * @returns {import('../../src/plugins/pageAsking.js').Board}
+ */
+function board(plugin, tab, columns) {
+  return { plugin, tab, board: '', answer: columns === null ? null : { columns, archive: [] } }
+}
+
+/**
+ * @param {string} text
+ * @param {string} id
+ * @param {'done'|'dropped'|null} [ended]
+ * @returns {import('../../src/core/board.js').Card}
+ */
+function card(text, id, ended = null) {
+  return { id, index: null, text, ended }
+}
+
+/**
  * @param {string} anchor `YYYY-MM-DD`
  * @param {string} view
  * @param {number} [count]
  * @param {string[]} [days]
  * @param {string} [lines]  the body of each day's page, when given
+ * @param {import('../../src/plugins/pageAsking.js').Board[]} [boards]
  * @returns {void}
  */
-function showAt(anchor, view, count = 0, days = [], lines = '') {
+function showAt(anchor, view, count = 0, days = [], lines = '', boards = []) {
   stage.replaceChildren()
   const root = document.createElement('main')
   root.id = 'app'
@@ -98,6 +131,7 @@ function showAt(anchor, view, count = 0, days = [], lines = '') {
     today: '2026-09-01',
     anchor,
     file: null,
+    boards,
     vault: buildIndex([
       { page: 'someday', doc: parse(backPageOf(count)) },
       ...days.map((day) => ({
@@ -472,6 +506,79 @@ check('the column a line would land in is the only one marked', () => {
   equal(marked[0], column(5), 'which one')
   row.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: data }))
   equal(onScreen().querySelectorAll('.day-column.dropping').length, 0, 'and the mark is let go of')
+})
+
+/* ── the boards ─────────────────────────────────────────── */
+
+check('a board plugin gets a tab, labelled the way the manifest asked', () => {
+  showBoards('week', [board('kanban', 'Kanban', [])])
+  const labels = [...stage.querySelectorAll('.tab')].map((tab) => tab.textContent)
+  ok(labels.includes('Kanban'), `tabs are ${labels.join(', ')}`)
+})
+
+check('no board plugin, no extra tab', () => {
+  show(1, 'week')
+  // The file's tab is built at mount and hidden until there is a file, so the
+  // count is of what is on the strip rather than of what is in it.
+  const labels = [...stage.querySelectorAll('.tab')]
+    .filter((tab) => tab instanceof HTMLElement && !tab.hidden)
+    .map((tab) => tab.textContent)
+  equal(labels.length, VIEWS.length, `tabs are ${labels.join(', ')}`)
+})
+
+check('a board tab asks for that board and no other', () => {
+  showBoards('week', [board('kanban', 'Kanban', []), board('scrum', 'Scrum', [])])
+  viewed.length = 0
+  const tab = [...stage.querySelectorAll('.tab')].find((one) => one.textContent === 'Scrum')
+  if (!(tab instanceof HTMLElement)) throw new Error('no Scrum tab')
+  tab.click()
+  equal(viewed[0], 'board:scrum', 'what the tab asked for')
+})
+
+check("the board on screen is the one the strip asked for, and it is the only tab marked on", () => {
+  showBoards('board:scrum', [board('kanban', 'Kanban', []), board('scrum', 'Scrum', [])])
+  equal(find('.view-title', onScreen()).textContent, 'Scrum', 'the board on screen')
+  const on = [...stage.querySelectorAll('.tab.on')].map((tab) => tab.textContent)
+  equal(on.length, 1, 'exactly one tab is on')
+  equal(on[0], 'Scrum', 'which one')
+})
+
+check('a board whose plugin has gone falls back to a view that is there', () => {
+  showBoards('board:kanban', [])
+  equal(spreadPage.showing(), VIEWS[0], 'showing')
+  equal(stage.querySelectorAll('.view:not([hidden])').length, 1, 'views on screen')
+})
+
+check("a board draws its columns and each column's own cards", () => {
+  showBoards('board:kanban', [board('kanban', 'Kanban', [
+    { name: 'To do', cards: [card('Fix the gate', 'k4m2qa'), card('Call the vet', 'p9x1bb')] },
+    { name: 'Done', cards: [card('Water the plants', 'q7r3cc', 'done')] },
+  ])])
+  const columns = [...onScreen().querySelectorAll('.board-column')]
+  equal(columns.length, 2, 'columns')
+  equal(find('.board-column-name', columns[0] ?? undefined).textContent, 'To do', 'the first column')
+  equal((columns[0] ?? stage).querySelectorAll('.board-card').length, 2, 'cards in the first')
+  equal((columns[1] ?? stage).querySelectorAll('.board-card').length, 1, 'cards in the second')
+  equal(find('.board-card', columns[0] ?? undefined).textContent, 'Fix the gate', 'the first card')
+  ok(find('.board-card', columns[1] ?? undefined).classList.contains('done'), 'a finished card says so')
+})
+
+check('a board that has not answered yet is a tab and an empty board, not a blank window', () => {
+  showBoards('board:kanban', [board('kanban', 'Kanban', null)])
+  equal(find('.view-title', onScreen()).textContent, 'Kanban', 'the title is there')
+  equal(find('.count', onScreen()).textContent, 'waiting', 'and it says so')
+  equal(onScreen().querySelectorAll('.board-column').length, 0, 'columns')
+})
+
+check('a board longer than the window scrolls its own cards, not the window', () => {
+  const many = []
+  for (let at = 1; at <= 60; at += 1) many.push(card(`Card number ${at}`, `k4m2q${at}`))
+  showBoards('board:kanban', [board('kanban', 'Kanban', [{ name: 'To do', cards: many }])])
+  const cards = find('.board-cards', onScreen())
+  ok(cards.scrollHeight > cards.clientHeight, 'the list has more in it than it shows')
+  const window = box('.spread')
+  ok(cards.getBoundingClientRect().bottom <= window.bottom + 1, 'and it ends inside the window')
+  equal(stage.querySelector('.spread')?.scrollHeight, window.height, 'the window itself does not scroll')
 })
 
 report()
