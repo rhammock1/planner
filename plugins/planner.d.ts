@@ -226,8 +226,11 @@ declare namespace Planner {
     index: number
     id: string | null
     text: string
-    /** Ticked on the page. An ended card's line is usually not here at all. */
-    done: boolean
+    /** How the line stands on the page. Only an `open` one is ever seeded:
+     *  the other three are decisions already made, and `migrated` is a line
+     *  whose task has moved on, carrying its id to the new line. An ended
+     *  card's line is usually not on this page at all. */
+    state: 'open' | 'done' | 'migrated' | 'dropped'
   }
 
   /** The question behind the `spread.board` slot. */

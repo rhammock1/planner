@@ -203,8 +203,13 @@ function hideAfter() {
  * afternoon, and a day the app was never opened - and there is no "new day"
  * event for any of them to be missed by.
  *
- * A ticked line is not seeded: it is a decision that was already made, and a
- * finished task at the bottom of To do is not a board anybody wants.
+ * Only an open line is seeded. A ticked or struck-out one is a decision that
+ * was already made, and a finished task at the bottom of To do is not a board
+ * anybody wants. A migrated line matters more than it looks: carrying a task
+ * forward moves its id to the new line and clears it on the `[>]` line left
+ * behind, so seeding that line would name it by its index - asking the app to
+ * stamp the one line it deliberately unstamped, and putting a second card on
+ * the board for a task that already has one.
  *
  * @param {Map<string, Card>} held  every card the file holds, by id
  * @param {readonly Planner.BoardItem[]} items
@@ -214,7 +219,7 @@ function seeds(held, items) {
   /** @type {Planner.BoardCard[]} */
   const fresh = []
   for (const item of items) {
-    if (item.done) continue
+    if (item.state !== 'open') continue
     if (item.id !== null && held.has(item.id)) continue
     fresh.push({ id: item.id, index: item.id === null ? item.index : null, text: item.text, ended: null })
   }

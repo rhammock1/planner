@@ -82,7 +82,7 @@ test('a card follows its id when the line changes its words', async () => {
   // reads the way the line reads now.
   const answer = await ask({
     board: BOARD,
-    items: [{ index: 0, id: 'a3f9k2', text: 'Pair with Dana on the offline queue RFC', done: false }],
+    items: [{ index: 0, id: 'a3f9k2', text: 'Pair with Dana on the offline queue RFC', state: 'open' }],
   })
   assert.deepEqual(answer.columns[1].cards, [
     { id: 'a3f9k2', index: null, text: 'Pair with Dana on the offline queue RFC', ended: null },
@@ -112,7 +112,7 @@ test('a board that cannot be written back is answered with nothing', async () =>
 test('an open line with no card is appended to the first column', async () => {
   const answer = await ask({
     board: BOARD,
-    items: [{ index: 0, id: 'c1d2e3', text: 'Read the offline queue RFC', done: false }],
+    items: [{ index: 0, id: 'c1d2e3', text: 'Read the offline queue RFC', state: 'open' }],
   })
   assert.deepEqual(answer.columns[0].cards, [
     { id: 'b40e17', index: null, text: 'Chase the printer firmware sign-off', ended: null },
@@ -125,7 +125,7 @@ test('an open line with no id yet is named by its index, for the app to stamp', 
   // asks for one, and the app is what writes it.
   const answer = await ask({
     board: BOARD,
-    items: [{ index: 3, id: null, text: 'Book the rehearsal room', done: false }],
+    items: [{ index: 3, id: null, text: 'Book the rehearsal room', state: 'open' }],
   })
   assert.deepEqual(answer.columns[0].cards[1], {
     id: null,
@@ -140,7 +140,7 @@ test('a line that already has a card does not move', async () => {
   // Doing stays in Doing rather than being seeded again into To do.
   const answer = await ask({
     board: BOARD,
-    items: [{ index: 0, id: 'a3f9k2', text: 'Pair with Dana on the offline queue', done: false }],
+    items: [{ index: 0, id: 'a3f9k2', text: 'Pair with Dana on the offline queue', state: 'open' }],
   })
   assert.deepEqual(answer.columns[0].cards.map((/** @type {any} */ card) => card.id), ['b40e17'])
   assert.deepEqual(answer.columns[1].cards.map((/** @type {any} */ card) => card.id), ['a3f9k2'])
@@ -151,18 +151,41 @@ test('a ticked line is not seeded', async () => {
   // task at the bottom of To do.
   const answer = await ask({
     board: BOARD,
-    items: [{ index: 0, id: 'c1d2e3', text: 'Read the offline queue RFC', done: true }],
+    items: [{ index: 0, id: 'c1d2e3', text: 'Read the offline queue RFC', state: 'done' }],
   })
   assert.deepEqual(answer.columns[0].cards.map((/** @type {any} */ card) => card.id), ['b40e17'])
+})
+
+test('a struck-out line is not seeded', async () => {
+  // Dropping a line is a decision too. Seeding it would put a task somebody
+  // just gave up on at the bottom of To do, where it reads as fresh work.
+  const answer = await ask({
+    board: BOARD,
+    items: [{ index: 0, id: 'c1d2e3', text: 'Read the offline queue RFC', state: 'dropped' }],
+  })
+  assert.deepEqual(answer.columns[0].cards.map((/** @type {any} */ card) => card.id), ['b40e17'])
+})
+
+test('a migrated line is not seeded and is never named', async () => {
+  // A `[>]` line is where a task left from: carrying it forward moves the id
+  // to the new line and clears it here. Naming this line by its index would
+  // ask the app to stamp the one line it deliberately unstamped, and would
+  // put a second card on the board for a task that already has one.
+  const answer = await ask({
+    board: BOARD,
+    items: [{ index: 0, id: null, text: 'Read the offline queue RFC', state: 'migrated' }],
+  })
+  assert.deepEqual(answer.columns[0].cards.map((/** @type {any} */ card) => card.id), ['b40e17'])
+  assert.deepEqual(answer.columns[0].cards.map((/** @type {any} */ card) => card.index), [null])
 })
 
 test('lines are seeded in the order the page has them', async () => {
   const answer = await ask({
     board: BOARD,
     items: [
-      { index: 0, id: null, text: 'First', done: false },
-      { index: 1, id: 'c1d2e3', text: 'Second', done: false },
-      { index: 2, id: null, text: 'Third', done: false },
+      { index: 0, id: null, text: 'First', state: 'open' },
+      { index: 1, id: 'c1d2e3', text: 'Second', state: 'open' },
+      { index: 2, id: null, text: 'Third', state: 'open' },
     ],
   })
   assert.deepEqual(answer.columns[0].cards.map((/** @type {any} */ card) => card.text), [
@@ -178,7 +201,7 @@ test('a board with no columns at all seeds nothing and loses nothing', async () 
   // next draw of a file with a column in it seeds them.
   const answer = await ask({
     board: '# Board\n\njust prose\n',
-    items: [{ index: 0, id: 'c1d2e3', text: 'Read the offline queue RFC', done: false }],
+    items: [{ index: 0, id: 'c1d2e3', text: 'Read the offline queue RFC', state: 'open' }],
   })
   assert.deepEqual(answer.columns, [])
 })
