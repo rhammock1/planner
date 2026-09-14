@@ -663,6 +663,48 @@ something. It rejects for good if location services are off, and the message
 says so — which is why `dusk` also has a `location` setting, and why yours
 should too.
 
+### `planner.storage`
+
+One small file that is yours, at `~/.planner/state/<your name>.json`.
+
+```js
+const history = (await planner.storage.get('history')) ?? []
+history.push({ date: question.date, ...question.glance })
+await planner.storage.set('history', history.slice(-7))
+```
+
+**It is not a capability.** No manifest declares it and no tick grants it,
+and that is deliberate: every other capability reaches something outside the
+app — a calendar, a shell, a coordinate, somebody else's writing — and a tick
+is how a person decides about reach. This reaches nothing. The file did not
+exist before you wrote it, it is named after you, and no other plugin and no
+part of the app ever reads it. A tick that grants nothing only teaches people
+to tick without reading.
+
+| | |
+|---|---|
+| `get(key)` | What you stored, or `null` for a key you never set. |
+| `set(key, value)` | Stores it. `set(key)` or `set(key, null)` forgets the key. |
+
+Values are JSON — anything `JSON.stringify` will take. **The whole file is
+capped at 64 KiB**, not each value, so a second key is not a way round it. A
+`set` that would go over rejects and writes nothing, so the file you already
+had is still there to read; the message says what the cap is, because being
+over it means deciding what to drop.
+
+Forgetting rather than storing a null is not a nicety: `get` cannot tell a
+stored null from a key nobody set, so a stored one would be something you pay
+for against the cap and can never read back.
+
+The file is written the way a page is — a temporary file renamed over the
+target — so a crash or a full disk leaves the previous one exactly as it was.
+Your first run reads an empty file rather than an error.
+
+If somebody hand-edits the file into something that is not JSON, both calls
+reject with the path in the message rather than quietly starting again from
+empty. Deleting the file is the fix, and it has to be a person's decision:
+the alternative is your next `set` destroying what they were editing.
+
 ### Settings
 
 A plugin can declare its own settings, and the ⌘, pane draws a row for each
@@ -759,6 +801,9 @@ and the pane says what it did.
 
 ## Not in v1
 
-`onRender`, `planner.storage`, `planner.vault.read`, `net.fetch`, `fs.read`,
-and the `job` slot. Each arrives when something needs it. A slot with no
-consumer is a guess about an API.
+`onRender`, `planner.vault.read`, `net.fetch`, `fs.read`, and the `job` slot.
+Each arrives when something needs it. A slot with no consumer is a guess
+about an API.
+
+`planner.storage` was on this list until `pet` needed to remember a week of
+days, which is the rule working rather than an exception to it.

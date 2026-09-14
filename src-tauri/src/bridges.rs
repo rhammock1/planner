@@ -8,6 +8,7 @@
 pub mod calendar;
 pub mod location;
 pub mod sidecars;
+pub mod storage;
 
 use serde_json::Value;
 
@@ -34,6 +35,10 @@ pub fn dispatch(
         ("shell.run", "run") => crate::plugins::run::call(app, plugin, params),
         ("vault.sidecar.read", "list") => sidecars::list(app, plugin, params),
         ("vault.sidecar.read", "read") => sidecars::read(app, plugin, params),
+        // No app handle: this capability reaches one file named after the
+        // caller, and needs to know nothing else about the app to find it.
+        ("planner.storage", "get") => storage::get(plugin, params),
+        ("planner.storage", "set") => storage::set(plugin, params),
         _ => Err(format!("no bridge provides {capability}.{method}")),
     }
 }

@@ -98,6 +98,42 @@
     },
 
     /**
+     * This plugin's own small file, on the other side of the door.
+     *
+     * Not reached through `capability()`, because it is not one: no manifest
+     * declares it and no tick grants it (spec §1.5). It is here, spelled the
+     * way `docs/plugins.md` has always spelled it, so a plugin that wants to
+     * remember something between runs does not first have to ask anybody.
+     *
+     * JSON values, up to 64 KiB for the whole of one plugin's file. `set`
+     * with no value - or with `null` - forgets the key rather than storing a
+     * null, because `get` cannot tell those two apart.
+     */
+    storage: {
+      /**
+       * What was stored under this key, or `null` for one nobody has set.
+       * @param {string} key
+       * @returns {Promise<any>}
+       */
+      get: (key) =>
+        send({ kind: 'capability', capability: 'planner.storage', method: 'get', params: { key } }),
+      /**
+       * Stores a value under this key. Rejects if the file would go over the
+       * cap, and then nothing was written.
+       * @param {string} key
+       * @param {unknown} [value]
+       * @returns {Promise<void>}
+       */
+      set: (key, value) =>
+        send({
+          kind: 'capability',
+          capability: 'planner.storage',
+          method: 'set',
+          params: { key, value: value ?? null },
+        }),
+    },
+
+    /**
      * This plugin's own settings, as `config.toml` holds them.
      *
      * A getter over what the page wrote, because `runtime.js` runs first and
