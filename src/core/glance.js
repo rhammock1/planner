@@ -13,16 +13,38 @@
  * be able to disagree about it.
  */
 
-import { getPage } from './vaultIndex.js'
-import { horizon } from './horizon.js'
+import { pageKeys, items } from './vaultIndex.js'
+import { dueState } from './horizon.js'
 
 /** @typedef {import('./model.js').Document} Document */
+/** @typedef {import('./vaultIndex.js').PageKey} PageKey */
 /** @typedef {import('./vaultIndex.js').VaultIndex} VaultIndex */
 
 /**
  * @typedef {object} Glance
  * @property {number} open  open items on the day itself
  * @property {boolean} near whether anything in the vault is inside its lead time
+ */
+
+/**
+ * What one day amounts to, in four numbers.
+ *
+ * `open` and `done` are of the day: they count lines written on that page.
+ * `due` and `overdue` are of the day but judged *from today* - a line dated
+ * next Tuesday is `due` on the page it is written on, and becomes `overdue` on
+ * that same page once Tuesday has passed. The two are disjoint, and together
+ * they are that page's share of the horizon strip.
+ *
+ * Dropped and migrated lines are neither `open` nor `done`. A dropped line was
+ * decided against; a migrated one has been copied onto another day, where the
+ * copy is what is still owed. Counting either reports work that no longer
+ * exists (spec §5.1).
+ *
+ * @typedef {object} DayGlance
+ * @property {number} open
+ * @property {number} done
+ * @property {number} due
+ * @property {number} overdue
  */
 
 /**
@@ -41,18 +63,82 @@ export function openCount(doc) {
 }
 
 /**
+ * Every page in the vault, counted, in one pass.
+ *
+ * Asked when something wants a number about *every* day at once - the margin
+ * box, and the week's seven columns. `openCount` stays for the callers that
+ * hold a single document and want one number from it, because that is a
+ * different question with a different input, not this one narrowed.
+ *
+ * What must not happen is the two answering differently, and `glance.test.js`
+ * is where that is nailed down: for every page in a vault, the count here and
+ * the count `openCount` gives are asserted equal. The rule has one home even
+ * where the readers are two.
+ *
+ * Every page in the index gets an entry, including the ones holding no items:
+ * a caller asking about an empty Tuesday wants four zeroes, not `undefined`.
+ * A page with no file at all is absent, and `blank()` is what to read then.
+ *
+ * @param {VaultIndex} index
+ * @param {string} today `YYYY-MM-DD`
+ * @param {number} defaultLead days, for items carrying no `~Nd`
+ * @returns {Map<PageKey, DayGlance>}
+ */
+export function dayGlances(index, today, defaultLead) {
+  /** @type {Map<PageKey, DayGlance>} */
+  const counted = new Map()
+  for (const page of pageKeys(index)) counted.set(page, blank())
+
+  for (const { page, item } of items(index)) {
+    const day = counted.get(page)
+    if (day === undefined) continue
+
+    if (item.state === 'open') day.open += 1
+    else if (item.state === 'done') day.done += 1
+
+    // Asked of `horizon.js` rather than answered here, so the strip and these
+    // counts cannot drift apart. `dueState` already refuses anything that is
+    // not open and dated.
+    const showing = dueState(item, today, defaultLead)
+    if (showing === 'due') day.due += 1
+    else if (showing === 'overdue') day.overdue += 1
+  }
+
+  return counted
+}
+
+/**
+ * A day with nothing on it. Its own function because "no file yet" and "a file
+ * with no lines in it" should read the same to everything downstream.
+ *
+ * @returns {DayGlance}
+ */
+export function blank() {
+  return { open: 0, done: 0, due: 0, overdue: 0 }
+}
+
+/**
  * @param {VaultIndex} index
  * @param {string} today `YYYY-MM-DD`
  * @param {number} defaultLead days, for items carrying no `~Nd`
  * @returns {Glance}
  */
 export function glance(index, today, defaultLead) {
-  return {
-    open: openCount(getPage(index, today)),
-    // The same rule the strip draws, asked as a yes or no. An overdue item
-    // never ages out of the horizon, so the dot stays until it is dealt with.
-    near: horizon(index, today, defaultLead).length > 0,
+  const counted = dayGlances(index, today, defaultLead)
+
+  let near = false
+  // The same rule the strip draws, asked as a yes or no, and asked of the
+  // whole vault rather than of today: a deadline on any page raises the dot.
+  // An overdue item never ages out of the horizon, so it stays up until it is
+  // dealt with.
+  for (const day of counted.values()) {
+    if (day.due > 0 || day.overdue > 0) {
+      near = true
+      break
+    }
   }
+
+  return { open: (counted.get(today) ?? blank()).open, near }
 }
 
 /**
