@@ -182,3 +182,57 @@ test('a board with no columns at all seeds nothing and loses nothing', async () 
   })
   assert.deepEqual(answer.columns, [])
 })
+
+const ENDED = [
+  '## To do',
+  '',
+  '## Done',
+  '- Ticked a week ago  done 2026-09-07 ^d4e5f6',
+  '- Ticked today  done 2026-09-14 ^a1b2c3',
+  '- Struck out yesterday  dropped 2026-09-13 ^b40e17',
+  '',
+].join('\n')
+
+test('an ended card ages out on the day hide_done_after names, and not before', async () => {
+  settings = { hide_done_after: 7 }
+  const answer = await ask({ board: ENDED })
+  assert.deepEqual(answer.archive, ['d4e5f6'])
+  settings = {}
+})
+
+test('an aged-out card is not drawn any more', async () => {
+  settings = { hide_done_after: 7 }
+  const answer = await ask({ board: ENDED })
+  assert.deepEqual(answer.columns[1].cards.map((/** @type {any} */ card) => card.id), ['a1b2c3', 'b40e17'])
+  settings = {}
+})
+
+test('a card still in flight never ages out', async () => {
+  settings = { hide_done_after: 0 }
+  const answer = await ask({ board: BOARD })
+  assert.deepEqual(answer.archive, [])
+  settings = {}
+})
+
+test('hide_done_after of zero archives on the next draw', async () => {
+  settings = { hide_done_after: 0 }
+  const answer = await ask({ board: ENDED })
+  assert.deepEqual(answer.archive, ['d4e5f6', 'a1b2c3', 'b40e17'])
+  settings = {}
+})
+
+test('an unset or nonsense setting is seven days', async () => {
+  for (const held of [{}, { hide_done_after: -1 }, { hide_done_after: 'soon' }]) {
+    settings = /** @type {any} */ (held)
+    const answer = await ask({ board: ENDED })
+    assert.deepEqual(answer.archive, ['d4e5f6'], `${JSON.stringify(held)} did not fall back to seven`)
+  }
+  settings = {}
+})
+
+test('an ended card carries its ending, so the app can draw it as finished', async () => {
+  settings = { hide_done_after: 30 }
+  const answer = await ask({ board: ENDED })
+  assert.deepEqual(answer.columns[1].cards.map((/** @type {any} */ card) => card.ended), ['done', 'done', 'dropped'])
+  settings = {}
+})

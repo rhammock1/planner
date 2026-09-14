@@ -155,6 +155,41 @@ function heldBy(board) {
   return held
 }
 
+/** What `hide_done_after` falls back to. A week: long enough that a board
+ *  you look at on Monday still shows what you finished on Friday. */
+const HIDE_AFTER = 7
+
+/**
+ * Whole days from one `YYYY-MM-DD` to another.
+ *
+ * UTC on both sides, so there is no hour in the arithmetic to be moved by a
+ * clock change - these are dates a file holds, not moments.
+ *
+ * @param {string} from
+ * @param {string} to
+ * @returns {number}
+ */
+function daysBetween(from, to) {
+  const start = Date.parse(`${from}T00:00:00Z`)
+  const end = Date.parse(`${to}T00:00:00Z`)
+  if (Number.isNaN(start) || Number.isNaN(end)) return 0
+  return Math.round((end - start) / 86400000)
+}
+
+/**
+ * Days an ended card stays on the board.
+ *
+ * A setting the person never filled in is absent rather than empty, and a
+ * negative count is a typo rather than an instruction, so both fall back.
+ *
+ * @returns {number}
+ */
+function hideAfter() {
+  const held = planner.settings.hide_done_after
+  if (typeof held !== 'number' || !Number.isFinite(held) || held < 0) return HIDE_AFTER
+  return Math.floor(held)
+}
+
 /**
  * The cards today's page adds to the board.
  *
@@ -186,7 +221,7 @@ function seeds(held, items) {
   return fresh
 }
 
-planner.on('spread.board', ({ items, board }) => {
+planner.on('spread.board', ({ now, items, board }) => {
   const parsed = boardFrom(board)
   // The app parsed the same file and says so itself; there is nothing useful
   // to add, and an answer over a guess would become a write over a file
@@ -194,6 +229,19 @@ planner.on('spread.board', ({ items, board }) => {
   if (parsed === null) return { columns: [], archive: [] }
 
   const held = heldBy(parsed)
+  const after = hideAfter()
+
+  // A card ends because the app saw a tick or a strike on its line and wrote
+  // the marker (design §6). That marker is the only clock this plugin needs:
+  // it never decides that a task finished, only that one finished long enough
+  // ago to come off the board.
+  /** @type {string[]} */
+  const archive = []
+  for (const card of held.values()) {
+    if (card.ended === null || card.endedOn === null) continue
+    if (daysBetween(card.endedOn, now.date) >= after) archive.push(card.id)
+  }
+  const ageing = new Set(archive)
 
   /** @type {Map<string, Planner.BoardItem>} */
   const byId = new Map()
@@ -209,6 +257,7 @@ planner.on('spread.board', ({ items, board }) => {
       // `heldBy` kept the first card for each id, so any later entry with
       // that id is not the one it held.
       if (held.get(entry.card.id) !== entry.card) return []
+      if (ageing.has(entry.card.id)) return []
       // The line's words today, when there is a line; otherwise the words the
       // file has. Editing a line changes the card, and a card whose task is
       // not on this page keeps what it said.
@@ -223,5 +272,5 @@ planner.on('spread.board', ({ items, board }) => {
   const first = columns[0]
   if (first !== undefined) first.cards.push(...seeds(held, items))
 
-  return { columns, archive: [] }
+  return { columns, archive }
 })
