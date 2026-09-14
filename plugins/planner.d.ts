@@ -289,6 +289,30 @@ declare const planner: {
   capability(name: 'vault.sidecar.read'): Planner.SidecarCapability
 
   /**
+   * This plugin's own small file: `~/.planner/state/<your name>.json`.
+   *
+   * Not a capability - no manifest declares it and no tick grants it. The
+   * file is yours, nothing else reads it, and it is there on your first run
+   * as an empty one.
+   *
+   * JSON values, and at most 64 KiB for the whole file. A `set` that would go
+   * over the cap rejects and writes nothing, so the previous file is still
+   * there to read.
+   */
+  readonly storage: {
+    /** What you stored under this key, or `null` for one you never set. */
+    get(key: string): Promise<unknown>
+    /**
+     * Stores a value under this key.
+     *
+     * No value, or `null`, forgets the key instead of storing a null: `get`
+     * cannot tell a stored null from a key nobody set, so storing one would
+     * leave you paying against the cap for something you cannot read back.
+     */
+    set(key: string, value?: unknown): Promise<void>
+  }
+
+  /**
    * This plugin's own settings, as `config.toml` holds them, keyed the way
    * `[settings.*]` in the manifest named them.
    *
