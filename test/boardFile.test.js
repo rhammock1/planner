@@ -397,6 +397,29 @@ test('a card leaving takes its line with it, and nothing fills the gap', () => {
   )
 })
 
+test('a card that leaves from between two blank lines does not leave a double blank', () => {
+  // Taking the line out would otherwise push its neighbours together, and
+  // two blank lines where there was one is the board slowly growing gaps
+  // every time anything moves.
+  const spaced = '## Doing\n\n- Call the vet ^a1b2c3\n\n## Done\n'
+  const columns = [
+    { name: 'Doing', cards: [] },
+    { name: 'Done', cards: [{ id: 'a1b2c3', text: 'Call the vet', ended: null }] },
+  ]
+  assert.equal(mergeBoard(spaced, columns, TODAY), '## Doing\n\n## Done\n- Call the vet ^a1b2c3\n')
+})
+
+test('a blank line that is not doubled by a card leaving is left alone', () => {
+  // The blank under a heading belongs to the column, not to the card that
+  // happened to sit after it, so a column that still has cards keeps it.
+  const spaced = '## Doing\n\n- One ^a1b2c3\n- Two ^b40e17\n\n## Done\n'
+  const columns = [
+    { name: 'Doing', cards: [{ id: 'b40e17', text: 'Two', ended: null }] },
+    { name: 'Done', cards: [{ id: 'a1b2c3', text: 'One', ended: null }] },
+  ]
+  assert.equal(mergeBoard(spaced, columns, TODAY), '## Doing\n\n- Two ^b40e17\n\n## Done\n- One ^a1b2c3\n')
+})
+
 test('an id leaving that the file never held changes nothing', () => {
   assert.equal(mergeBoard(MERGE_BOARD, columnsOf(MERGE_BOARD), TODAY, ['000aaa']), MERGE_BOARD)
 })
