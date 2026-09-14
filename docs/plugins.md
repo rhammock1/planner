@@ -632,8 +632,10 @@ name = "Kanban"
 
 ```js
 planner.on('spread.board', ({ date, items, board }) => {
-  // `board` is your own board.md as it stands. Parse it, decide where
-  // today's lines belong, and hand back the arrangement you want drawn.
+  // `board` is your own board.md as it stands. Parse it, decide where the
+  // day's lines belong, and hand back the arrangement you want drawn.
+  // Seeding from every open line, as here, seeds from whichever day is
+  // being looked at — see `date` below before you copy this.
   const open = items.filter((line) => line.state === 'open')
   return {
     columns: [
@@ -645,6 +647,13 @@ planner.on('spread.board', ({ date, items, board }) => {
   }
 })
 ```
+
+**`date` is the day the tab is an arrangement of**, which is today until
+somebody walks back through the weeks — the spread window asks about the day it
+is anchored on, because that is the day a card dragged onto the board would land
+on. `now` is the clock. The two are not the same thing, and a board that seeds
+itself from whatever `items` holds will seed from whichever day is being looked
+at.
 
 **The file is the board; your answer is an arrangement of it.** You are handed
 the text of `board.md` and you hand back columns — the app merges the two, so a
@@ -662,6 +671,15 @@ two things and a card naming neither names no task; both are dropped. `text`
 is optional beside an `index` and falls back to the line's own words; it is one
 line, cut at 200.
 
+**`ended` is optional, and is what the card falls back to.** It is `'done'`,
+`'dropped'` or `null`, and it is ignored whenever the vault can still see the
+card's line — the tick in your day file is the truth about whether a task
+finished. When the vault *cannot* see the line, because somebody deleted it,
+your answer is the only thing left that knows, so echo the marker the file
+already holds. A plugin that leaves `ended` off entirely un-finishes every such
+card on the next merge: the marker comes off and a card that was done reads as
+in flight again.
+
 **`state` is why this slot is not `item.badge`.** A board's difficulty is
 telling *done yesterday* from *carried away*, and the four states —
 `open`, `done`, `dropped`, `migrated` — are what tell them apart. A `migrated`
@@ -672,7 +690,9 @@ one, and stamping this copy would mint a second name for one task.
 `Shipped` if you like, but do not put a column after it that means something
 else. A line the vault says is ticked is moved there whatever your answer said,
 and its ending is the vault's rather than yours — a `done` or `dropped` marker
-is written on the card, and taken off again if the line is unticked. A
+is written on the card, and taken off again if the line is unticked. Where the
+vault has no such line at all, your card's own `ended` stands, which is the one
+case your answer decides. A
 `dropped` card is *not* moved: a struck line is a decision that was made, and
 the column it was in is where that decision is legible.
 
