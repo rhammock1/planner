@@ -420,6 +420,21 @@ test('a blank line that is not doubled by a card leaving is left alone', () => {
   assert.equal(mergeBoard(spaced, columns, TODAY), '## Doing\n\n- Two ^b40e17\n\n## Done\n- One ^a1b2c3\n')
 })
 
+test('a card a drag placed below a column blank line is left where the drag put it', () => {
+  // The other path that writes this file is a drop, and it puts a card into
+  // an empty column after the column's blank rather than above it. The next
+  // draw merges that file back, and if the merge had its own opinion about
+  // where the card belongs, every drop into an empty column would be undone
+  // and rewritten on the following draw. The merge places, it does not tidy.
+  const dropped = '## Doing\n\n## Done\n\n- Call the vet ^a1b2c3\n\n## Later\n'
+  const columns = [
+    { name: 'Doing', cards: [] },
+    { name: 'Done', cards: [{ id: 'a1b2c3', text: 'Call the vet', ended: null }] },
+    { name: 'Later', cards: [] },
+  ]
+  assert.equal(mergeBoard(dropped, columns, TODAY), dropped)
+})
+
 test('an id leaving that the file never held changes nothing', () => {
   assert.equal(mergeBoard(MERGE_BOARD, columnsOf(MERGE_BOARD), TODAY, ['000aaa']), MERGE_BOARD)
 })
