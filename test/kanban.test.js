@@ -108,3 +108,77 @@ test('a board that cannot be written back is answered with nothing', async () =>
   const answer = await ask({ board: '# Board\n- Stray ^a1b2c3\n\n## To do\n' })
   assert.deepEqual(answer, { columns: [], archive: [] })
 })
+
+test('an open line with no card is appended to the first column', async () => {
+  const answer = await ask({
+    board: BOARD,
+    items: [{ index: 0, id: 'c1d2e3', text: 'Read the offline queue RFC', done: false }],
+  })
+  assert.deepEqual(answer.columns[0].cards, [
+    { id: 'b40e17', index: null, text: 'Chase the printer firmware sign-off', ended: null },
+    { id: 'c1d2e3', index: null, text: 'Read the offline queue RFC', ended: null },
+  ])
+})
+
+test('an open line with no id yet is named by its index, for the app to stamp', async () => {
+  // A plugin never mints an id (design §4.1, §5). Naming the line is how it
+  // asks for one, and the app is what writes it.
+  const answer = await ask({
+    board: BOARD,
+    items: [{ index: 3, id: null, text: 'Book the rehearsal room', done: false }],
+  })
+  assert.deepEqual(answer.columns[0].cards[1], {
+    id: null,
+    index: 3,
+    text: 'Book the rehearsal room',
+    ended: null,
+  })
+})
+
+test('a line that already has a card does not move', async () => {
+  // Tomorrow's board is today's board (design §2). A line still open in
+  // Doing stays in Doing rather than being seeded again into To do.
+  const answer = await ask({
+    board: BOARD,
+    items: [{ index: 0, id: 'a3f9k2', text: 'Pair with Dana on the offline queue', done: false }],
+  })
+  assert.deepEqual(answer.columns[0].cards.map((/** @type {any} */ card) => card.id), ['b40e17'])
+  assert.deepEqual(answer.columns[1].cards.map((/** @type {any} */ card) => card.id), ['a3f9k2'])
+})
+
+test('a ticked line is not seeded', async () => {
+  // It is a decision that was already made; seeding it would put a finished
+  // task at the bottom of To do.
+  const answer = await ask({
+    board: BOARD,
+    items: [{ index: 0, id: 'c1d2e3', text: 'Read the offline queue RFC', done: true }],
+  })
+  assert.deepEqual(answer.columns[0].cards.map((/** @type {any} */ card) => card.id), ['b40e17'])
+})
+
+test('lines are seeded in the order the page has them', async () => {
+  const answer = await ask({
+    board: BOARD,
+    items: [
+      { index: 0, id: null, text: 'First', done: false },
+      { index: 1, id: 'c1d2e3', text: 'Second', done: false },
+      { index: 2, id: null, text: 'Third', done: false },
+    ],
+  })
+  assert.deepEqual(answer.columns[0].cards.map((/** @type {any} */ card) => card.text), [
+    'Chase the printer firmware sign-off',
+    'First',
+    'Second',
+    'Third',
+  ])
+})
+
+test('a board with no columns at all seeds nothing and loses nothing', async () => {
+  // There is no first column to append to. The lines keep their ids and the
+  // next draw of a file with a column in it seeds them.
+  const answer = await ask({
+    board: '# Board\n\njust prose\n',
+    items: [{ index: 0, id: 'c1d2e3', text: 'Read the offline queue RFC', done: false }],
+  })
+  assert.deepEqual(answer.columns, [])
+})

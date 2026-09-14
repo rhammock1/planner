@@ -155,6 +155,37 @@ function heldBy(board) {
   return held
 }
 
+/**
+ * The cards today's page adds to the board.
+ *
+ * Every open line whose id has no card, plus every open line with no id at
+ * all - the second kind named by its `index`, which is how a line gets
+ * stamped (design §4.1). In page order, appended to the bottom of the first
+ * column, so the board reads the way the day does.
+ *
+ * On every draw rather than once a day. That one rule covers the first run
+ * over a vault that has been going for years, a line written at four in the
+ * afternoon, and a day the app was never opened - and there is no "new day"
+ * event for any of them to be missed by.
+ *
+ * A ticked line is not seeded: it is a decision that was already made, and a
+ * finished task at the bottom of To do is not a board anybody wants.
+ *
+ * @param {Map<string, Card>} held  every card the file holds, by id
+ * @param {readonly Planner.BoardItem[]} items
+ * @returns {Planner.BoardCard[]}
+ */
+function seeds(held, items) {
+  /** @type {Planner.BoardCard[]} */
+  const fresh = []
+  for (const item of items) {
+    if (item.done) continue
+    if (item.id !== null && held.has(item.id)) continue
+    fresh.push({ id: item.id, index: item.id === null ? item.index : null, text: item.text, ended: null })
+  }
+  return fresh
+}
+
 planner.on('spread.board', ({ items, board }) => {
   const parsed = boardFrom(board)
   // The app parsed the same file and says so itself; there is nothing useful
@@ -185,6 +216,12 @@ planner.on('spread.board', ({ items, board }) => {
       return [{ id: entry.card.id, index: null, text, ended: entry.card.ended }]
     }),
   }))
+
+  // The first column, or nothing: a file with no heading in it has nowhere
+  // to put a card, and a line keeps its id for the draw after somebody adds
+  // one.
+  const first = columns[0]
+  if (first !== undefined) first.cards.push(...seeds(held, items))
 
   return { columns, archive: [] }
 })
