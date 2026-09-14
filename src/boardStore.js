@@ -35,6 +35,7 @@ import * as ipc from './ipc.js'
  * @typedef {object} Boards
  * @property {() => void} reopen  the vault moved, so nothing held is about it any more
  * @property {(name: string, file: string) => string|null} text
+ * @property {(name: string, file: string) => boolean} known  whether the file has been read back
  * @property {(name: string, file: string, text: string) => Promise<boolean>} change
  */
 
@@ -104,6 +105,22 @@ export function createBoards(deps) {
           deps.onChanged()
         })
       return held
+    },
+
+    /**
+     * Whether the file has been read back at all, which is what tells "not
+     * there" from "nobody has asked yet" - the two `text` deliberately
+     * conflates.
+     *
+     * A draw may treat them the same and show the empty board for one frame.
+     * A *write* may not: merging an answer onto a file nobody has read would
+     * replace somebody's board with the board it would have had if they had
+     * never kept one, and nothing announces these files, so the only news of
+     * that write would be the write itself.
+     */
+    known: (name, file) => {
+      const key = boardRef(name, file)
+      return key !== null && boardText.has(key)
     },
 
     /**

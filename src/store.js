@@ -60,6 +60,7 @@ import { today, nowTime } from './clock.js'
  * @property {(date: string, suffix: string) => Promise<string|null>} readSidecar
  * @property {(date: string, suffix: string, text: string) => Promise<boolean>} changeSidecar
  * @property {(name: string, file: string) => string|null} pluginFile  what a plugin keeps in its own folder of the vault
+ * @property {(name: string, file: string) => boolean} pluginFileKnown  whether that file has been read back, which a write has to know and a draw does not
  * @property {(name: string, file: string, text: string) => Promise<boolean>} changePluginFile
  */
 
@@ -318,6 +319,7 @@ export function createStore() {
     changeSidecar: sidecars.change,
 
     pluginFile: boards.text,
+    pluginFileKnown: boards.known,
     changePluginFile: boards.change,
   }
 }

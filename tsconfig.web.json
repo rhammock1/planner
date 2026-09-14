@@ -23,6 +23,7 @@
     "test/file-store.test.js",
     "test/board-store.test.js",
     "test/board-asking.test.js",
+    "test/board-writes.test.js",
     "plugins/**/*.js",
     "plugins/**/*.d.ts"
   ]

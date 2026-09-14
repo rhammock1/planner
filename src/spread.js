@@ -15,6 +15,7 @@ import { moveItem } from './core/move.js'
 import { search } from './core/search.js'
 import { readRef, owns } from './core/sidecars.js'
 import { badgesFor, boardsFor, providedFor, openBadge } from './plugins/pageAsking.js'
+import { keepBoards } from './plugins/boardWrites.js'
 import { weekOf } from './core/calendar.js'
 import { SOMEDAY } from './core/vaultIndex.js'
 import { createFiles } from './fileStore.js'
@@ -293,6 +294,11 @@ function draw() {
   // arrangement, and the day it is an arrangement *of* is the one a card
   // dragged onto it would land on.
   const kept = boardsFor(store, anchor)
+  // What the answer means for the three files it may change (kanban design
+  // §6). Not awaited: a draw is what the window owes the person in front of
+  // it, and a write is what it owes the vault afterwards. A no-op on almost
+  // every draw, and it tells the window when it is not.
+  void keepBoards(store, anchor, kept.boards, today())
 
   // The file this window is holding, as the view wants it: a title, a
   // subtitle, a path and an id it never looks inside (spec §3.1).
