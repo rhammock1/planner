@@ -42,10 +42,10 @@ export function moveItem(index, from, at, to, today) {
     throw new Error(`no line at ${at} on ${from}`)
   }
 
-  // The line moves whole: time, deadline, lead and note all travel with it.
-  // The app does not quietly edit what the user wrote.
+  // The line moves whole: time, deadline, lead, note and id all travel with
+  // it. The app does not quietly edit what the user wrote.
   const moved = createItem(node.text, {
-    time: node.time, due: node.due, lead: node.lead, note: node.note,
+    time: node.time, due: node.due, lead: node.lead, note: node.note, id: node.id,
   })
 
   // The destination is written first, so the moment where both pages hold the
@@ -72,7 +72,10 @@ function recordOrRemove(doc, at, to, record) {
   const nodes = [...doc.nodes]
   // `movedTo` is a date. The back page has none, so a line sent there from a
   // day that has already been leaves the mark without one.
-  nodes[at] = { ...node, state: 'migrated', movedTo: to === SOMEDAY ? null : to }
+  //
+  // The id comes off with the line, the same as in carry-forward: exactly one
+  // line answers to a name, and it is the one on the page the line is now on.
+  nodes[at] = { ...node, state: 'migrated', movedTo: to === SOMEDAY ? null : to, id: null }
   return { ...doc, nodes }
 }
 

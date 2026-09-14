@@ -23,6 +23,8 @@
  * @property {number|null} lead     days before `due` that this enters the horizon
  * @property {string|null} movedTo  `YYYY-MM-DD`, set when the item was carried forward
  * @property {string|null} note     may contain newlines; one `  > ` line each
+ * @property {string|null} id       `^abc123`, stamped only when something outside
+ *   the file needs to name this line (see ids.js)
  */
 
 /**
@@ -123,6 +125,7 @@ export function createItem(text, overrides = {}) {
     lead: null,
     movedTo: null,
     note: null,
+    id: null,
     ...overrides,
   }
 }

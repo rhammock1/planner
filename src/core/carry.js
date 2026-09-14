@@ -124,11 +124,15 @@ export function carryForward(index, today, decisions) {
     const nodes = rewritten.get(decision.page) ?? [...pageNodes(index, decision.page)]
 
     if (decision.action === 'keep') {
-      nodes[decision.index] = { ...item, state: 'migrated', movedTo: today }
-      // The copy moves whole: time, due date, lead and note all travel with
-      // it. The app does not quietly edit what the user wrote.
+      // The id is the exception in this list: it *moves* rather than being
+      // copied, so the `[>]` line left behind stops answering to a name that
+      // now belongs to today's line. `movedTo` is what chains the two days
+      // together, and it still does (spec §2.3).
+      nodes[decision.index] = { ...item, state: 'migrated', movedTo: today, id: null }
+      // The copy moves whole: time, due date, lead, note and id all travel
+      // with it. The app does not quietly edit what the user wrote.
       kept.push(createItem(item.text, {
-        time: item.time, due: item.due, lead: item.lead, note: item.note,
+        time: item.time, due: item.due, lead: item.lead, note: item.note, id: item.id,
       }))
     } else {
       nodes[decision.index] = { ...item, state: 'dropped' }

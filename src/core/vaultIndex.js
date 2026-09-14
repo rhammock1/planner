@@ -93,6 +93,33 @@ export function items(index) {
 }
 
 /**
+ * Every `^abc123` in the vault, each pointing at the line that holds it.
+ *
+ * Built on demand from one walk rather than kept in sync, which is this
+ * module's standing bargain: a decade of pages is under 2MB of text already in
+ * memory. The Map is what keeps a stamp off a full scan per line - a caller
+ * naming fifty lines builds this once and adds to it as it goes (`ids.js`).
+ *
+ * Latest wins where an id appears twice. `items` walks days ascending with the
+ * back page last, so writing every match and keeping the final one resolves to
+ * the live line under both readings of "latest": a later day, or a line sent
+ * to `someday`. Two lines holding one id is a state `move.js` deliberately
+ * writes through and a user creates by duplicating a line, so it is a case to
+ * resolve rather than an invariant to trust (spec §2.3).
+ *
+ * @param {VaultIndex} index
+ * @returns {Map<string, IndexedItem>}
+ */
+export function idIndex(index) {
+  /** @type {Map<string, IndexedItem>} */
+  const found = new Map()
+  for (const entry of items(index)) {
+    if (entry.item.id !== null) found.set(entry.item.id, entry)
+  }
+  return found
+}
+
+/**
  * Returns a new index with one page replaced, added, or - for a null document
  * - removed. The old index is left alone so a render in flight keeps seeing
  * the vault it started with.

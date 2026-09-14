@@ -26,6 +26,9 @@ const TIME = /(?:^|\s)@(\d{1,2}):(\d{2})(?=\s|$)/
 const DUE = /(?:^|\s)!(\d{4}-\d{2}-\d{2})(?=\s|$)/
 const LEAD = /(?:^|\s)~(\d+)d(?=\s|$)/
 const MOVED = /(?:^|\s)>(\d{4}-\d{2}-\d{2})(?=\s|$)/
+// The app writes this one, the user does not (ids.js). It is read wherever it
+// sits, the same as every other token, and written back last.
+const IDENT = /(?:^|\s)\^([a-z0-9]{6})(?=\s|$)/
 
 /**
  * @param {string} text
@@ -138,7 +141,7 @@ function parseLine(line) {
  * user can see and fix beats metadata silently invented from it.
  *
  * @param {string} raw
- * @returns {{text: string, time: string|null, due: string|null, lead: number|null, movedTo: string|null}}
+ * @returns {{text: string, time: string|null, due: string|null, lead: number|null, movedTo: string|null, id: string|null}}
  */
 function extractTokens(raw) {
   let text = raw
@@ -146,6 +149,7 @@ function extractTokens(raw) {
   /** @type {string|null} */ let due = null
   /** @type {number|null} */ let lead = null
   /** @type {string|null} */ let movedTo = null
+  /** @type {string|null} */ let id = null
 
   /**
    * Scans every occurrence and keeps the last one that validates. `accept`
@@ -195,7 +199,13 @@ function extractTokens(raw) {
     return true
   })
 
-  return { text: text.trim(), time, due, lead, movedTo }
+  take(IDENT, (m) => {
+    if (m[1] === undefined) return false
+    id = m[1]
+    return true
+  })
+
+  return { text: text.trim(), time, due, lead, movedTo, id }
 }
 
 /**
