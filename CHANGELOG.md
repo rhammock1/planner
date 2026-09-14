@@ -22,6 +22,15 @@ A note to self: search `[^#.-:].\[` to find all the entries without punctuation.
 -   `planner --help` and `planner --version`, answered by the process that was
     invoked rather than by the app, so they work whether or not one is running
 
+-   `kanban`, the fifth reference plugin: a board of what is started, going
+    and finished. Every card began life as a line on a day page — an open line
+    with no card joins the bottom of the first column and stays in the column
+    you left it in, whichever day it came from. The board is
+    `~/Planner/kanban/board.md`, plain Markdown you can rename a column in;
+    an ended card moves to an append-only `archive.md` after a week.
+    Finishing still happens on the day page: the last column is not a drop
+    target, and dropping there opens the day with the caret on the line
+
 -   `task-notes`, the fourth reference plugin: press ⌘⇧N on a line and get a
     page of your own about it, kept in a file beside the day and typed into on
     the page. The line carries a `✎` back to it. A line has no identity — it is
