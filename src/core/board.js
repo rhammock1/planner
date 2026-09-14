@@ -259,6 +259,11 @@ function readCard(raw, sent, taken) {
 
   const asId = fields['id']
   const asIndex = fields['index']
+  // Normalised to null *before* the test below, so "exactly one" is a test on
+  // values and not on which keys were sent. A plugin that fills in both keys
+  // and leaves one null is sending a perfectly good card, and the obvious
+  // later tidy-up - testing `'id' in card` instead - would silently drop
+  // every card such a plugin sends.
   const id = typeof asId === 'string' && isValidId(asId) ? asId : null
   const line = typeof asIndex === 'number' ? sent.get(asIndex) ?? null : null
 
