@@ -1,15 +1,16 @@
 // @ts-check
 
 /**
- * `src/core/board.js` - the two files `plugins/kanban` keeps at the vault
- * root. Pure text in, pure text out, so all of it is testable here.
+ * `src/core/boardFile.js` - the two files `plugins/kanban` keeps in the
+ * folder it owns, `<vault>/kanban/`. Pure text in, pure text out, so all of
+ * it is testable here.
  */
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { cardOf, lineOf, FRESH, parseBoard, serialiseBoard, appendArchive } from '../src/core/board.js'
+import { cardOf, lineOf, FRESH, parseBoard, serialiseBoard, appendArchive } from '../src/core/boardFile.js'
 
-/** @typedef {import('../src/core/board.js').Card} Card */
+/** @typedef {import('../src/core/boardFile.js').Card} Card */
 
 /** @type {Card} */
 const DONE = { id: 'd4e5f6', text: 'Review PR #4412 - printer retry', ended: 'done', endedOn: '2026-09-14' }

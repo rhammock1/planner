@@ -30,12 +30,13 @@
  * which is what lets a drag survive a plugin that is slow or switched off.
  *
  * `CARD`, `HEADING`, `FRESH`, `cardOf` and `parseBoard` below are copied
- * verbatim from `src/core/board.js`. They cannot be imported: `tools/update`
- * installs a plugin by copying its folder alone and `plugin://<name>/`
- * refuses any path that climbs out of it. `test/plugin-parity.test.js` holds
- * the copies against the original so drift is caught here rather than on
- * somebody's day - a board that parsed its own file differently than the app
- * writes it is the worst bug this plugin could have.
+ * verbatim from `src/core/boardFile.js`. They cannot be imported:
+ * `tools/update` installs a plugin by copying its folder alone and
+ * `plugin://<name>/` refuses any path that climbs out of it.
+ * `test/plugin-parity.test.js` holds the copies against the original so
+ * drift is caught here rather than on somebody's day - a board that parsed
+ * its own file differently than the app writes it is the worst bug this
+ * plugin could have.
  */
 
 /**

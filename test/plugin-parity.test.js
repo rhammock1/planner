@@ -4,7 +4,7 @@
  * Three plugins carry their own copies of a core module's declarations.
  * `plugins/macos-calendar/index.js` and `plugins/task-notes/index.js` copy
  * from `src/core/sidecars.js`, and `plugins/kanban/index.js` copies the
- * parsing half of `src/core/board.js`. This is not an oversight to clean up:
+ * parsing half of `src/core/boardFile.js`. This is not an oversight to clean up:
  * a plugin is installed by copying its own folder alone, and served from an
  * origin that refuses any path climbing out of that folder, so an `import`
  * reaching back into `src/` would type-check in this repo and 404 the moment
@@ -47,7 +47,7 @@ const COPIES = [
   },
   {
     plugin: 'kanban',
-    core: 'board',
+    core: 'boardFile',
     functions: ['cardOf', 'parseBoard'],
     constants: ['CARD', 'HEADING', 'FRESH'],
   },

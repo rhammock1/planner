@@ -1,8 +1,9 @@
 // @ts-check
 
 /**
- * The two files `plugins/kanban` keeps at the vault root: `board.md`, which
- * is the board, and `archive.md`, which is where an ended card goes.
+ * The two files `plugins/kanban` keeps in the folder it owns, `<vault>/
+ * kanban/` (spec §2.5): `board.md`, which is the board, and `archive.md`,
+ * which is where an ended card goes.
  *
  * Here rather than in the plugin because the app needs the same grammar. It
  * writes `board.md` when a card is dropped in another column, when a line on
