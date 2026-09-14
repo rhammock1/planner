@@ -24,6 +24,8 @@
   "exclude": [
     "test/browser/**",
     "test/sidecar-store.test.js",
-    "test/file-store.test.js"
+    "test/file-store.test.js",
+    "test/board-store.test.js",
+    "test/board-asking.test.js"
   ]
 }

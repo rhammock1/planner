@@ -34,6 +34,17 @@
 
 import { isValidId } from './ids.js'
 
+/** The two files a board plugin keeps in its folder of the vault, without the
+ *  `.md` - which is what `folders.rs` adds, because the extension is the app's
+ *  and not part of either name.
+ *
+ *  Named here rather than in `boardFile.js` because these are what the *app*
+ *  reads and writes; the grammar of what is inside them is that module's. A
+ *  plugin never sees either name: it is handed the text and hands back a
+ *  board (spec §2.5). */
+export const BOARD = 'board'
+export const ARCHIVE = 'archive'
+
 /** As long as a line of the day page may be, and for the same reason: a card
  *  holds a task's words, and a task's words are one line. */
 const LONGEST = 200

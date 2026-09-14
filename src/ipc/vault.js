@@ -166,6 +166,37 @@ export async function onSidecarChanged(handler) {
 }
 
 /**
+ * One of the files a plugin keeps in its own folder of the vault, or null when
+ * it is not there (spec §2.5).
+ *
+ * The app's own call, like every other one here. A plugin never reads its own
+ * board: the app reads the file and hands the text over with the question.
+ *
+ * @param {string} name  the plugin's, which is its folder's
+ * @param {string} file  `board` or `archive`, without the `.md`
+ * @returns {Promise<string|null>}
+ */
+export async function readPluginFile(name, file) {
+  return (await getHost()).readPluginFile(name, file)
+}
+
+/**
+ * Writes one of a plugin's files whole.
+ *
+ * There is no `onPluginFileChanged` to go with it. Nothing under a plugin's
+ * folder is a page, so the watcher never announces one - the window that
+ * writes a board is the window that draws it, from what it just wrote.
+ *
+ * @param {string} name
+ * @param {string} file
+ * @param {string} text
+ * @returns {Promise<void>}
+ */
+export async function writePluginFile(name, file, text) {
+  return (await getHost()).writePluginFile(name, file, text)
+}
+
+/**
  * Opens a file in the user's editor (spec §8).
  *
  * The escape hatch: the vault is a folder of Markdown precisely so that
