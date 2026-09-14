@@ -692,9 +692,9 @@ else. A line the vault says is ticked is moved there whatever your answer said,
 and its ending is the vault's rather than yours — a `done` or `dropped` marker
 is written on the card, and taken off again if the line is unticked. Where the
 vault has no such line at all, your card's own `ended` stands, which is the one
-case your answer decides. A
-`dropped` card is *not* moved: a struck line is a decision that was made, and
-the column it was in is where that decision is legible.
+case your answer decides. A `dropped` card is *not* moved: a struck line is a
+decision that was made, and the column it was in is where that decision is
+legible.
 
 **`archive` is how a card leaves the board.** Name the ids you are finished
 with and the app moves those lines, as `board.md` held them, to the end of
