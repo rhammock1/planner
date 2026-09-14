@@ -18,6 +18,7 @@ import { createBackPage } from './backPage.js'
 import { createWeekView } from './weekView.js'
 import { createMonthView } from './monthView.js'
 import { createFileView } from './fileView.js'
+import { createBoardView, boardViewOf, pluginOfView } from './boardView.js'
 import { createSearchPanel } from './searchPanel.js'
 
 /** @typedef {import('../core/vaultIndex.js').VaultIndex} VaultIndex */
@@ -31,6 +32,10 @@ import { createSearchPanel } from './searchPanel.js'
  * @property {Map<string, Map<number, import('../core/badges.js').Badge[]>>} [badges]  markers, by page
  * @property {import('./noteView.js').Note|null} file  the file the window has
  *   open, or null. Not a member of `VIEWS`: its tab exists only while it does
+ * @property {import('../plugins/pageAsking.js').Board[]} [boards]  a tab each,
+ *   for the plugins that keep one. Not in `VIEWS` either, and for a stronger
+ *   reason than the file's: which boards exist is not known until a config has
+ *   been read, and changes when one is
  * @property {string[]} notices
  */
 
@@ -53,7 +58,7 @@ import { createSearchPanel } from './searchPanel.js'
 
 /** @typedef {{element: HTMLElement, render: (state: SpreadState) => void}} View */
 
-/** @type {{tabs: Map<string, HTMLElement>, views: Map<string, View>, file: ReturnType<typeof createFileView>, notices: HTMLElement, search: ReturnType<typeof createSearchPanel>}|null} */
+/** @type {{tabs: Map<string, HTMLElement>, views: Map<string, View>, file: ReturnType<typeof createFileView>, boardTabs: HTMLElement, boardTabSpec: import('../ui/keyedList.js').ListSpec<import('../plugins/pageAsking.js').Board>, notices: HTMLElement, search: ReturnType<typeof createSearchPanel>}|null} */
 let chrome = null
 
 /** @type {SpreadState|null} */
@@ -79,6 +84,10 @@ export function mount(root, handlers) {
     // file in it would be exactly the promise `VIEWS` exists to stop the app
     // making (spec §3.3).
     ['file', file],
+    // One view for however many boards there are (spec §2.2). Which one it
+    // draws is whichever the strip has picked, so it is here under one name
+    // rather than being built and torn down as plugins come and go.
+    ['board', createBoardView(() => boardShowing())],
   ])
 
   /** @type {Map<string, HTMLElement>} */
@@ -91,6 +100,28 @@ export function mount(root, handlers) {
     tabs.set(name, tab)
     strip.append(tab)
   }
+
+  // The boards' tabs, between the three views and the file's: a board is a
+  // fixture of the window the way Week and Month are, where the file's tab
+  // comes and goes with the file. Patched rather than built, because which
+  // boards exist is a thing the config decides and can change while the
+  // window is open.
+  const boardTabs = el('span', 'tabs-boards')
+  /** @type {import('../ui/keyedList.js').ListSpec<import('../plugins/pageAsking.js').Board>} */
+  const boardTabSpec = {
+    keyOf: (board) => board.plugin,
+    create: (board) => {
+      const tab = el('button', 'tab')
+      tab.setAttribute('type', 'button')
+      tab.addEventListener('click', () => handlers.onView(boardViewOf(board.plugin)))
+      return tab
+    },
+    update: (element, board) => {
+      setText(element, board.tab)
+      setClass(element, 'on', showing() === boardViewOf(board.plugin))
+    },
+  }
+  strip.append(boardTabs)
 
   // The file's tab: built like the others, hidden until there is a file, and
   // labelled with the file's own name rather than the word "File" - one open
@@ -121,7 +152,7 @@ export function mount(root, handlers) {
   surface.append(head, notices, body, search.element)
   root.replaceChildren(surface)
 
-  chrome = { tabs, views, file, notices, search }
+  chrome = { tabs, views, file, boardTabs, boardTabSpec, notices, search }
 }
 
 /**
@@ -163,12 +194,19 @@ export function render(state) {
     fileTab.hidden = state.file === null
     if (state.file !== null) setText(fileTab, state.file.title)
   }
+  // Patched after `on` is settled, because each tab draws its own `on` class
+  // and `showing()` reads the state this render was given.
+  patchList(chrome.boardTabs, state.boards ?? [], chrome.boardTabSpec)
+
   for (const [name, view] of chrome.views) {
-    view.element.hidden = name !== on
+    // Every board shares one view, so the one named `board` is on screen
+    // whenever any board is.
+    const shown = name === 'board' ? pluginOfView(on) !== null : name === on
+    view.element.hidden = !shown
     // Only what is on screen is drawn. A hidden view measures nothing
     // correctly anyway, and redrawing all of them on every keystroke is work
     // nobody can see.
-    if (name === on) view.render(state)
+    if (shown) view.render(state)
   }
 
   patchList(chrome.notices, state.notices, {
@@ -190,5 +228,21 @@ export function showing() {
   // prevent - which is what the window looks like for the moment between
   // being asked for a file and that file arriving.
   if (asked === 'file' && (currentState?.file ?? null) === null) return VIEWS[0] ?? ''
+  // The same rule for a board, which needs it more: a plugin can be switched
+  // off while its board is the tab you are looking at, and a window left
+  // showing a board that no longer exists is a window showing nothing.
+  if (pluginOfView(asked) !== null) return boardShowing() === null ? VIEWS[0] ?? '' : asked
   return chrome?.views.has(asked) === true ? asked : VIEWS[0] ?? ''
+}
+
+/**
+ * The board the strip has picked, or null when it has not picked one - which
+ * is every view that is not a board's, and a board whose plugin has gone.
+ *
+ * @returns {import('../plugins/pageAsking.js').Board|null}
+ */
+function boardShowing() {
+  const plugin = pluginOfView(currentState?.view ?? '')
+  if (plugin === null) return null
+  return (currentState?.boards ?? []).find((board) => board.plugin === plugin) ?? null
 }
