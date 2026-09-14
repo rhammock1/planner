@@ -202,6 +202,17 @@ function appendArchive(text, cards) {
 }
 
 /**
+ * A line with nothing on it. Blank rather than empty, because a line of
+ * spaces is a gap to the eye and the file is read by one.
+ *
+ * @param {Entry|undefined} entry
+ * @returns {boolean}
+ */
+function isBlank(entry) {
+  return entry !== undefined && entry.kind === 'text' && entry.line.trim() === ''
+}
+
+/**
  * @typedef {object} Placed
  * @property {string} id
  * @property {string} text
@@ -317,32 +328,43 @@ function mergeBoard(text, columns, today, leaving = []) {
     const queue = [...(wanted.get(column.name) ?? [])]
     /** @type {Entry[]} */
     const entries = []
-    for (const entry of column.entries) {
-      if (entry.kind === 'card' && gone.has(entry.card.id)) {
-        // Not a vacancy - a line going away. Its place closes up rather than
-        // taking the next card, because the card that was here is the one
-        // already written into `archive.md`.
-        continue
-      }
-      if (entry.kind === 'card' && named.has(entry.card.id)) {
+    let at = 0
+    while (at < column.entries.length) {
+      const entry = column.entries[at]
+      at += 1
+      if (entry === undefined) continue
+      if (entry.kind !== 'card') { entries.push(entry); continue }
+
+      // A line going away, because the card that was here is the one already
+      // written into `archive.md`. Not a vacancy: nothing fills it.
+      const archived = gone.has(entry.card.id)
+      if (!archived && !named.has(entry.card.id)) { entries.push(entry); continue }
+
+      if (!archived) {
         // A vacancy. It takes the next card the answer put in this column,
         // and closes if the answer has none left - which is how a card named
         // in some other column stops being drawn in this one too.
         const next = queue.shift()
-        if (next !== undefined) entries.push(entryFor(next))
-        continue
+        if (next !== undefined) { entries.push(entryFor(next)); continue }
       }
-      entries.push(entry)
+
+      // The line is gone. If it was the only thing standing between two
+      // blank lines, one of them goes with it: closing the gap is what the
+      // line's absence means, and a board that gained a blank line every
+      // time a card moved would drift apart over a year of moving cards.
+      // A blank the removal does not double is the column's own spacing and
+      // is left alone.
+      if (isBlank(entries[entries.length - 1]) && isBlank(column.entries[at])) at += 1
     }
 
     // Cards the column did not have room for go after its last card, rather
     // than after whatever blank line ends the column.
-    let at = entries.length
+    let into = entries.length
     for (let n = entries.length - 1; n >= 0; n -= 1) {
-      if (entries[n]?.kind === 'card') { at = n + 1; break }
-      if (n === 0) at = 0
+      if (entries[n]?.kind === 'card') { into = n + 1; break }
+      if (n === 0) into = 0
     }
-    entries.splice(at, 0, ...queue.map(entryFor))
+    entries.splice(into, 0, ...queue.map(entryFor))
     return { ...column, entries }
   })
 
