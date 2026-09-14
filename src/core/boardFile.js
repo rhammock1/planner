@@ -243,12 +243,23 @@ function appendArchive(text, cards) {
  * ageing rule has, so rewriting it on every draw would mean a finished card
  * never got old enough to leave.
  *
+ * `leaving` is the one thing that does take a card off the board, and it is
+ * not an omission - it is the app saying it has already written that card's
+ * line into `archive.md`. The two have to be different: the archive is
+ * append-only, so a card left on the board after being archived is archived
+ * again on the next draw, and again after that, and no later write can undo
+ * it. An id in `leaving` that the file does not hold is a no-op. An id in
+ * both `leaving` and `columns` leaves, because by the time the app names one
+ * there the line is already in the archive, and a card drawn for one more
+ * draw is the smaller wrong answer than a card recorded twice for ever.
+ *
  * @param {string} text  the board as it stands, `''` when there is none
  * @param {PlacedColumn[]} columns  the arrangement, cards already named
  * @param {string} today  `YYYY-MM-DD`, for a card that is ending now
+ * @param {Iterable<string>} [leaving]  ids already written into `archive.md`
  * @returns {string|null}  null when the file cannot be read, so it is left alone
  */
-function mergeBoard(text, columns, today) {
+function mergeBoard(text, columns, today, leaving = []) {
   const { board } = parseBoard(text.trim() === '' ? FRESH : text)
   if (board === null) return null
 
@@ -264,13 +275,15 @@ function mergeBoard(text, columns, today) {
     }
   }
 
+  const gone = new Set(leaving)
+
   /** @type {Map<string, Placed[]>} */
   const wanted = new Map()
   /** @type {Set<string>} */
   const named = new Set()
   for (const column of columns) {
-    if (!wanted.has(column.name)) wanted.set(column.name, column.cards)
-    for (const card of column.cards) named.add(card.id)
+    if (!wanted.has(column.name)) wanted.set(column.name, column.cards.filter((card) => !gone.has(card.id)))
+    for (const card of column.cards) if (!gone.has(card.id)) named.add(card.id)
   }
 
   /**
@@ -298,17 +311,23 @@ function mergeBoard(text, columns, today) {
 
   /** @type {Column[]} */
   const merged = board.columns.map((column) => {
-    const cards = wanted.get(column.name)
-    // A column the answer never mentioned is not a column the answer emptied.
-    if (cards === undefined) return column
-
-    const queue = [...cards]
+    // A column the answer never mentioned is not a column the answer
+    // emptied: it has no cards of its own to place, so every card it holds
+    // stays unless it was placed somewhere else or is leaving.
+    const queue = [...(wanted.get(column.name) ?? [])]
     /** @type {Entry[]} */
     const entries = []
     for (const entry of column.entries) {
+      if (entry.kind === 'card' && gone.has(entry.card.id)) {
+        // Not a vacancy - a line going away. Its place closes up rather than
+        // taking the next card, because the card that was here is the one
+        // already written into `archive.md`.
+        continue
+      }
       if (entry.kind === 'card' && named.has(entry.card.id)) {
         // A vacancy. It takes the next card the answer put in this column,
-        // and closes if the answer has none left.
+        // and closes if the answer has none left - which is how a card named
+        // in some other column stops being drawn in this one too.
         const next = queue.shift()
         if (next !== undefined) entries.push(entryFor(next))
         continue
