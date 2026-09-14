@@ -84,6 +84,48 @@ export function isPluginName(name) {
 }
 
 /**
+ * What a plugin's folder in the *vault* may be called (spec §2.5).
+ *
+ * Stricter than `NAME` by one character class, and the difference is the
+ * whole reason there are two rules: a folder called `2026` **is** a year
+ * folder, and the vault scanner would walk into it looking for months. So a
+ * vault folder begins with a letter, where a plugin folder may begin with a
+ * digit.
+ *
+ * `someday` is reserved separately, and not because it collides: `someday.md`
+ * is a file at the vault root, so a directory of that name sits beside it
+ * quite happily. It is reserved because a vault holding both is a vault
+ * nobody can read at a glance, which is a reason about people rather than
+ * about the filesystem and so cannot be a character class.
+ */
+const VAULT_FOLDER = /^[a-z][a-z0-9-]{0,63}$/
+
+/** Said the same way wherever a plugin is refused a folder in the vault. */
+export const NO_VAULT_FOLDER =
+  'a folder in the vault must begin with a letter and may hold only lowercase letters, digits and hyphens, and may not be called someday'
+
+/**
+ * The folder this plugin owns in the vault, or null for a name that owns none.
+ *
+ * Null is not a failure to start. A plugin whose name fails this still runs,
+ * with every other grant it has - it simply has nowhere in the vault to keep
+ * a file, and is told so in a sentence naming the rule. The alternative is
+ * refusing to run a plugin over a folder it may never have wanted.
+ *
+ * The name only. Nothing here touches a disk, and a caller that turns this
+ * into a path is expected to check the name again on its own side - which
+ * `bridges/storage.rs` already does for `state/`, for the same reason: this
+ * is what stands between a name and a path.
+ *
+ * @param {string} name
+ * @returns {string|null}
+ */
+export function vaultFolder(name) {
+  if (name === 'someday' || !VAULT_FOLDER.test(name)) return null
+  return name
+}
+
+/**
  * @param {Folder[]} folders  every plugin folder found on disk
  * @param {Map<string, PluginConfig>} configured
  * @returns {{start: Start[], notices: string[]}}
@@ -164,6 +206,16 @@ export function plan(folders, configured) {
     }
 
     claims.push({ name: folder.name, prefixes: read.prefixes })
+
+    // Said only where it costs something. Every plugin may own a folder in
+    // the vault, and almost none want one, so a notice on every name that
+    // fails the rule would be a page of complaints about nothing. A board is
+    // kept in that folder, so a board plugin whose name fails has a slot it
+    // cannot use - and that is worth a line.
+    const boards = both(read.slots, settings.approvedSlots).includes('spread.board')
+    if (boards && vaultFolder(folder.name) === null) {
+      notices.push(`${folder.name} keeps a board, and ${NO_VAULT_FOLDER}`)
+    }
 
     start.push({
       name: folder.name,

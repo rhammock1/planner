@@ -65,6 +65,43 @@ fn a_day_filed_under_the_wrong_month_is_not_a_page() {
     assert_eq!(page_for_path(root, Path::new("/vault/2025/08/2026-08-31.md")), None);
 }
 
+// A plugin owns `<vault>/<name>/` and keeps its own files there (design
+// §2.5). Nothing was changed to make that safe - `page_for_path` already
+// refuses every path that is not `YYYY/MM/YYYY-MM-DD.md` or a root
+// `someday.md` - but it is load-bearing now rather than merely true, so it
+// gets a test that says so. Without it, a plugin's file would be parsed as a
+// day, redrawn as one, and found by ⌘F.
+#[test]
+fn a_plugins_own_folder_in_the_vault_is_never_a_page() {
+    let root = Path::new("/vault");
+    for path in [
+        "/vault/kanban/board.md",
+        "/vault/kanban/archive.md",
+        "/vault/kanban/2026-08-31.md",
+        "/vault/kanban/2026/08/2026-08-31.md",
+        "/vault/kanban/someday.md",
+    ] {
+        assert_eq!(page_for_path(root, Path::new(path)), None, "{path}");
+    }
+}
+
+#[test]
+fn a_plugins_own_folder_is_not_read_as_part_of_the_vault() {
+    // The other half, against a real directory: `collect` filters through
+    // `page_for_path`, so a plugin's folder is invisible to the reader as
+    // well as to the watcher.
+    let root = scratch("plugin-folder");
+    write_page(&root, "2026-08-31", "# 2026-08-31\n").expect("write");
+    fs::create_dir_all(root.join("kanban")).expect("plugin folder");
+    fs::write(root.join("kanban/board.md"), "## To do\n- A ^k4m2qa\n").expect("board");
+    fs::create_dir_all(root.join("kanban/2026/08")).expect("a year inside it");
+    fs::write(root.join("kanban/2026/08/2026-08-30.md"), "# 2026-08-30\n").expect("day");
+
+    let pages = read_all(&root);
+    let names: Vec<&str> = pages.iter().map(|page| page.page.as_str()).collect();
+    assert_eq!(names, ["2026-08-31"]);
+}
+
 #[test]
 fn writing_a_page_creates_the_folders_it_needs() {
     let root = scratch("write");
