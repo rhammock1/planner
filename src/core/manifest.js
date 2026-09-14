@@ -249,6 +249,26 @@ export function optionText(options, key, longest) {
 }
 
 /**
+ * An option that is a measurement, held between two bounds.
+ *
+ * Missing reads as the fallback, and so does nonsense: a manifest is somebody
+ * else's file, and a plugin that writes `width = "wide"` should get the
+ * ordinary size rather than a layout with a NaN in it. Out of range is pulled
+ * into range rather than refused, because the number is a request about the
+ * app's own page and the app is entitled to the last word on that.
+ *
+ * @param {Record<string, TomlValue>} options
+ * @param {string} key
+ * @param {{fallback: number, least: number, most: number}} bounds
+ * @returns {number}
+ */
+export function optionNumber(options, key, bounds) {
+  const raw = options[key]
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return bounds.fallback
+  return Math.min(bounds.most, Math.max(bounds.least, Math.round(raw)))
+}
+
+/**
  * An option that is a list of names.
  *
  * Named twice is named once, the same way `slots` is: every list of names in

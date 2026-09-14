@@ -38,9 +38,10 @@ function pageOf(count) {
  * @param {number} [events]  how many a plugin contributed
  * @param {string[]} [notices]
  * @param {import('../../src/views/notices.js').Action[]} [actions]
+ * @param {import('../../src/core/box.js').Box|null} [box]  a plugin's picture
  * @returns {void}
  */
-function show(count, events, notices, actions) {
+function show(count, events, notices, actions, box) {
   const vault = buildIndex([{ page: '2026-09-01', doc: parse(pageOf(count)) }])
   stage.replaceChildren()
   const root = document.createElement('main')
@@ -90,6 +91,7 @@ function show(count, events, notices, actions) {
     }],
     blocks: [],
     prefixes: new Map(),
+    box: box ?? null,
     notices: notices ?? [],
     actions: actions ?? [],
   })
@@ -240,7 +242,7 @@ check('a day with nothing contributed shows no section at all', () => {
 check('contributed events appear under the list and above the note', () => {
   show(3, 2)
   const order = [...stage.querySelectorAll('.page > *')].map((part) => part.className)
-  equal(order.join(' '), 'page-head notice-band carry horizon items add day-sections note evidence page-foot search settings note-view', 'the section is in the wrong place')
+  equal(order.join(' '), 'page-head notice-band carry horizon items add day-sections note-row evidence page-foot search settings note-view', 'the section is in the wrong place')
   equal(stage.querySelectorAll('.given-item').length, 2, 'the events did not appear')
 })
 
@@ -374,6 +376,7 @@ check('the settings pane lists a plugin and what it asks for', () => {
     prefixes: [],
     heading: 'macos-calendar',
     actionLabel: 'macos-calendar',
+    box: { width: 48, height: 48 },
     moves: [],
     notices: [],
     problem: null,
@@ -606,6 +609,71 @@ check('a note that exists is shown at full strength, and opens when pressed', ()
   opened = null
   offer.click()
   equal(lastOpened()?.suffix, 'meeting-standup', 'the press did not ask for the meeting\'s own note')
+})
+
+// The day's margin (phase four §1.1). A picture beside the note has to stay
+// inside the window, keep the footer where it was, and leave the note the rest
+// of the row - none of which can be checked anywhere but in a browser.
+const CREATURE = {
+  plugin: 'pet',
+  picture: { svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#17605B" /></svg>' },
+  width: 48,
+  height: 48,
+}
+
+check('a picture in the margin sits at the right-hand end of the note s row', () => {
+  show(6, undefined, undefined, undefined, CREATURE)
+  const row = part('.note-row')
+  const note = part('.note')
+  const box = part('.box')
+
+  ok(box.getBoundingClientRect().width > 0, 'the margin drew nothing')
+  ok(
+    box.getBoundingClientRect().left >= note.getBoundingClientRect().right,
+    'the picture is sitting on top of the note rather than beside it',
+  )
+  ok(
+    box.getBoundingClientRect().right <= row.getBoundingClientRect().right + 0.5,
+    'the picture is hanging off the end of the row',
+  )
+})
+
+check('a long day with a picture still keeps the footer on the page', () => {
+  show(60, undefined, undefined, undefined, CREATURE)
+  const bottom = stage.getBoundingClientRect().bottom
+  ok(part('.page-foot').getBoundingClientRect().bottom <= bottom, 'the footer was pushed off')
+  ok(part('.box').getBoundingClientRect().bottom <= bottom, 'the picture was pushed off')
+})
+
+// A note long enough to scroll is the case where a box inside the note would
+// have scrolled away with it. It is outside the note for exactly this reason.
+check('the picture stays put while a long note scrolls past it', () => {
+  show(6, undefined, undefined, undefined, CREATURE)
+  const note = part('.note')
+  note.textContent = 'How the day went. '.repeat(60)
+  const before = part('.box').getBoundingClientRect().top
+  note.scrollTop = note.scrollHeight
+  ok(Math.abs(part('.box').getBoundingClientRect().top - before) < 0.5, 'the picture moved with the note')
+})
+
+// A day with no file yet hides the note, which leaves the picture as the only
+// thing in the row. It is a margin, so it stays in the margin.
+check('a picture on a day with no note yet stays in the margin', () => {
+  show(0, undefined, undefined, undefined, CREATURE)
+  const row = part('.note-row')
+  const box = part('.box')
+  part('.note').hidden = true
+
+  ok(
+    box.getBoundingClientRect().right >= row.getBoundingClientRect().right - 17,
+    'the picture slid over to the left margin',
+  )
+})
+
+check('no picture leaves the note exactly where it was', () => {
+  show(6)
+  ok(part('.box').getBoundingClientRect().width === 0, 'an empty margin is taking up room')
+  ok(part('.note').getBoundingClientRect().width > 0, 'the note lost its row')
 })
 
 report()

@@ -63,12 +63,58 @@ export function openCount(doc) {
 }
 
 /**
+ * What one document amounts to.
+ *
+ * The day page's reader: it holds one day's file and wants four numbers about
+ * it, and walking the whole vault to find the row for the page already in hand
+ * would be a pass over every day in the vault on every keystroke in the add
+ * row.
+ *
+ * The same rule as `dayGlances`, because it is literally the same lines - both
+ * hand each item to `count` below. Two readers, one rule.
+ *
+ * @param {Document|null} doc  null when the day has no file yet
+ * @param {string} today `YYYY-MM-DD`
+ * @param {number} defaultLead days, for items carrying no `~Nd`
+ * @returns {DayGlance}
+ */
+export function glanceOf(doc, today, defaultLead) {
+  const day = blank()
+  if (doc === null) return day
+  for (const node of doc.nodes) {
+    if (node.kind === 'item') count(day, node, today, defaultLead)
+  }
+  return day
+}
+
+/**
+ * One item, added to a day's four numbers.
+ *
+ * @param {DayGlance} day
+ * @param {import('./model.js').Item} item
+ * @param {string} today
+ * @param {number} defaultLead
+ * @returns {void}
+ */
+function count(day, item, today, defaultLead) {
+  if (item.state === 'open') day.open += 1
+  else if (item.state === 'done') day.done += 1
+
+  // Asked of `horizon.js` rather than answered here, so the strip and these
+  // counts cannot drift apart. `dueState` already refuses anything that is
+  // not open and dated.
+  const showing = dueState(item, today, defaultLead)
+  if (showing === 'due') day.due += 1
+  else if (showing === 'overdue') day.overdue += 1
+}
+
+/**
  * Every page in the vault, counted, in one pass.
  *
- * Asked when something wants a number about *every* day at once - the margin
- * box, and the week's seven columns. `openCount` stays for the callers that
- * hold a single document and want one number from it, because that is a
- * different question with a different input, not this one narrowed.
+ * Asked when something wants a number about *every* day at once - the week's
+ * seven columns, and the icon's whole-vault question. `openCount` and
+ * `glanceOf` stay for the callers that hold a single document, because that is
+ * a different question with a different input, not this one narrowed.
  *
  * What must not happen is the two answering differently, and `glance.test.js`
  * is where that is nailed down: for every page in a vault, the count here and
@@ -92,16 +138,7 @@ export function dayGlances(index, today, defaultLead) {
   for (const { page, item } of items(index)) {
     const day = counted.get(page)
     if (day === undefined) continue
-
-    if (item.state === 'open') day.open += 1
-    else if (item.state === 'done') day.done += 1
-
-    // Asked of `horizon.js` rather than answered here, so the strip and these
-    // counts cannot drift apart. `dueState` already refuses anything that is
-    // not open and dated.
-    const showing = dueState(item, today, defaultLead)
-    if (showing === 'due') day.due += 1
-    else if (showing === 'overdue') day.overdue += 1
+    count(day, item, today, defaultLead)
   }
 
   return counted

@@ -110,6 +110,44 @@ declare namespace Planner {
     title?: string
   }
 
+  /** What a day amounts to, in four numbers. `open` and `done` are of that
+   *  page; `due` and `overdue` are of that page judged from today, and are
+   *  disjoint. Dropped and migrated lines are none of the four. */
+  interface DayGlance {
+    open: number
+    done: number
+    due: number
+    overdue: number
+  }
+
+  /** The five colours a drawing is handed. An `<img>` cannot see this page's
+   *  stylesheet, so a picture that is to sit on the paper it is drawn on has
+   *  to bake these in. */
+  interface Paints {
+    paper: string
+    ink: string
+    dim: string
+    accent: string
+    alert: string
+  }
+
+  /** The question behind the `page.box` slot. Counts and colours, and no
+   *  line's words. */
+  interface BoxQuestion {
+    now: Now
+    /** The page being drawn, `YYYY-MM-DD`. Not always today. */
+    date: string
+    glance: DayGlance
+    theme: Paints
+  }
+
+  /** A picture for the day's margin. At most 16 KiB of SVG, with no script,
+   *  no handler and no href that leaves the picture. `null` is an answer:
+   *  nothing to draw this time. */
+  interface BoxAnswer {
+    svg: string
+  }
+
   /** The question behind the `search.provide` slot. */
   interface SearchQuestion {
     now: Now
@@ -285,6 +323,8 @@ declare const planner: {
     Record<string, string> | Promise<Record<string, string>>): void
   on(slot: 'page.note', handler: (question: Planner.SectionQuestion) =>
     Planner.SectionAnswer[] | Promise<Planner.SectionAnswer[]>): void
+  on(slot: 'page.box', handler: (question: Planner.BoxQuestion) =>
+    Planner.BoxAnswer | null | Promise<Planner.BoxAnswer | null>): void
   on(slot: 'search.provide', handler: (question: Planner.SearchQuestion) =>
     Planner.SearchHit[] | Promise<Planner.SearchHit[]>): void
   on(slot: 'spread.board', handler: (question: Planner.BoardQuestion) =>

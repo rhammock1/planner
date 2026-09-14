@@ -3,7 +3,7 @@ import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import { parse } from '../src/core/parse.js'
 import { SOMEDAY, buildIndex, getPage } from '../src/core/vaultIndex.js'
-import { openCount, glance, badge, dayGlances, blank } from '../src/core/glance.js'
+import { openCount, glance, badge, dayGlances, glanceOf, blank } from '../src/core/glance.js'
 import { horizon } from '../src/core/horizon.js'
 
 const TODAY = '2026-08-31'
@@ -210,6 +210,20 @@ describe('nobody disagrees about a count', () => {
 
   test('the icon reads what the box reads', () => {
     assert.equal(glance(index, TODAY, LEAD).open, dayGlances(index, TODAY, LEAD).get(TODAY)?.open)
+  })
+
+  // The day page counts the one document it is holding; the week counts every
+  // page at once. Two readers over one rule, and this is what says so: for
+  // every page in a real vault, all four numbers agree.
+  test('one document counted alone agrees with the whole vault counted at once', () => {
+    const counted = dayGlances(index, TODAY, LEAD)
+    for (const page of counted.keys()) {
+      assert.deepEqual(glanceOf(getPage(index, page), TODAY, LEAD), counted.get(page), page)
+    }
+  })
+
+  test('a day with no file at all counts as a day with nothing on it', () => {
+    assert.deepEqual(glanceOf(null, TODAY, LEAD), blank())
   })
 
   test('the dot is up exactly when the strip has something in it', () => {

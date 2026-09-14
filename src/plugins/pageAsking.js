@@ -14,6 +14,7 @@
 
 import { linesOf, badgeKey, readBadges } from '../core/badges.js'
 import { readSections, sectionKey } from '../core/sections.js'
+import { boxQuestion, readBox, paints } from '../core/box.js'
 import { readProvided } from '../core/provided.js'
 import { owns } from '../core/sidecars.js'
 import { mayOpen } from '../core/urls.js'
@@ -80,6 +81,43 @@ export function sectionsFor(store, page) {
     store.pluginAnswers('page.note', key, { date: page, per }),
     existing,
     owned,
+  )
+}
+
+/**
+ * The picture in the day's margin, if a plugin draws one.
+ *
+ * Draw-on-miss like the two above. The key is the whole question written out -
+ * the day, the four counts, the five colours - because those are the only
+ * things the answer can depend on, so a key made of them asks again exactly
+ * when the picture could have changed and never otherwise. The clock is
+ * deliberately not in it: a creature that redrew itself every minute would be
+ * asking a plugin sixty times an hour for the same drawing.
+ *
+ * `sizes` comes from the manifests rather than from the answers: how much of
+ * the page a plugin takes is a thing it declares and you tick, not a thing it
+ * decides per drawing (spec §1.1).
+ *
+ * @param {Store} store
+ * @param {string} page  `YYYY-MM-DD`
+ * @param {import('../core/glance.js').DayGlance} glance
+ * @param {Map<string, string>} tokens  what the window is wearing
+ * @returns {{box: import('../core/box.js').Box|null, notices: string[]}}
+ */
+export function boxFor(store, page, glance, tokens) {
+  const question = boxQuestion(page, glance, paints(tokens))
+  const key = [
+    page,
+    glance.open, glance.done, glance.due, glance.overdue,
+    ...Object.values(question.theme),
+    // The separator `asking.js` already uses for a compound key, because a
+    // theme value is somebody else's string and may hold anything a colour
+    // may hold - including whatever else might have been picked here.
+  ].join('\u0000')
+
+  return readBox(
+    store.pluginAnswers('page.box', key, question),
+    new Map(store.installed().map((one) => [one.name, one.box])),
   )
 }
 

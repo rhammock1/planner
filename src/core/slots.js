@@ -51,6 +51,11 @@ export const SLOTS = [
     options: null,
   },
   {
+    name: 'page.box',
+    sentence: "Draws a small picture in the day's margin. Is told how many lines are open, done and overdue, and no line's words.",
+    options: 'box',
+  },
+  {
     name: 'item.action',
     sentence: 'Is shown the text of a line you pick, and can open a page of its own about it.',
     options: 'action',

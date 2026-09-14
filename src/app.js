@@ -13,12 +13,13 @@
 import { horizon } from './core/horizon.js'
 import { unfinished, carryForward } from './core/carry.js'
 import { readContributions } from './core/contributions.js'
-import { badgesFor, sectionsFor, providedFor } from './plugins/pageAsking.js'
+import { badgesFor, sectionsFor, providedFor, boxFor } from './plugins/pageAsking.js'
 import { openInEditor, pickVault } from './vaultActions.js'
 import { openSidecar, followHit, followRef, noteOnLine, openMarker } from './sidecarActions.js'
 import { readRef, sidecarRef, sidecarPath } from './core/sidecars.js'
 import { search } from './core/search.js'
-import { applyPluginTokens } from './plugins/theming.js'
+import { applyPluginTokens, wearing } from './plugins/theming.js'
+import { glanceOf } from './core/glance.js'
 import { today } from './clock.js'
 import { createShowing } from './showing.js'
 import { createStore } from './store.js'
@@ -254,6 +255,18 @@ function draw() {
   // keeps the minute clock that lets a pinned page follow the sky.
   const warmed = applyPluginTokens(store, draw)
 
+  // The day's margin, after the colours have settled: a picture is handed what
+  // the window is wearing, and a draw that asked before `applyPluginTokens`
+  // would hand it the theme's own for one frame and a plugin's for the next
+  // (phase four §1.1).
+  //
+  // Not asked for at all in a window too short to show one - which is the
+  // whole of the threshold rule: a question nobody can see the answer to is
+  // not a question worth waking a plugin for.
+  const drawn = dayPage.roomForABox(window)
+    ? boxFor(store, page, glanceOf(store.page(page), now, store.config().horizonLeadDays), wearing(store))
+    : { box: null, notices: [] }
+
   ambient.update(now)
 
   // Drawn whenever the day is, so a setting changed here and a setting
@@ -279,12 +292,13 @@ function draw() {
     // through any prefix name of its own.
     prefixes: store.pluginPrefixes(),
     badges: marked.badges,
+    box: drawn.box,
     // The one thing a notice ever needs pressing for: the app will not put a
     // vault somewhere nobody asked for (spec §8).
     actions: store.vaultExists() ? [] : [{ label: 'Choose a folder…', run: () => { void pickVault(store, ipc) } }],
     // Worked out on the way to the page rather than kept, so redrawing the
     // same contributions does not say the same thing twice.
-    notices: [...store.notices(), ...given.notices, ...marked.notices, ...blocked.notices, ...warmed],
+    notices: [...store.notices(), ...given.notices, ...marked.notices, ...blocked.notices, ...warmed, ...drawn.notices],
   })
 
   // Tried on every draw until it lands: a note just created is not in the
