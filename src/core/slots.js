@@ -26,6 +26,11 @@
  * @property {string|null} options  the manifest table holding what this slot
  *   needs to know that the question does not carry, named for the slot's last
  *   word - or null for a slot that needs nothing (spec §1.1)
+ *
+ *   `spread.board` is the one that is not its last word: its table is `[tab]`,
+ *   because what it holds configures the tab strip rather than the board, and
+ *   the strip is machinery a second slot would share. A `[board]` here and a
+ *   `[view]` beside it would be two tables holding one tab's name.
  */
 
 /** @type {Slot[]} */
@@ -65,6 +70,11 @@ export const SLOTS = [
     sentence: 'Is shown what you type into ⌘F, and can answer alongside the vault.',
     options: null,
   },
+  {
+    name: 'spread.board',
+    sentence: 'Is shown the text of every line on a page you look at, and keeps a board of its own in a tab of the spread window.',
+    options: 'tab',
+  },
 ]
 
 const BY_NAME = new Map(SLOTS.map((slot) => [slot.name, slot]))
@@ -83,6 +93,9 @@ export function isSlot(name) {
  * One shape for all of them: a table named for the slot's last word, read only
  * when the slot is declared. A slot this version does not offer has no table,
  * because it has no options this version could act on.
+ *
+ * Two slots may name the same table, which is why this is a field rather than
+ * the last word computed - see `spread.board`.
  *
  * @param {string} name
  * @returns {string|null}

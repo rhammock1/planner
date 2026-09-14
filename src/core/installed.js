@@ -29,6 +29,10 @@ import { TOKEN_NAMES } from './theme.js'
  *  sentence, and a sentence is not a heading (spec §1.3). */
 const HEADING = 40
 
+/** A tab sits in a strip beside Week, Month and Someday. Longer than this and
+ *  it stops being a tab and starts being the strip. */
+const TAB = 16
+
 /**
  * What a placeholder in a command will hold when it is run.
  *
@@ -76,6 +80,8 @@ const HEADING = 40
  *   margin its picture asks for, already held between the bounds the page can
  *   pay. Always a size, the way `heading` is always a word: a plugin that
  *   never draws one simply never has it read
+ * @property {string} tab  what the spread window's strip calls this plugin's
+ *   board. Its folder name when the manifest gives none
  * @property {string[]} moves  the theme tokens this plugin says it moves, of
  *   the names this version knows. A name no theme has is dropped here rather
  *   than shown: the pane is a consent surface, and offering a tick over
@@ -123,6 +129,7 @@ export function installed(folders, configured) {
         heading: folder.name,
         actionLabel: folder.name,
         box: { width: SIDE, height: SIDE },
+        tab: folder.name,
         moves: [],
         approvedMoves: [],
         notices: [],
@@ -187,6 +194,10 @@ export function installed(folders, configured) {
       // day page agree about how big a plugin's picture is without the view
       // having to parse a manifest on its draw path.
       box: boxSize(read),
+      // What the tab strip calls this plugin's board. A tab is narrower than
+      // a heading and a tab with no name is a tab nobody can aim at, so the
+      // plugin's own name is the fallback - the same bargain `heading` makes.
+      tab: optionText(slotOptions(read, 'spread.board'), 'name', TAB) || folder.name,
       moves,
       approvedMoves: both(moves, configEntry?.approvedMoves),
       notices,
