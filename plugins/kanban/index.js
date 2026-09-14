@@ -13,16 +13,22 @@
  * matching is a lookup rather than a guess about words - and what is left
  * here is three rules:
  *
- *   - **Seed.** Every open line on today's page whose id has no card gets
- *     one, at the bottom of the first column. A line with no id yet is named
- *     by its `index` instead, which asks the app to stamp it. A plugin never
- *     mints an id and answering a question never writes a file.
+ *   - **Seed.** Every open line on the page whose id has no card gets one, at
+ *     the bottom of the first column. A line with no id yet is named by its
+ *     `index` instead, which asks the app to stamp it. A plugin never mints
+ *     an id and answering a question never writes a file.
  *   - **Keep.** Every card the file holds is answered, in the column and the
- *     order the file has it, reading the way its line reads today. A card
- *     whose task is nowhere on today's page keeps the text the file has:
- *     absence is not a decision.
+ *     order the file has it, reading the way its line reads on that page. A
+ *     card whose task is nowhere on it keeps the text the file has: absence
+ *     is not a decision.
  *   - **Age.** A card the app has marked `done` or `dropped` is named in
  *     `archive` once `hide_done_after` days have passed.
+ *
+ * "The page" is the day the spread window is anchored on, which is today
+ * until somebody walks back through the weeks - the question's `date`, not
+ * `now.date`. Only the seeding rule reads it, and only `now` is used as a
+ * clock: a card ages off the board against the actual day, so a board does
+ * not un-archive itself because somebody looked at last month.
  *
  * It never decides that a task finished - a tick is a decision recorded on
  * the day page and the app is what notices it (design §6). It never writes,
@@ -192,7 +198,7 @@ function hideAfter() {
 }
 
 /**
- * The cards today's page adds to the board.
+ * The cards the page adds to the board.
  *
  * Every open line whose id has no card, plus every open line with no id at
  * all - the second kind named by its `index`, which is how a line gets
