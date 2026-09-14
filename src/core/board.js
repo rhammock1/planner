@@ -80,4 +80,98 @@ function lineOf(card) {
   return `- ${text}${ending} ^${card.id}`
 }
 
-export { CARD, cardOf, lineOf }
+/**
+ * @typedef {{kind: 'card', card: Card, raw: string}
+ *   | {kind: 'text', line: string}} Entry
+ */
+
+/**
+ * @typedef {object} Column
+ * @property {string} name  the heading's words, trimmed
+ * @property {string} heading  the heading line exactly as it was written
+ * @property {Entry[]} entries  cards and the text between them, in file order
+ */
+
+/**
+ * @typedef {object} Board
+ * @property {string[]} preamble  every line above the first heading
+ * @property {Column[]} columns
+ */
+
+/** A column. The last one is the done column, by position and not by name
+ *  (design §3.1): you may call it `Shipped`, and you may not put a column
+ *  after it that means something else. */
+const HEADING = /^##\s+(.+?)\s*$/
+
+/** The board a vault gets on its first draw. The names are only defaults -
+ *  the file is the truth about them from that moment on (design §3.1). */
+const FRESH = '# Board\n\n## To do\n\n## Doing\n\n## Done\n'
+
+/**
+ * A board file, or the reason it cannot be written back.
+ *
+ * Never rejects a file for being untidy: anything that is not a heading and
+ * not a card is kept where it is and written back untouched, the way
+ * `src/core/parse.js` keeps an Opaque node. Two things are refused, and both
+ * for the same reason - a write would have to guess. A card above the first
+ * heading is in no column, and two columns with one name cannot be told apart
+ * by the name an answer would use. Neither overwrites anything: the tab says
+ * so and offers to open the file (design §9).
+ *
+ * @param {string} text
+ * @returns {{board: Board|null, problem: string|null}}
+ */
+function parseBoard(text) {
+  /** @type {string[]} */
+  const preamble = []
+  /** @type {Column[]} */
+  const columns = []
+  /** @type {Set<string>} */
+  const named = new Set()
+
+  for (const line of text.split('\n')) {
+    const heading = HEADING.exec(line)
+    if (heading !== null) {
+      const name = heading[1] ?? ''
+      if (named.has(name)) return { board: null, problem: `two columns are named ${name}` }
+      named.add(name)
+      columns.push({ name, heading: line, entries: [] })
+      continue
+    }
+
+    const card = cardOf(line)
+    const column = columns[columns.length - 1]
+    if (column === undefined) {
+      if (card !== null) return { board: null, problem: 'a card sits above the first column' }
+      preamble.push(line)
+      continue
+    }
+    column.entries.push(card === null ? { kind: 'text', line } : { kind: 'card', card, raw: line })
+  }
+
+  return { board: { preamble, columns }, problem: null }
+}
+
+/**
+ * The file a board writes.
+ *
+ * A card writes back the line it was read from rather than a line rebuilt
+ * from its parts, so a file nobody changed comes back byte for byte - the
+ * contract `tools/dump.js --check` holds day pages to, applied here. A card
+ * the app *did* change carries a `raw` rebuilt by `lineOf` at the moment of
+ * the change, so there is one rule rather than a flag.
+ *
+ * @param {Board} board
+ * @returns {string}
+ */
+function serialiseBoard(board) {
+  /** @type {string[]} */
+  const lines = [...board.preamble]
+  for (const column of board.columns) {
+    lines.push(column.heading)
+    for (const entry of column.entries) lines.push(entry.kind === 'card' ? entry.raw : entry.line)
+  }
+  return lines.join('\n')
+}
+
+export { CARD, HEADING, FRESH, cardOf, lineOf, parseBoard, serialiseBoard }

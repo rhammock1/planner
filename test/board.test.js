@@ -7,7 +7,22 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { cardOf, lineOf } from '../src/core/board.js'
+import { cardOf, lineOf, FRESH, parseBoard, serialiseBoard } from '../src/core/board.js'
+
+const SAMPLE = [
+  '# Board',
+  '',
+  '## To do',
+  '- Chase the printer firmware sign-off ^b40e17',
+  '- Read the offline queue RFC ^c1d2e3',
+  '',
+  '## Doing',
+  '- Pair with Dana on the offline queue ^a3f9k2',
+  '',
+  '## Done',
+  '- Standup - flag the sync bug  done 2026-09-14 ^d4e5f6',
+  '',
+].join('\n')
 
 test('a card is its text and the id last on the line', () => {
   assert.deepEqual(cardOf('- Read the offline queue RFC ^c1d2e3'), {
@@ -79,4 +94,59 @@ test('reading a line never touches the spaces in it', () => {
   // The collapse is on the way out and only on the way out. A double-spaced
   // line you wrote by hand reads as the words you wrote.
   assert.equal(cardOf('- a  double  spaced  line ^b40e17')?.text, 'a  double  spaced  line')
+})
+
+test('headings are the columns, in file order, and dash lines with ids are their cards', () => {
+  const { board, problem } = parseBoard(SAMPLE)
+  assert.equal(problem, null)
+  assert.deepEqual(board?.columns.map((column) => column.name), ['To do', 'Doing', 'Done'])
+  assert.deepEqual(
+    board?.columns[0]?.entries.filter((entry) => entry.kind === 'card').map((entry) => entry.card.id),
+    ['b40e17', 'c1d2e3'],
+  )
+  assert.equal(board?.columns[2]?.entries.find((entry) => entry.kind === 'card')?.card.ended, 'done')
+})
+
+test('parse then serialise is byte-identical, unrecognised text included', () => {
+  for (const text of [
+    SAMPLE,
+    '',
+    '# Board\n',
+    '# Board\n\nA note to myself about how I use this.\n\n## To do\n- x ^a1b2c3\n  some prose under a card\n',
+    '## To do\n- x ^a1b2c3',
+    '## To do\n- a  double  spaced  line ^b40e17\n',
+    'no headings at all, just prose\n',
+  ]) {
+    const { board } = parseBoard(text)
+    assert.notEqual(board, null, `${JSON.stringify(text)} did not parse`)
+    if (board !== null) assert.equal(serialiseBoard(board), text)
+  }
+})
+
+test('a fresh board has the three columns the design names', () => {
+  const { board, problem } = parseBoard(FRESH)
+  assert.equal(problem, null)
+  assert.deepEqual(board?.columns.map((column) => column.name), ['To do', 'Doing', 'Done'])
+  assert.deepEqual(
+    board?.columns.map((column) => column.entries.filter((entry) => entry.kind === 'card')),
+    [[], [], []],
+  )
+})
+
+test('a card above the first column is a file that cannot be written back', () => {
+  const { board, problem } = parseBoard('# Board\n- Stray ^a1b2c3\n\n## To do\n')
+  assert.equal(board, null)
+  assert.match(problem ?? '', /above the first column/u)
+})
+
+test('two columns with one name is a file that cannot be written back', () => {
+  const { board, problem } = parseBoard('## To do\n\n## Doing\n\n## To do\n')
+  assert.equal(board, null)
+  assert.match(problem ?? '', /two columns are named To do/u)
+})
+
+test('a column keeps its heading exactly as it was written', () => {
+  const { board } = parseBoard('##   Spaced   out   \n')
+  assert.equal(board?.columns[0]?.name, 'Spaced   out')
+  assert.equal(board?.columns[0]?.heading, '##   Spaced   out   ')
 })
