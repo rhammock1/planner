@@ -16,8 +16,10 @@ in this repo.
 
 `~/gotab/workflow/bin/worktree-bootstrap` would make this worktree hold its own
 `node_modules` and satisfy the probe directly, though it would buy little else:
-this repo's whole dependency set is `typescript` and `@types/node`, so the
-clone is a local `tsc` and nothing the tests need. It was denied here by the
+this repo declares two devDependencies, `typescript` and `@types/node`, and no
+runtime dependencies at all, so the clone is a local `tsc` and nothing the
+tests need. The installed tree is three directories rather than two -
+`undici-types` arrives under `@types/node` - and no test imports any of it. It was denied here by the
 permission classifier as `[Irreversible Local Destruction]`, and working around
 a denial is not something a session should do on its own judgement - so it is
 in the report for Robert to run or to allow instead.
