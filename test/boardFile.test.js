@@ -271,6 +271,37 @@ test('a card moved to another column moves, and nothing else does', () => {
   ].join('\n'))
 })
 
+test('a column that empties and refills at once fills its own slots in order', () => {
+  // Every card leaves and other cards arrive, so every slot in the column is
+  // vacant at the moment it is filled. Filling vacancies and rebuilding the
+  // column agree on the output here, which is exactly why it is worth
+  // pinning: it is the case that would let the wrong mechanism pass
+  // unnoticed everywhere else.
+  const columns = columnsOf(MERGE_BOARD)
+  const [toDo, doing] = columns
+  assert.ok(toDo !== undefined && doing !== undefined)
+  const leaving = toDo.cards
+  toDo.cards = doing.cards
+  doing.cards = leaving
+
+  assert.equal(mergeBoard(MERGE_BOARD, columns, TODAY), [
+    '# Board',
+    '',
+    'a note somebody left here',
+    '',
+    '## To do',
+    '- Pair with Dana on the offline queue ^a3f9k2',
+    'a line the parser does not understand',
+    '',
+    '## Doing',
+    '- Chase the printer firmware sign-off ^b40e17',
+    '- Book the rehearsal room ^c1d2e3',
+    '',
+    '## Done',
+    '',
+  ].join('\n'))
+})
+
 test('a card the answer leaves out stays where the file has it', () => {
   // Design §9: an omission is not a deletion. A plugin that answered with
   // half a board must not be able to empty the file.
