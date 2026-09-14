@@ -174,4 +174,30 @@ function serialiseBoard(board) {
   return lines.join('\n')
 }
 
-export { CARD, HEADING, FRESH, cardOf, lineOf, parseBoard, serialiseBoard }
+/** The archive a vault gets on its first ending. */
+const ARCHIVE_FRESH = '# Archive\n\n'
+
+/**
+ * The archive with some cards added to the end of it.
+ *
+ * Append-only, newest last, never read back (design §3.2). Every write is a
+ * prefix of the next, which is what makes losing the record impossible: a
+ * line that went in is never a line a later write moves. The lines are the
+ * ones `board.md` held, unchanged, so archiving is a move rather than a
+ * re-rendering, and the day page still holds the tick that decided it.
+ *
+ * Archiving nothing writes nothing - not even a heading, because a vault
+ * that has never finished a card has nothing to say in a file (design §9:
+ * created on first write, never on first read).
+ *
+ * @param {string} text  the archive as it stands, `''` when there is none
+ * @param {Card[]} cards
+ * @returns {string}
+ */
+function appendArchive(text, cards) {
+  if (cards.length === 0) return text
+  const held = text.trim() === '' ? ARCHIVE_FRESH : text.endsWith('\n') ? text : `${text}\n`
+  return `${held}${cards.map(lineOf).join('\n')}\n`
+}
+
+export { CARD, HEADING, FRESH, cardOf, lineOf, parseBoard, serialiseBoard, appendArchive }

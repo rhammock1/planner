@@ -7,7 +7,15 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { cardOf, lineOf, FRESH, parseBoard, serialiseBoard } from '../src/core/board.js'
+import { cardOf, lineOf, FRESH, parseBoard, serialiseBoard, appendArchive } from '../src/core/board.js'
+
+/** @typedef {import('../src/core/board.js').Card} Card */
+
+/** @type {Card} */
+const DONE = { id: 'd4e5f6', text: 'Review PR #4412 - printer retry', ended: 'done', endedOn: '2026-09-14' }
+
+/** @type {Card} */
+const DROPPED = { id: 'a1b2c3', text: 'Chase the vendor about pricing', ended: 'dropped', endedOn: '2026-09-13' }
 
 const SAMPLE = [
   '# Board',
@@ -149,4 +157,44 @@ test('a column keeps its heading exactly as it was written', () => {
   const { board } = parseBoard('##   Spaced   out   \n')
   assert.equal(board?.columns[0]?.name, 'Spaced   out')
   assert.equal(board?.columns[0]?.heading, '##   Spaced   out   ')
+})
+
+test('an empty archive gets its heading, and the card lines follow', () => {
+  assert.equal(
+    appendArchive('', [DONE]),
+    '# Archive\n\n- Review PR #4412 - printer retry  done 2026-09-14 ^d4e5f6\n',
+  )
+})
+
+test('an archived line is the board line it came from, byte for byte', () => {
+  assert.ok(appendArchive('', [DONE]).includes(`${lineOf(DONE)}\n`))
+})
+
+test('every write is a prefix of the next', () => {
+  // Append-only, newest last, never read back (design §3.2). The property is
+  // the whole of what the file promises, so it is the thing to test.
+  let text = ''
+  const written = [text]
+  for (const cards of [[DONE], [], [DROPPED, DONE], [DONE]]) {
+    text = appendArchive(text, cards)
+    written.push(text)
+  }
+  for (let at = 1; at < written.length; at += 1) {
+    assert.ok(
+      (written[at] ?? '').startsWith(written[at - 1] ?? ''),
+      `write ${at} is not a prefix of write ${at + 1}`,
+    )
+  }
+})
+
+test('archiving nothing writes nothing', () => {
+  assert.equal(appendArchive('', []), '')
+  assert.equal(appendArchive('# Archive\n\n', []), '# Archive\n\n')
+})
+
+test('an archive that lost its trailing newline gets one before the next line', () => {
+  assert.equal(
+    appendArchive('# Archive\n\n- Older  done 2026-09-01 ^000aaa', [DONE]),
+    '# Archive\n\n- Older  done 2026-09-01 ^000aaa\n- Review PR #4412 - printer retry  done 2026-09-14 ^d4e5f6\n',
+  )
 })
