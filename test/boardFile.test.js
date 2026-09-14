@@ -373,6 +373,70 @@ test('a column the answer adds is written at the end', () => {
   assert.ok(merged.endsWith('## Blocked\n- Waiting on legal ^a1b2c3'), merged)
 })
 
+test('a card that has been archived leaves the board', () => {
+  // The archive is append-only, so a card left on the board after its line
+  // was written into `archive.md` is archived again on the next draw, and
+  // again after that. `leaving` is what closes that loop.
+  const columns = columnsOf(MERGE_BOARD)
+  const first = columns[0]
+  assert.ok(first !== undefined)
+  first.cards = first.cards.filter((card) => card.id !== 'b40e17')
+
+  const merged = mergeBoard(MERGE_BOARD, columns, TODAY, ['b40e17'])
+  assert.ok(merged !== null)
+  assert.doesNotMatch(merged, /\^b40e17/)
+  assert.match(merged, /- Book the rehearsal room \^c1d2e3/)
+})
+
+test('a card leaving takes its line with it, and nothing fills the gap', () => {
+  const ended = '## Done\n- One  done 2026-09-01 ^d4e5f6\n- Two  done 2026-09-02 ^a1b2c3\n'
+  const columns = [{ name: 'Done', cards: [{ id: 'a1b2c3', text: 'Two', ended: /** @type {'done'} */ ('done') }] }]
+  assert.equal(
+    mergeBoard(ended, columns, TODAY, ['d4e5f6']),
+    '## Done\n- Two  done 2026-09-02 ^a1b2c3\n',
+  )
+})
+
+test('an id leaving that the file never held changes nothing', () => {
+  assert.equal(mergeBoard(MERGE_BOARD, columnsOf(MERGE_BOARD), TODAY, ['000aaa']), MERGE_BOARD)
+})
+
+test('a card both placed and leaving leaves, because its line is already archived', () => {
+  // The app only names an id in `leaving` after it has written that line
+  // into `archive.md`. Keeping it on the board would archive it twice; the
+  // other wrong answer is a card drawn in a column for one more draw.
+  const merged = mergeBoard(MERGE_BOARD, columnsOf(MERGE_BOARD), TODAY, ['b40e17'])
+  assert.ok(merged !== null)
+  assert.doesNotMatch(merged, /\^b40e17/)
+})
+
+test('a card leaving a column the answer never mentions still leaves', () => {
+  const columns = columnsOf(MERGE_BOARD).filter((column) => column.name !== 'Doing')
+  const merged = mergeBoard(MERGE_BOARD, columns, TODAY, ['a3f9k2'])
+  assert.ok(merged !== null)
+  assert.doesNotMatch(merged, /\^a3f9k2/)
+  assert.match(merged, /## Doing/)
+})
+
+test('leaving nothing is the merge that was there before', () => {
+  assert.equal(mergeBoard(MERGE_BOARD, columnsOf(MERGE_BOARD), TODAY, []), MERGE_BOARD)
+})
+
+test('a card placed in one column is not left behind in an unmentioned one', () => {
+  // Naming a card in a column is not an omission of the column it came from,
+  // so its old line vacates even when that column is not in the answer. The
+  // alternative is one task on the board twice, under the same name.
+  const columns = columnsOf(MERGE_BOARD).filter((column) => column.name === 'To do')
+  const toDo = columns[0]
+  assert.ok(toDo !== undefined)
+  toDo.cards.push({ id: 'a3f9k2', text: 'Pair with Dana on the offline queue', ended: null })
+
+  const merged = mergeBoard(MERGE_BOARD, columns, TODAY, [])
+  assert.ok(merged !== null)
+  assert.equal(merged.match(/\^a3f9k2/gu)?.length, 1)
+  assert.match(merged, /## To do\n[\s\S]*\^a3f9k2/)
+})
+
 test('a board that is not there yet is merged onto the three default columns', () => {
   const merged = mergeBoard('', [{ name: 'To do', cards: [{ id: 'a1b2c3', text: 'First ever', ended: null }] }], TODAY)
   assert.equal(merged, '# Board\n\n## To do\n- First ever ^a1b2c3\n\n## Doing\n\n## Done\n')
