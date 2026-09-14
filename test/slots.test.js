@@ -12,7 +12,7 @@ import { SLOTS, isSlot, sentenceFor, optionsTableOf } from '../src/core/slots.js
 test('the slots that exist are the ones with a consumer', () => {
   // A slot with no consumer is a guess about an API (spec §0). Adding a name
   // here without the plugin that needs it is the mistake this test catches.
-  assert.deepEqual(SLOTS.map((slot) => slot.name), ['vault.contribute', 'item.badge', 'theme.tokens', 'page.note', 'page.box', 'item.action', 'search.provide'])
+  assert.deepEqual(SLOTS.map((slot) => slot.name), ['vault.contribute', 'item.badge', 'theme.tokens', 'page.note', 'page.box', 'item.action', 'search.provide', 'spread.board'])
 })
 
 test('every slot has a sentence a person could tick', () => {
@@ -30,6 +30,7 @@ test('a slot this app does not offer is not a slot', () => {
   assert.equal(isSlot('page.box'), true)
   assert.equal(isSlot('item.action'), true)
   assert.equal(isSlot('search.provide'), true)
+  assert.equal(isSlot('spread.board'), true)
   // A slot no version of this app has offered, so this test still has a name
   // that is not one.
   assert.equal(isSlot('page.footer'), false)
@@ -68,6 +69,7 @@ test('page.note replaces page.section, so its tick is asked again', () => {
 
 test('search.provide is offered, with a sentence about what it is shown', () => {
   assert.equal(isSlot('search.provide'), true)
+  assert.equal(isSlot('spread.board'), true)
   assert.equal(optionsTableOf('search.provide'), null)
   assert.match(sentenceFor('search.provide'), /⌘F/)
 })
@@ -83,4 +85,20 @@ test("item.action's sentence says a line is picked, and that a page is opened", 
   // (the line's words) and what comes back (a page of your own).
   assert.match(sentence, /line/u)
   assert.match(sentence, /page/u)
+})
+
+test('spread.board is the one slot whose table is not its last word', () => {
+  // Every other slot's table is named for the slot's last word. This one's is
+  // `[tab]`, because what it holds configures the tab strip rather than the
+  // board, and a second slot drawn into that strip would read the same table.
+  assert.equal(isSlot('spread.board'), true)
+  assert.equal(optionsTableOf('spread.board'), 'tab')
+})
+
+test("spread.board's sentence says what it is shown and where its board goes", () => {
+  const sentence = sentenceFor('spread.board')
+  // It is shown every line's words, which is the same handing-over item.badge
+  // asks about, so the sentence has to say so rather than only name a board.
+  assert.match(sentence, /every line/u)
+  assert.match(sentence, /spread/u)
 })

@@ -377,6 +377,7 @@ check('the settings pane lists a plugin and what it asks for', () => {
     heading: 'macos-calendar',
     actionLabel: 'macos-calendar',
     box: { width: 48, height: 48 },
+    tab: 'macos-calendar',
     moves: [],
     notices: [],
     problem: null,
