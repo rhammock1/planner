@@ -119,6 +119,7 @@ that the manifest does not declare is never asked either.
 | `page.box` | `{date, glance: {open, done, due, overdue}, theme: {paper, ink, dim, accent, alert}}` — how many lines the day has of each kind, and the five colours it is drawn in. Never a line's words. | `{svg}` or `null` |
 | `item.action` | `{date, index, text}` — the line under the caret when `⌘⇧N` was pressed. | `{open: 'sidecar:…'}` or `null` |
 | `search.provide` | `{query}` — exactly what was typed into ⌘F. | `{text, date?, href?}[]` |
+| `spread.board` | `{date, items: [{index, text, id, state}], board}` — `item.badge`'s grant with each line's state beside it, and your own `board.md` as it stands. Never another plugin's board. | `{columns: [{name, cards}], archive: string[]}` |
 
 A line's `id` is its `^abc123` — the name the file gives it, which survives
 the line being carried to another day ([format.md](format.md)). It is `null`
@@ -617,6 +618,94 @@ is headed by your plugin's name, and a provider with nothing has no group.
 `href` is optional, must be a `sidecar:` of yours, and a hit whose href is
 neither is dropped whole — a result you cannot press would not say why.
 Twenty hits each.
+
+### `spread.board`
+
+A board of your own, in a tab of the spread window beside Week and Month:
+
+```toml
+slots = ["spread.board"]
+
+[tab]
+name = "Kanban"
+```
+
+```js
+planner.on('spread.board', ({ date, items, board }) => {
+  // `board` is your own board.md as it stands. Parse it, decide where
+  // today's lines belong, and hand back the arrangement you want drawn.
+  const open = items.filter((line) => line.state === 'open')
+  return {
+    columns: [
+      { name: 'To do', cards: open.map((line) => ({ index: line.index, text: line.text })) },
+      { name: 'Doing', cards: [] },
+      { name: 'Done', cards: [] },
+    ],
+    archive: [],
+  }
+})
+```
+
+**The file is the board; your answer is an arrangement of it.** You are handed
+the text of `board.md` and you hand back columns — the app merges the two, so a
+card the file holds that your answer never mentions keeps its place. An
+omission is not a deletion. A board that has not answered yet, or whose answer
+this app could not read, draws the file as it stands, which is why the tab is
+never a blank window.
+
+**A card names exactly one of `id` and `index`.** `id` is a line's `^abc123`,
+which survives the line being carried to another day; `index` is a line in the
+`items` you were just sent, and means *give this line a name and put it on the
+board*. The app does the stamping — writing a name into a day file is the
+app's write into its own format, not yours. A card naming both is asking to be
+two things and a card naming neither names no task; both are dropped. `text`
+is optional beside an `index` and falls back to the line's own words; it is one
+line, cut at 200.
+
+**`state` is why this slot is not `item.badge`.** A board's difficulty is
+telling *done yesterday* from *carried away*, and the four states —
+`open`, `done`, `dropped`, `migrated` — are what tell them apart. A `migrated`
+line is refused as a card whoever asks: its twin on the later day is the live
+one, and stamping this copy would mint a second name for one task.
+
+**The last column is the done column, by position and not by name.** Call it
+`Shipped` if you like, but do not put a column after it that means something
+else. A line the vault says is ticked is moved there whatever your answer said,
+and its ending is the vault's rather than yours — a `done` or `dropped` marker
+is written on the card, and taken off again if the line is unticked. A
+`dropped` card is *not* moved: a struck line is a decision that was made, and
+the column it was in is where that decision is legible.
+
+**`archive` is how a card leaves the board.** Name the ids you are finished
+with and the app moves those lines, as `board.md` held them, to the end of
+`archive.md` — append-only, newest last, never read back. A card the file does
+not hold as *ended* is refused: the archive is a one-way door, and a plugin
+naming an in-flight card would be deleting somebody's task through it. The
+archive is written before the board, so a board write that fails leaves the
+card on the board rather than nowhere.
+
+**The window writes too, and you will see it as a new question.** A card
+dragged between columns is written straight into `board.md` by the app, and the
+next question carries the changed file — so answer the file you are handed
+rather than the arrangement you last sent, or you will put the card back. A
+drop on the last column is refused as a move: a card gets there by its line
+being ticked, so the window goes to that line instead of writing anything. A
+card you pointed at by `index` cannot be dragged until it has a name, which it
+gets on the draw after you first send it.
+
+**Your files live in your folder of the vault**, `<vault>/<your-name>/`, which
+is `board.md` and `archive.md` and nothing else. A name that cannot be a folder
+name — it must begin with a letter, hold only lowercase letters, digits and
+hyphens, and not be `someday` — has nowhere to keep one, so the plugin runs
+with its other grants and simply has no tab. Neither file is created until
+there is something to write in it.
+
+`[tab] name` is what the strip calls your board, at most 16 characters,
+defaulting to your plugin's name. It is a tab and not a heading: longer than
+that and it stops being a tab and starts being the strip.
+
+You are never shown another plugin's board. Two plugins that both keep one get
+two tabs, two folders and two files, and neither is told the other exists.
 
 ### `onContribute`
 
