@@ -1,0 +1,14 @@
+name        = "kanban"
+version     = "0.1.0"
+description = "A board of what is started, going and finished"
+entry       = "index.js"
+slots       = ["spread.board"]
+
+# What the tab strip and the popover's fourth tab call this.
+[tab]
+name = "Board"
+
+[settings.hide_done_after]
+label   = "Archive finished cards after"
+kind    = "count"
+default = 7

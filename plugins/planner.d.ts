@@ -213,6 +213,61 @@ declare namespace Planner {
     /** Opened by the app when it is clicked, if the config approves it. */
     href: string
   }
+
+  /**
+   * One line on the day being drawn, as a board is shown it.
+   *
+   * `id` is the durable id the line already carries, and null for a line that
+   * has none: asking a question never writes a file, so an unstamped line
+   * arrives unstamped. Answer with its `index` to ask for it to be stamped
+   * and seeded - a plugin never mints an id.
+   */
+  interface BoardItem {
+    index: number
+    id: string | null
+    text: string
+    /** Ticked on the page. An ended card's line is usually not here at all. */
+    done: boolean
+  }
+
+  /** The question behind the `spread.board` slot. */
+  interface BoardQuestion {
+    now: Now
+    /** The day being drawn, `YYYY-MM-DD`. */
+    date: string
+    /** Every line the parser understood on that page, on the `item.badge`
+     *  precedent. Never the vault. */
+    items: BoardItem[]
+    /** Your board file, verbatim, or `''` when there is not one yet. */
+    board: string
+  }
+
+  /**
+   * One card in an answer. Exactly one of `id` and `index` is set: `id` names
+   * a card the board file already holds, `index` asks for the line at that
+   * index on the day being drawn to be given an id and seeded.
+   */
+  interface BoardCard {
+    id: string | null
+    index: number | null
+    text: string
+    /** How it finished, or null while it is still in flight. */
+    ended: 'done' | 'dropped' | null
+  }
+
+  interface BoardColumn {
+    name: string
+    cards: BoardCard[]
+  }
+
+  /** What `spread.board` answers with. A column the file does not have is
+   *  dropped, and a card the file has that the answer omits is kept where
+   *  the file has it: an omission is not a deletion. */
+  interface BoardAnswer {
+    columns: BoardColumn[]
+    /** The ids of ended cards old enough to move to `archive.md`. */
+    archive: string[]
+  }
 }
 
 declare const planner: {
@@ -229,6 +284,8 @@ declare const planner: {
     Planner.SectionAnswer[] | Promise<Planner.SectionAnswer[]>): void
   on(slot: 'search.provide', handler: (question: Planner.SearchQuestion) =>
     Planner.SearchHit[] | Promise<Planner.SearchHit[]>): void
+  on(slot: 'spread.board', handler: (question: Planner.BoardQuestion) =>
+    Planner.BoardAnswer | Promise<Planner.BoardAnswer>): void
 
   /** `vault.contribute` under the name it has always had. */
   onContribute(
