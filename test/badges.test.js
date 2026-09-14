@@ -36,6 +36,33 @@ test('a plugin is not shown a line the parser did not understand', () => {
   }
 })
 
+test('a plugin is shown a line\'s name when it has one, and null when it has not', () => {
+  const page = parse('- [ ] Named ^k4m2qa\n- [ ] Anonymous\n')
+  assert.deepEqual(linesOf(page).map((line) => line.id), ['k4m2qa', null])
+})
+
+test('asking about a page mints nothing and changes nothing', () => {
+  // The lazy rule, at the one place that would break it: `item.badge` is asked
+  // on every draw of every page, so if drawing could stamp, browsing a vault
+  // would fill it with names nobody asked for (spec §2.3). Nothing here
+  // writes, and the page it was handed comes back the same object.
+  const page = parse('- [ ] Anonymous\n- [ ] Also anonymous\n')
+  const before = JSON.stringify(page)
+  const lines = linesOf(page)
+  badgeKey('2026-09-02', lines)
+  readBadges([], lines)
+  assert.deepEqual(lines.map((line) => line.id), [null, null])
+  assert.equal(JSON.stringify(page), before)
+})
+
+test('a name changes the key, so an answer keyed on it is asked again', () => {
+  // The other half: a line that gains a name has changed for a plugin that
+  // reads one, and a cached answer from before the stamp would be stale.
+  const anonymous = linesOf(parse('- [ ] Firmware sign-off\n'))
+  const named = linesOf(parse('- [ ] Firmware sign-off ^k4m2qa\n'))
+  assert.notEqual(badgeKey('2026-09-02', anonymous), badgeKey('2026-09-02', named))
+})
+
 test('a page with nothing on it shows nothing', () => {
   assert.deepEqual(linesOf(null), [])
 })
@@ -46,14 +73,17 @@ test('the key changes when the lines do, and not when they do not', () => {
   assert.notEqual(badgeKey('2026-09-02', lines), badgeKey('2026-09-03', lines))
   assert.notEqual(
     badgeKey('2026-09-02', lines),
-    badgeKey('2026-09-02', [{ index: 0, text: 'Review PR #4413' }]),
+    badgeKey('2026-09-02', [{ index: 0, text: 'Review PR #4413', id: null }]),
   )
   // Not the page text: a keystroke in the daily note must not re-ask
   // (spec §1.4).
   assert.equal(badgeKey('2026-09-02', lines), badgeKey('2026-09-02', [...lines]))
 })
 
-const LINES = [{ index: 0, text: 'Review PR #4412' }, { index: 2, text: 'Water the plants' }]
+const LINES = [
+  { index: 0, text: 'Review PR #4412', id: null },
+  { index: 2, text: 'Water the plants', id: null },
+]
 
 /** @param {unknown[]} value */
 function said(value) {

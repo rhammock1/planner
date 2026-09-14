@@ -113,12 +113,18 @@ that the manifest does not declare is never asked either.
 | Slot | You are shown | You may answer with |
 |---|---|---|
 | `vault.contribute` | Nothing but the range of days. | `{date, time, text}[]` |
-| `item.badge` | `{date, items: [{index, text}]}` — every line the parser understood on the page being drawn, and where it sits. Not its note, not its tokens, not the daily note. | `{index, label, href}[]` |
+| `item.badge` | `{date, items: [{index, text, id}]}` — every line the parser understood on the page being drawn, and where it sits. Not its note, not its other tokens, not the daily note. | `{index, label, href}[]` |
 | `theme.tokens` | The clock, and `tokens` — every theme token as the theme set it. You are asked to *move* those, and cannot move what you were never shown. Not the page: what you do with colour is a function of the time of day. | `Record<string, string>` — a partial map of theme tokens |
 | `page.note` | `{date, sidecars: [{suffix, title}]}` — which of *your* files exist on that day, and never anybody else's. | `{suffix, title?}[]` |
 | `page.box` | `{date, glance: {open, done, due, overdue}, theme: {paper, ink, dim, accent, alert}}` — how many lines the day has of each kind, and the five colours it is drawn in. Never a line's words. | `{svg}` or `null` |
 | `item.action` | `{date, index, text}` — the line under the caret when `⌘⇧N` was pressed. | `{open: 'sidecar:…'}` or `null` |
 | `search.provide` | `{query}` — exactly what was typed into ⌘F. | `{text, date?, href?}[]` |
+
+A line's `id` is its `^abc123` — the name the file gives it, which survives
+the line being carried to another day ([format.md](format.md)). It is `null`
+far more often than not, and asking never changes that: the app stamps a name
+when a line becomes a card somewhere, never because a question was put about
+it. Read one if it is there; you cannot make one.
 
 A badge's `label` is one line, cut at 16 characters. Its `index` must be one
 the question sent — the lines may have moved while you were thinking, and a

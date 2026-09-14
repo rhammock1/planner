@@ -167,6 +167,10 @@ declare namespace Planner {
   interface Line {
     index: number
     text: string
+    /** The line's `^abc123`, or null - which is the usual answer. The app
+     *  stamps one when a line becomes a card somewhere, never because you
+     *  were asked about it. Read it; you cannot make one. */
+    id: string | null
   }
 
   /** The question behind the `item.badge` slot. */

@@ -3,7 +3,7 @@
 /**
  * Document -> canonical Markdown.
  *
- * Canonical means: tokens in the order @time !due ~lead >moved, notes indented
+ * Canonical means: tokens in the order @time !due ~lead >moved ^id, notes indented
  * exactly two spaces, no trailing whitespace on item lines, times zero-padded
  * (spec §3.4).
  * Opaque nodes are exempt and written back exactly as they were read.
@@ -68,5 +68,9 @@ export function serializeItem(item) {
   if (item.due !== null) parts.push(`!${item.due}`)
   if (item.lead !== null) parts.push(`~${item.lead}d`)
   if (item.movedTo !== null) parts.push(`>${item.movedTo}`)
+  // Last, always. The id is the app's bookkeeping rather than something the
+  // user wrote, and the end of the line is where it is least in the way of
+  // the sentence when the file is read by hand.
+  if (item.id !== null) parts.push(`^${item.id}`)
   return parts.join(' ')
 }
