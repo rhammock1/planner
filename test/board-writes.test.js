@@ -349,6 +349,60 @@ describe('a card old enough to come off the board', () => {
     assert.deepEqual(wrote, [])
   })
 
+  // Both windows keep the boards now, and `inFlight` is per-webview, so the
+  // popover and the spread can decide on the same frame that the same card has
+  // aged out. The archive is append-only with nothing watching it: a duplicate
+  // there is permanent and unseen, which is the one place in this path where
+  // doing the work twice is worse than wasteful.
+  describe('that the other window has already filed', () => {
+    const FILED = '# Archive\n\n- Call the vet  done 2026-09-01 ^p9x1bb\n'
+
+    test('is not written into the archive a second time', async () => {
+      const { store, wrote } = storeWith({ board: ENDED, archive: FILED })
+      await keepBoards(store, PAGE, [board({ board: ENDED, answer: aged })], '2026-09-14')
+      assert.deepEqual(wrote.map(([file]) => file), ['board'])
+    })
+
+    test('and still comes off the board, because which window filed it is not the board\'s business', async () => {
+      // Leaving the card on because somebody else archived it would be a card
+      // that could never leave: the next draw would find it filed again.
+      const { store, wrote } = storeWith({ board: ENDED, archive: FILED })
+      await keepBoards(store, PAGE, [board({ board: ENDED, answer: aged })], '2026-09-14')
+      assert.ok(!String(wrote[0]?.[1]).includes('p9x1bb'), wrote[0]?.[1])
+    })
+
+    test('where a card it has not filed is still appended, and only that one', async () => {
+      const both = `# Board
+
+## Done
+
+- Fix the gate  done 2026-09-02 ^k4m2qa
+- Call the vet  done 2026-09-01 ^p9x1bb
+`
+      const { store, wrote } = storeWith({ board: both, archive: FILED })
+      await keepBoards(store, PAGE, [board({
+        board: both,
+        answer: { columns: [column('Done', [])], archive: ['k4m2qa', 'p9x1bb'] },
+      })], '2026-09-14')
+
+      assert.deepEqual(wrote.map(([file]) => file), ['archive', 'board'])
+      const archive = String(wrote[0]?.[1])
+      assert.equal(archive.match(/\^p9x1bb/gu)?.length, 1, archive)
+      assert.equal(archive.match(/\^k4m2qa/gu)?.length, 1, archive)
+      // Both leave the board, not just the one this window wrote down.
+      assert.ok(!String(wrote[1]?.[1]).includes('^k4m2qa'), wrote[1]?.[1])
+      assert.ok(!String(wrote[1]?.[1]).includes('^p9x1bb'), wrote[1]?.[1])
+    })
+
+    test('and an archive that holds every one of them is not written at all', async () => {
+      const { store, wrote, notices } = storeWith({ board: ENDED, archive: FILED })
+      await keepBoards(store, PAGE, [board({ board: ENDED, answer: aged })], '2026-09-14')
+      // Silently: nothing went wrong, and the card is archived either way.
+      assert.deepEqual(notices, [])
+      for (const [file] of wrote) assert.notEqual(file, 'archive')
+    })
+  })
+
   test('a card nothing has finished is refused, and the board is written without it leaving', async () => {
     const { store, wrote, notices } = storeWith({ board: ENDED })
     await keepBoards(store, PAGE, [board({

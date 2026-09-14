@@ -24,6 +24,7 @@
     "test/board-store.test.js",
     "test/board-asking.test.js",
     "test/board-writes.test.js",
+    "test/drag-scroll.test.js",
     "plugins/**/*.js",
     "plugins/**/*.d.ts"
   ]

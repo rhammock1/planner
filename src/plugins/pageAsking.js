@@ -127,6 +127,28 @@ export function boxFor(store, page, glance, tokens) {
 }
 
 /**
+ * The plugins that keep a board, in the order `installed` lists them.
+ *
+ * A board is kept in the plugin's folder in the vault, so a plugin whose name
+ * cannot be a folder has nowhere to keep one. `plan` has already said so in
+ * the pane (spec §2.5); here it is simply not a tab.
+ *
+ * Exported because both windows draw a strip of these tabs before anything has
+ * been asked of anybody - a tab exists because a manifest says so, not because
+ * a plugin answered - and a strip filtered one way while the question was
+ * asked another would be a tab that opens an empty board.
+ *
+ * @param {Store} store
+ * @returns {import('../core/installed.js').Installed[]}
+ */
+export function boardPlugins(store) {
+  return store.installed().filter((one) =>
+    one.enabled
+    && one.approvedSlots.includes('spread.board')
+    && vaultFolder(one.name) !== null)
+}
+
+/**
  * What each board plugin makes of the day in front of you (spec §2.2).
  *
  * One entry per plugin that keeps a board, in the order `installed` lists
@@ -157,13 +179,7 @@ export function boxFor(store, page, glance, tokens) {
 export function boardsFor(store, page) {
   const lines = boardLinesOf(store.page(page))
 
-  // A board is kept in the plugin's folder in the vault, so a plugin whose
-  // name cannot be a folder has nowhere to keep one. `plan` has already said
-  // so in the pane (spec §2.5); here it is simply not a tab.
-  const keeping = store.installed().filter((one) =>
-    one.enabled
-    && one.approvedSlots.includes('spread.board')
-    && vaultFolder(one.name) !== null)
+  const keeping = boardPlugins(store)
   if (keeping.length === 0) return { boards: [], notices: [] }
 
   /** @type {Map<string, string>} */

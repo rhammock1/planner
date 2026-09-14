@@ -29,7 +29,7 @@
 
 import { BOARD, ARCHIVE } from '../core/board.js'
 import { stampAll } from '../core/ids.js'
-import { appendArchive, mergeBoard } from '../core/boardFile.js'
+import { appendArchive, archivedIds, mergeBoard } from '../core/boardFile.js'
 import { unnamed, placeBoard, archiving, moveCard } from '../core/boardWrite.js'
 
 /** @typedef {import('../store.js').Store} Store */
@@ -206,8 +206,21 @@ async function archiveEnded(store, board, held, asked) {
     return null
   }
   const before = store.pluginFile(board.plugin, ARCHIVE) ?? ''
-  const done = await store.changePluginFile(board.plugin, ARCHIVE, appendArchive(before, cards))
-  if (!done) return null
+
+  // A card the archive already holds is not written into it again. Both
+  // windows keep the boards now, so two of them can decide on the same frame
+  // that the same card has aged out - and this file is append-only with
+  // nothing watching it, so that duplicate would be permanent and unseen.
+  //
+  // It still comes off the board. The card is archived; which window put it
+  // there is not a thing the board has an opinion about, and leaving it on
+  // because somebody else filed it would be a card that could never leave.
+  const filed = archivedIds(before)
+  const adding = cards.filter((card) => !filed.has(card.id))
+  if (adding.length > 0) {
+    const done = await store.changePluginFile(board.plugin, ARCHIVE, appendArchive(before, adding))
+    if (!done) return null
+  }
   return cards.map((card) => card.id)
 }
 

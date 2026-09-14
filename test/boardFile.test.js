@@ -8,7 +8,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { cardOf, lineOf, FRESH, parseBoard, serialiseBoard, appendArchive, mergeBoard } from '../src/core/boardFile.js'
+import { cardOf, lineOf, FRESH, parseBoard, serialiseBoard, appendArchive, archivedIds, mergeBoard } from '../src/core/boardFile.js'
 
 /** @typedef {import('../src/core/boardFile.js').Card} Card */
 
@@ -482,4 +482,46 @@ test('a board that is not there yet is merged onto the three default columns', (
 
 test('a board nobody could read is merged to nothing, so the file is left alone', () => {
   assert.equal(mergeBoard('# Board\n- Stray ^a1b2c3\n\n## To do\n', [], TODAY), null)
+})
+
+// `archivedIds` reads back what `appendArchive` wrote, which is the one thing
+// the archive is ever read for: both windows keep the boards now, and the file
+// is append-only with nothing watching it, so a card filed twice would stay
+// filed twice and nobody would see it happen.
+
+test('the archive names the cards it holds', () => {
+  const text = appendArchive('', [DONE, DROPPED])
+  assert.deepEqual([...archivedIds(text)].sort(), ['a1b2c3', 'd4e5f6'])
+})
+
+test('an archive with nothing in it names nobody', () => {
+  assert.equal(archivedIds('').size, 0)
+  assert.equal(archivedIds('# Archive\n\n').size, 0)
+})
+
+test('a heading is not a card, and neither is a line nobody named', () => {
+  const text = [
+    '# Archive',
+    '',
+    '## Older',
+    '- Something nobody ever named',
+    'A note somebody left in the file.',
+    lineOf(DONE),
+    '',
+  ].join('\n')
+  assert.deepEqual([...archivedIds(text)], ['d4e5f6'])
+})
+
+test('a card is named whether it was done or dropped', () => {
+  const ids = archivedIds([lineOf(DONE), lineOf(DROPPED)].join('\n'))
+  assert.ok(ids.has('d4e5f6'))
+  assert.ok(ids.has('a1b2c3'))
+})
+
+test('a card the archive holds twice is still one name', () => {
+  // Which is what makes the check in `boardWrites.js` a check rather than a
+  // count: it asks whether the file already holds the card, not how often.
+  const text = appendArchive(appendArchive('', [DONE]), [DONE])
+  assert.equal(text.match(/\^d4e5f6/gu)?.length, 2)
+  assert.deepEqual([...archivedIds(text)], ['d4e5f6'])
 })

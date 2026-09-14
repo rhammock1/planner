@@ -18,8 +18,8 @@
 
 import { el, setText, setClass } from '../ui/dom.js'
 import { patchList } from '../ui/keyedList.js'
+import { autoScroll } from './dragScroll.js'
 
-/** @typedef {import('./spreadPage.js').SpreadState} SpreadState */
 /** @typedef {import('../plugins/pageAsking.js').Board} Board */
 /** @typedef {import('../core/board.js').Card} Card */
 
@@ -60,7 +60,7 @@ const CARD = 'application/x-planner-card'
  * @param {(plugin: string, id: string, column: string, before: string|null) => void} onDrop
  * @param {(id: string) => void} onFinish  a drop on the last column, which is
  *   refused as a move and answered as a question about where ticking happens
- * @returns {{element: HTMLElement, render: (state: SpreadState) => void}}
+ * @returns {{element: HTMLElement, render: () => void}}
  */
 export function createBoardView(showing, onDrop, onFinish) {
   const title = el('h2', 'view-title')
@@ -72,6 +72,14 @@ export function createBoardView(showing, onDrop, onFinish) {
 
   const element = el('section', 'view board')
   element.append(head, columns)
+
+  // A drag holds the pointer captive - no wheel, no scroll gesture - so
+  // without this the columns below the fold cannot be reached by dragging.
+  // It matters stacked, which is how the popover draws a board: three columns
+  // down a 560-point window, and the one you want is usually off the bottom.
+  // In the spread window the same element scrolls sideways and has no vertical
+  // overflow, so this costs a listener there and does nothing.
+  autoScroll(columns, carriesCard)
 
   /**
    * @param {EventTarget|null} target

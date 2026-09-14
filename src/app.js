@@ -13,7 +13,12 @@
 import { horizon } from './core/horizon.js'
 import { unfinished, carryForward } from './core/carry.js'
 import { readContributions } from './core/contributions.js'
-import { badgesFor, sectionsFor, providedFor, boxFor } from './plugins/pageAsking.js'
+import { badgesFor, sectionsFor, providedFor, boxFor, boardsFor, boardPlugins } from './plugins/pageAsking.js'
+import { keepBoards, dropCard } from './plugins/boardWrites.js'
+import { boardViewOf, pluginOfView } from './views/boardView.js'
+import { DAY_VIEW } from './views/dayFooter.js'
+import { lineWithId } from './core/ids.js'
+import { SOMEDAY } from './core/vaultIndex.js'
 import { openInEditor, pickVault } from './vaultActions.js'
 import { openSidecar, followHit, followRef, noteOnLine, openMarker } from './sidecarActions.js'
 import { readRef, sidecarRef, sidecarPath } from './core/sidecars.js'
@@ -39,6 +44,12 @@ const store = createStore()
 // it opened on, and the page has to follow the clock over midnight
 // (showing.js).
 const showing = createShowing(today())
+// Which of this window's views is up: the day, or one plugin's board (phase
+// four §8.3). A module `let` rather than anything kept, because the popover is
+// hidden rather than destroyed - the webview that was on the board at five is
+// the one the icon opens at six - and because what you were last looking at is
+// not a thing to write to disk.
+let view = DAY_VIEW
 let pinned = false
 // A note a jump is waiting for, until the day's files have been read again
 // (spec §4.3).
@@ -80,7 +91,37 @@ async function start() {
       onClose: () => { closeNote() },
     },
     onPin: (next) => { void pin(next) },
-    onOpenSpread: (view) => { void openSpread(view) },
+    onView: (next) => { go(next) },
+    onCard: (plugin, id, column, before) => { void dropCard(store, plugin, id, column, before) },
+
+    /**
+     * A card dropped on the last column, which is not a drop target: a card
+     * gets there by its line being ticked, and ticking a line is a write into
+     * your day file that a board does not make (kanban design §6).
+     *
+     * The refusal does the useful half, and this window can do it properly
+     * where the spread window can only get close: it shows the day the line is
+     * on, with the line's own checkbox one click away. A line on the back page
+     * is the exception - that is the other window's view - so that one is
+     * handed over the way it always was.
+     */
+    onFinish: (id) => {
+      const found = lineWithId(store.vault(), id)
+      if (found === null) {
+        // A card whose task is nowhere in the vault. Said out loud, because
+        // unlike a stale drawing this one does not fix itself: the card will
+        // sit on the board being undroppable until somebody knows why.
+        store.notice('That card’s line is not in the vault, so there is nothing to tick.')
+        return
+      }
+      if (found.page === SOMEDAY) {
+        void openSpread('someday')
+        return
+      }
+      showing.go(found.page, today())
+      view = DAY_VIEW
+      draw()
+    },
     onSearch: (query) => search(store.vault(), query),
     onProviders: (query) => providedFor(store, query),
     onFollow: (hit) => { void followHit(surface, hit) },
@@ -208,21 +249,53 @@ async function pin(next) {
 }
 
 /**
- * Opens the detached window on one of its views (spec §5.6). The popover only
- * ever shows a day; everything wider than one lives in the other window.
+ * A tab in the footer.
  *
- * @param {string} view
+ * Two kinds of destination in one strip (phase four §8.3). The day and a
+ * board are views of this window; the week, the month and the back page are
+ * the other window's, because they show more than one day and this one is 380
+ * points wide. Which is which is decided here rather than in the footer, so
+ * the strip stays a strip of names.
+ *
+ * @param {string} next
+ * @returns {void}
+ */
+function go(next) {
+  if (next !== DAY_VIEW && pluginOfView(next) === null) {
+    void openSpread(next)
+    return
+  }
+
+  // A board is an arrangement of today and only today (`.plan/spec.md`), and
+  // this window, unlike the other one, has a date at the top of it. Opening a
+  // board while the page shows last Tuesday would put Tuesday's date above an
+  // arrangement of today - so the page comes with you. Going back to the day
+  // then leaves you on today, which is where somebody who has just read
+  // today's board wants to be.
+  if (pluginOfView(next) !== null) showing.go(today(), today())
+  view = next
+  draw()
+}
+
+/**
+ * Opens the detached window on one of its views (spec §5.6).
+ *
+ * @param {string} asked
  * @returns {Promise<void>}
  */
-async function openSpread(view) {
+async function openSpread(asked) {
   try {
-    await ipc.openSpread(view)
+    await ipc.openSpread(asked)
   } catch (error) {
-    store.notice(`Could not open the ${view} view: ${message(error)}`)
+    store.notice(`Could not open the ${asked} view: ${message(error)}`)
   }
 }
 
 function draw() {
+  // The day this draw is about, settled once. `today()` read twice in one draw
+  // can straddle midnight, and a board's writes decided against one of them
+  // and written into the page named by the other is an id stamped on the wrong
+  // day - the same rule `spread.js` follows, for the same reason.
   const now = today()
   // Before anything is read off it: the day may have turned since the last
   // draw, and if this is today's page it is now a different one.
@@ -263,7 +336,29 @@ function draw() {
   // Not asked for at all in a window too short to show one - which is the
   // whole of the threshold rule: a question nobody can see the answer to is
   // not a question worth waking a plugin for.
-  const drawn = dayPage.roomForABox(window)
+  // Which plugins have a board, which is a question for the config rather
+  // than for any plugin: a tab exists because a manifest says so, so the strip
+  // is drawn whether or not anybody has been asked anything.
+  const tabs = boardPlugins(store).map((one) => ({ plugin: one.name, tab: one.tab }))
+
+  // The board itself, asked about today and only while one is on screen. The
+  // same threshold rule the margin below follows: a question nobody can see
+  // the answer to is not worth waking a plugin for.
+  //
+  // The window asks too, and both windows write. Two of the three writes are
+  // already safe to make twice - `mergeBoard` returns the file it was given
+  // when nothing moved, and `stampAll` mints nothing for a line that has an
+  // id - and the third, the archive append, was made so (`boardWrites.js`).
+  const showingBoard = pluginOfView(view) !== null && tabs.some((one) => boardViewOf(one.plugin) === view)
+  const kept = showingBoard ? boardsFor(store, now) : { boards: [], notices: [] }
+  // Not awaited: a draw is what the window owes the person in front of it, and
+  // a write is what it owes the vault afterwards.
+  if (showingBoard) void keepBoards(store, now, kept.boards, now)
+
+  // Nothing draws the day's margin while a board is up, so nothing asks for
+  // one - the threshold rule again, applied to a hidden page rather than a
+  // short one.
+  const drawn = !showingBoard && dayPage.roomForABox(window)
     ? boxFor(store, page, glanceOf(store.page(page), now, store.config().horizonLeadDays), wearing(store))
     : { box: null, notices: [] }
 
@@ -293,12 +388,15 @@ function draw() {
     prefixes: store.pluginPrefixes(),
     badges: marked.badges,
     box: drawn.box,
+    view,
+    tabs,
+    boards: kept.boards,
     // The one thing a notice ever needs pressing for: the app will not put a
     // vault somewhere nobody asked for (spec §8).
     actions: store.vaultExists() ? [] : [{ label: 'Choose a folder…', run: () => { void pickVault(store, ipc) } }],
     // Worked out on the way to the page rather than kept, so redrawing the
     // same contributions does not say the same thing twice.
-    notices: [...store.notices(), ...given.notices, ...marked.notices, ...blocked.notices, ...warmed, ...drawn.notices],
+    notices: [...store.notices(), ...given.notices, ...marked.notices, ...blocked.notices, ...warmed, ...drawn.notices, ...kept.notices],
   })
 
   // Tried on every draw until it lands: a note just created is not in the

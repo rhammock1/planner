@@ -14,6 +14,7 @@ import { parse } from '../../src/core/parse.js'
 import * as dayPage from '../../src/views/dayPage.js'
 import { buildIndex } from '../../src/core/vaultIndex.js'
 import { search as searchVault } from '../../src/core/search.js'
+import { DAY_VIEW } from '../../src/views/dayFooter.js'
 
 const found = document.querySelector('#stage')
 if (!(found instanceof HTMLElement)) throw new Error('no stage')
@@ -22,6 +23,9 @@ const stage = found
 /** The block the last press of a meeting's note control asked to open.
  *  @type {import('../../src/core/sections.js').Block|null} */
 let opened = null
+
+/** The view the last press of a footer tab asked for. @type {string|null} */
+let went = null
 
 /**
  * @param {number} count
@@ -61,7 +65,9 @@ function show(count, events, notices, actions, box) {
     onAdd: async () => true,
     onCarry: () => {},
     onPin: () => {},
-    onOpenSpread: () => {},
+    onView: (next) => { went = next },
+    onCard: () => {},
+    onFinish: () => {},
     onSearch: (query) => searchVault(vault, query),
     onProviders: () => ({ groups: [], notices: [] }),
     onJump: () => {},
@@ -78,6 +84,9 @@ function show(count, events, notices, actions, box) {
   dayPage.render({
     today: '2026-09-01',
     page: '2026-09-01',
+    view: DAY_VIEW,
+    tabs: [],
+    boards: [],
     doc: parse(pageOf(count)),
     horizon: [],
     carry: [],
@@ -125,7 +134,9 @@ function handlersFor() {
     onAdd: async () => true,
     onCarry: () => {},
     onPin: () => {},
-    onOpenSpread: () => {},
+    onView: (next) => { went = next },
+    onCard: () => {},
+    onFinish: () => {},
     onSearch: () => ({ groups: [], found: 0 }),
     onProviders: () => ({ groups: [], notices: [] }),
     onJump: () => {},
@@ -241,8 +252,14 @@ check('a day with nothing contributed shows no section at all', () => {
 
 check('contributed events appear under the list and above the note', () => {
   show(3, 2)
-  const order = [...stage.querySelectorAll('.page > *')].map((part) => part.className)
-  equal(order.join(' '), 'page-head notice-band carry horizon items add day-sections note-row evidence page-foot search settings note-view', 'the section is in the wrong place')
+  // The day's own parts are gathered in `.day-body` now, so a board can take
+  // their place rather than sit under them (spec §1). What is between the
+  // header and the footer is the day or the board, and never both.
+  const page = [...stage.querySelectorAll('.page > *')].map((part) => part.className)
+  equal(page.join(' '), 'page-head notice-band day-body view board stacked page-foot search settings note-view', 'the page is in the wrong order')
+
+  const body = [...stage.querySelectorAll('.day-body > *')].map((part) => part.className)
+  equal(body.join(' '), 'carry horizon items add day-sections note-row evidence', 'the section is in the wrong place')
   equal(stage.querySelectorAll('.given-item').length, 2, 'the events did not appear')
 })
 
@@ -467,6 +484,9 @@ function contribute(sections, blocks, prefixes) {
   dayPage.render({
     today: '2026-09-01',
     page: '2026-09-01',
+    view: DAY_VIEW,
+    tabs: [],
+    boards: [],
     doc: parse(pageOf(6)),
     horizon: [],
     carry: [],
@@ -675,6 +695,312 @@ check('no picture leaves the note exactly where it was', () => {
   show(6)
   ok(part('.box').getBoundingClientRect().width === 0, 'an empty margin is taking up room')
   ok(part('.note').getBoundingClientRect().width > 0, 'the note lost its row')
+})
+
+
+// ── a board in the popover ──────────────────────────────────
+//
+// The board is a view of this window now, not only of the detached one (spec
+// §1). Everything below is either a measurement - the columns stack, the stack
+// scrolls, the strip fits - or a gesture, which is the other half of what a
+// browser is here for.
+
+/** The move the last drop asked for.
+ *  @type {{plugin: string, id: string, column: string, before: string|null}|null} */
+let dropped = null
+
+/** The card the last drop on the done column asked about. @type {string|null} */
+let finished = null
+
+/** @type {import('../../src/views/dayFooter.js').BoardTab[]} */
+const KANBAN_TAB = [{ plugin: 'kanban', tab: 'Kanban' }]
+
+/**
+ * @param {number} [extra]  cards to pile into `To do`, for the scroll
+ * @returns {import('../../src/plugins/pageAsking.js').Board[]}
+ */
+function kanban(extra = 0) {
+  return [{
+    plugin: 'kanban',
+    tab: 'Kanban',
+    board: '',
+    answer: {
+      columns: [
+        {
+          name: 'To do',
+          cards: [
+            { id: 'k4m2qa', index: null, text: 'Fix the gate', ended: null },
+            { id: 'c1d2e3', index: null, text: 'Read the offline queue RFC', ended: null },
+            ...Array.from({ length: extra }, (_, at) => ({
+              id: `x${String(at).padStart(5, '0')}`,
+              index: null,
+              text: `Another thing to do, number ${at + 1}`,
+              ended: /** @type {null} */ (null),
+            })),
+          ],
+        },
+        { name: 'Doing', cards: [{ id: 'p9x1bb', index: null, text: 'Call the vet', ended: null }] },
+        { name: 'Done', cards: [] },
+      ],
+      archive: [],
+    },
+  }]
+}
+
+/**
+ * The page on a given view, with a strip of board tabs behind it.
+ *
+ * @param {string} view
+ * @param {import('../../src/views/dayFooter.js').BoardTab[]} [tabs]
+ * @param {import('../../src/plugins/pageAsking.js').Board[]} [boards]
+ * @param {number} [count]  lines on the day underneath
+ * @returns {void}
+ */
+function showOn(view, tabs = [], boards = [], count = 6) {
+  went = null
+  dropped = null
+  finished = null
+
+  stage.replaceChildren()
+  const root = document.createElement('main')
+  root.id = 'app'
+  stage.append(root)
+
+  dayPage.mount(root, {
+    ...handlersFor(),
+    onCard: (plugin, id, column, before) => { dropped = { plugin, id, column, before } },
+    onFinish: (id) => { finished = id },
+  })
+  dayPage.render({
+    today: '2026-09-01',
+    page: '2026-09-01',
+    view,
+    tabs,
+    boards,
+    doc: parse(pageOf(count)),
+    horizon: [],
+    carry: [],
+    sections: [],
+    blocks: [],
+    prefixes: new Map(),
+    box: null,
+    notices: [],
+    actions: [],
+  })
+}
+
+/** The words on every tab the strip is actually showing, in order.
+ *  @returns {string[]} */
+function tabWords() {
+  return [...stage.querySelectorAll('.tabs .tab')]
+    .filter((tab) => tab instanceof HTMLElement && !tab.hidden && !tab.classList.contains('more-tab'))
+    .map((tab) => tab.textContent ?? '')
+}
+
+check('a board plugin gets a tab in the day footer', () => {
+  // The thing Robert asked for: the popover's own footer, not only the
+  // detached window's strip.
+  showOn(DAY_VIEW, KANBAN_TAB)
+  ok(tabWords().includes('Kanban'), `the strip reads ${tabWords().join(' ')}`)
+})
+
+check('and at the width the popover opens at, nothing is behind the …', () => {
+  showOn(DAY_VIEW, KANBAN_TAB)
+  equal(tabWords().join(' '), 'Day Week Month Someday Kanban', 'the default strip was cut down')
+  equal(part('.more').hidden, true, 'the … appeared with nothing behind it')
+})
+
+check('a day with no board plugin has no board tab', () => {
+  showOn(DAY_VIEW)
+  equal(tabWords().join(' '), 'Day Week Month Someday', 'a tab appeared for nobody')
+})
+
+check('pressing a board s tab asks for that board', () => {
+  showOn(DAY_VIEW, KANBAN_TAB)
+  const tab = [...stage.querySelectorAll('.tabs .tab')]
+    .find((one) => one.textContent === 'Kanban')
+  ok(tab instanceof HTMLElement, 'no Kanban tab to press')
+  tab.click()
+  equal(went, 'board:kanban', 'the tab asked for the wrong view')
+})
+
+check('the board covers the day, and the day comes back', () => {
+  showOn('board:kanban', KANBAN_TAB, kanban())
+  equal(part('.day-body').hidden, true, 'the day was left under the board')
+  equal(part('.board').hidden, false, 'the board was not drawn')
+  equal(part('.view-title').textContent, 'Kanban', 'the board did not name itself')
+
+  showOn(DAY_VIEW, KANBAN_TAB, kanban())
+  equal(part('.day-body').hidden, false, 'the day did not come back')
+  equal(part('.board').hidden, true, 'the board stayed up')
+})
+
+// A plugin switched off between one draw and the next. The strip is asking for
+// a board that is no longer there, and a blank window would be the worst of
+// the answers available.
+check('a board nobody keeps any more falls back to the day', () => {
+  showOn('board:ghost')
+  equal(part('.day-body').hidden, false, 'the day was hidden for a board that is gone')
+  equal(part('.board').hidden, true, 'an empty board was drawn')
+})
+
+check('while a board is up, the page keeps only its own way back', () => {
+  // Nothing on the header navigates a board - there is no previous day of a
+  // board - but the pin stays, because the popover still has to be pinnable.
+  showOn('board:kanban', KANBAN_TAB, kanban())
+  const head = part('.page-head')
+  ok(head.classList.contains('on-board'), 'the header was not told')
+  const shown = [...head.querySelectorAll('.page-nav > button')]
+    .filter((one) => one instanceof HTMLElement && one.getBoundingClientRect().width > 0)
+  equal(shown.length, 1, 'the wrong number of header buttons survived')
+  ok(shown[0]?.classList.contains('pin') === true, 'the one left is not the pin')
+})
+
+check('the popover s board stacks its columns down the page', () => {
+  // Robert's decision: vertical, because 380 points is one column wide.
+  showOn('board:kanban', KANBAN_TAB, kanban())
+  const columns = [...stage.querySelectorAll('.board-column')]
+    .filter((one) => one instanceof HTMLElement)
+  equal(columns.length, 3, 'the wrong number of columns')
+
+  for (let at = 1; at < columns.length; at += 1) {
+    const above = columns[at - 1]?.getBoundingClientRect()
+    const below = columns[at]?.getBoundingClientRect()
+    ok(above !== undefined && below !== undefined, 'a column has no box')
+    ok(below.top >= above.bottom - 1, `column ${at} sits beside column ${at - 1}, not under it`)
+    ok(Math.abs(below.left - above.left) < 1, `column ${at} is indented from the one above`)
+  }
+})
+
+check('and a long board is one scroller, with the footer still on the page', () => {
+  showOn('board:kanban', KANBAN_TAB, kanban(30))
+  const columns = part('.board-columns')
+  ok(columns.scrollHeight > columns.clientHeight, 'a thirty-card board did not become scrollable')
+
+  const bottom = stage.getBoundingClientRect().bottom + 1
+  ok(part('.page-foot').getBoundingClientRect().bottom <= bottom, 'the board pushed the footer off')
+  equal(Math.round(part('.page').getBoundingClientRect().height), 560, 'the page grew past the window')
+
+  // One scroller, not one per column: a drag that had to scroll the column it
+  // started in to get out of it would be two gestures.
+  const cards = part('.board-cards')
+  ok(cards.scrollHeight <= cards.clientHeight + 1, 'a column scrolled its own cards')
+
+  // And the last column can be reached by scrolling the stack.
+  columns.scrollTop = columns.scrollHeight
+  const last = [...columns.querySelectorAll('.board-column')].pop()
+  ok(last instanceof HTMLElement, 'no last column')
+  ok(
+    last.getBoundingClientRect().bottom <= columns.getBoundingClientRect().bottom + 1,
+    'the done column cannot be scrolled to',
+  )
+})
+
+check('at the minimum width the strip is Day Week Month and a …', () => {
+  // Robert's first case, measured rather than estimated. The stage is set to
+  // the popover's minimum before the page is built, so the first fit is the
+  // one under test.
+  stage.style.width = '300px'
+  try {
+    showOn(DAY_VIEW, KANBAN_TAB)
+    equal(tabWords().join(' '), 'Day Week Month', `the strip reads ${tabWords().join(' ')}`)
+    equal(part('.more').hidden, false, 'nothing offered a way to the demoted tabs')
+  } finally {
+    stage.style.width = ''
+  }
+})
+
+check('and the … menu s rows do what their tabs do', () => {
+  stage.style.width = '300px'
+  try {
+    showOn(DAY_VIEW, KANBAN_TAB)
+    const button = part('.more-tab')
+    equal(part('.more-list').hidden, true, 'the menu was open before it was opened')
+    button.click()
+    equal(part('.more-list').hidden, false, 'the menu did not open')
+
+    const rows = [...stage.querySelectorAll('.more-row')]
+      .filter((one) => one instanceof HTMLElement)
+    equal(rows.map((one) => one.textContent ?? '').join(' '), 'Someday Kanban', 'the wrong rows')
+
+    const kanbanRow = rows.find((one) => one.textContent === 'Kanban')
+    ok(kanbanRow instanceof HTMLElement, 'no Kanban row')
+    kanbanRow.click()
+    equal(went, 'board:kanban', 'the row asked for the wrong view')
+    equal(part('.more-list').hidden, true, 'the menu stayed open after choosing')
+  } finally {
+    stage.style.width = ''
+  }
+})
+
+check('and Escape closes the menu rather than the page', () => {
+  stage.style.width = '300px'
+  try {
+    showOn(DAY_VIEW, KANBAN_TAB)
+    part('.more-tab').click()
+    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    part('.more-list').dispatchEvent(event)
+    ok(event.defaultPrevented, 'the day would have taken the Escape as well')
+    equal(part('.more-list').hidden, true, 'the menu stayed up')
+  } finally {
+    stage.style.width = ''
+  }
+})
+
+/**
+ * A card dragged onto something, as the browser delivers it: one `DataTransfer`
+ * carried through all three events, which is what makes the drop able to read
+ * what the dragstart wrote.
+ *
+ * @param {HTMLElement} card
+ * @param {HTMLElement} onto
+ * @returns {void}
+ */
+function drag(card, onto) {
+  const data = new DataTransfer()
+  card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: data }))
+  onto.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: data }))
+  onto.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }))
+}
+
+/**
+ * @param {string} selector
+ * @returns {HTMLElement}
+ */
+function boardPart(selector) {
+  const found = part('.board').querySelector(selector)
+  if (!(found instanceof HTMLElement)) throw new Error(`no ${selector} on the board`)
+  return found
+}
+
+check('a card dragged into another stacked column writes the move', () => {
+  showOn('board:kanban', KANBAN_TAB, kanban())
+  drag(boardPart('[data-card="k4m2qa"]'), boardPart('[data-column="Doing"]'))
+  const move = dropped
+  ok(move !== null, 'the drop went nowhere')
+  equal(move.plugin, 'kanban', 'the wrong board')
+  equal(move.id, 'k4m2qa', 'the wrong card')
+  equal(move.column, 'Doing', 'the wrong column')
+  equal(move.before, null, 'a drop on the column itself landed in front of something')
+})
+
+check('and dropped onto a card, it lands in front of it', () => {
+  showOn('board:kanban', KANBAN_TAB, kanban())
+  drag(boardPart('[data-card="p9x1bb"]'), boardPart('[data-card="c1d2e3"]'))
+  const move = dropped
+  ok(move !== null, 'the drop went nowhere')
+  equal(move.id, 'p9x1bb', 'the wrong card moved')
+  equal(move.column, 'To do', 'the wrong column took it')
+  equal(move.before, 'c1d2e3', 'the card did not land in front of the one under it')
+})
+
+check('a card dropped on the last column is a question, not a move', () => {
+  // Design §6: a card reaches Done by the line being ticked, which is a write
+  // into the day file and the one thing a board does not do.
+  showOn('board:kanban', KANBAN_TAB, kanban())
+  drag(boardPart('[data-card="k4m2qa"]'), boardPart('[data-column="Done"]'))
+  equal(dropped, null, 'the done column took a move')
+  equal(finished, 'k4m2qa', 'the refusal said nothing useful')
 })
 
 report()

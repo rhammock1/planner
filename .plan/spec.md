@@ -1,5 +1,5 @@
 ---
-approved: no
+approved: yes
 ---
 
 # A board in the popover
