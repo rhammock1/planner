@@ -21,6 +21,7 @@ import { LEDGER } from './core/theme.js'
 import { createWriteQueue } from './writeQueue.js'
 import { createAsking } from './plugins/asking.js'
 import { createSidecars } from './sidecarStore.js'
+import { createBoards } from './boardStore.js'
 import * as ipc from './ipc.js'
 import * as startup from './startup.js'
 import { today, nowTime } from './clock.js'
@@ -58,6 +59,9 @@ import { today, nowTime } from './clock.js'
  * @property {(date: string) => {suffix: string, title: string}[]} sidecarsOn
  * @property {(date: string, suffix: string) => Promise<string|null>} readSidecar
  * @property {(date: string, suffix: string, text: string) => Promise<boolean>} changeSidecar
+ * @property {(name: string, file: string) => string|null} pluginFile  what a plugin keeps in its own folder of the vault
+ * @property {(name: string, file: string) => boolean} pluginFileKnown  whether that file has been read back, which a write has to know and a draw does not
+ * @property {(name: string, file: string, text: string) => Promise<boolean>} changePluginFile
  */
 
 /**
@@ -129,6 +133,14 @@ export function createStore() {
     notice: (line) => { notices = [...notices, line] },
   })
 
+  // What plugins keep in their own folders of the vault (boardStore.js).
+  // Beside sidecars rather than inside them: the same shape of cache over a
+  // file nothing announces, which is the whole of the difference.
+  const boards = createBoards({
+    onChanged: () => changed(),
+    notice: (line) => { notices = [...notices, line] },
+  })
+
   /**
    * Reads the config, applies the theme, opens the vault and indexes it.
    *
@@ -158,8 +170,10 @@ export function createStore() {
     const files = await ipc.readVault()
     vault = buildIndex(files.map((file) => ({ page: file.page, doc: parse(file.text) })))
 
-    // A vault that has moved is a vault whose notes are somebody else's.
+    // A vault that has moved is a vault whose notes are somebody else's, and
+    // whose boards are too.
     sidecars.reopen()
+    boards.reopen()
   }
 
   /**
@@ -303,6 +317,10 @@ export function createStore() {
     sidecarsOn: sidecars.on,
     readSidecar: sidecars.read,
     changeSidecar: sidecars.change,
+
+    pluginFile: boards.text,
+    pluginFileKnown: boards.known,
+    changePluginFile: boards.change,
   }
 }
 

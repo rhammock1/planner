@@ -352,9 +352,24 @@
 .add-field::placeholder { color: var(--dim); }
 .add-field:focus { outline: none; }
 
+/* The day's line and the day's margin, on one row (phase four §1.1). The rule
+   above it belongs to the row rather than to the note, so a picture beside a
+   note that has scrolled sits under the same line the note does. */
+.note-row {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  border-top: 1px solid var(--edge-soft);
+  /* The note fills the row when it is there, so this only decides anything on
+     a day with no file yet - where the note is hidden and the picture would
+     otherwise slide over to the left margin. It is a margin either way. */
+  justify-content: flex-end;
+}
+
+.note-row[hidden] { display: none; }
+
 .note {
   padding: 9px 16px;
-  border-top: 1px solid var(--edge-soft);
   font-size: 12.5px;
   line-height: 1.5;
   color: var(--dim);
@@ -363,10 +378,25 @@
   user-select: text;
   /* A note that ran long would otherwise take the whole window and leave the
      list a sliver. It gets a few lines and scrolls past them. */
-  flex: none;
+  flex: 1 1 auto;
+  /* Without this a long unbroken word makes the flex item refuse to shrink,
+     and the margin is pushed off the side of the window. */
+  min-width: 0;
   max-height: 5.5em;
   overflow-y: auto;
 }
+
+/* A plugin's picture, in the corner of the page a notebook gets doodled in.
+   The `<img>` is sized by the manifest rather than by CSS, so a plugin that
+   asked for 32 gets 32 and cannot grow into the note's room. */
+.box {
+  flex: none;
+  padding: 9px 16px 9px 0;
+}
+
+.box img { display: block; }
+
+.box[hidden] { display: none; }
 
 .note:empty::before {
   content: 'How the day went';

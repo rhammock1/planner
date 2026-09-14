@@ -1,0 +1,24 @@
+name        = "pet"
+version     = "0.1.0"
+description = "A creature in the margin that reacts to how the day is going"
+entry       = "index.js"
+slots       = ["page.box"]
+
+# 48 rather than the 64 the phases spec first wrote down, and rather than
+# anything larger the app would allow: measured against the real page at both
+# window widths, 48 costs the list about 20px where 64 costs it 36, and it
+# still reads as a creature at the size it is drawn.
+#
+# Square, because the drawing is. Asking for a tall box would only letterbox
+# it - the app scales the picture into whatever this says.
+[box]
+width  = 48
+height = 48
+
+# No [permissions] table, and that is the interesting line in this file.
+#
+# This plugin remembers a week of days, and `planner.storage` is what it
+# remembers them in - but storage is not a capability and there is nothing to
+# declare or to tick. The file is named after the plugin, nothing else on the
+# machine reads it, and it did not exist until the plugin wrote it. See
+# `docs/plugins.md`.

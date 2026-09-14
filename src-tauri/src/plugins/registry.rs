@@ -124,11 +124,24 @@ impl Registry {
             .collect()
     }
 
+    /// A capability every running plugin has, that no manifest declares and
+    /// no tick grants.
+    ///
+    /// `planner.storage` is one file, named after the plugin, that nothing
+    /// else on the machine reads - so there is no decision for a person to
+    /// make about it, and a tick that grants nothing teaches people to tick
+    /// without reading. It is still a capability in every other respect: it
+    /// goes through the door, it is refused to a plugin that has been put
+    /// away, and `bridges::dispatch` is the only thing that performs it.
+    const UNGATED: &'static [&'static str] = &["planner.storage"];
+
     /// Whether a plugin may use a capability right now.
     pub fn permits(&self, name: &str, capability: &str) -> bool {
         let held = self.0.lock().expect("registry lock");
         held.get(name).is_some_and(|grant| {
-            !grant.disabled && grant.capabilities.iter().any(|held| held == capability)
+            !grant.disabled
+                && (Self::UNGATED.contains(&capability)
+                    || grant.capabilities.iter().any(|held| held == capability))
         })
     }
 

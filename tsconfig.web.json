@@ -15,12 +15,15 @@
     "noUncheckedIndexedAccess": true,
     "types": []
   },
-  "//": "The frontend: views, the list patcher, and the IPC seam. Runs in a webview, so DOM but no node - except that the two store tests pull node's ambient globals in program-wide via a reference directive, accepted there as the least-bad way to check node:test's types; see those files' comments. They are checked here rather than in the node program because a store reaches the IPC seam, and the seam is DOM. The reference plugins are here too, checked against plugins/planner.d.ts - which is how a change to the host API breaks them rather than being noticed later.",
+  "//": "The frontend: views, the list patcher, and the IPC seam. Runs in a webview, so DOM but no node - except that the few tests listed below pull node's ambient globals in program-wide via a reference directive, accepted there as the least-bad way to check node:test's types; see those files' comments. They are checked here rather than in the node program because a store, and the asking that reads from one, reach the IPC seam, and the seam is DOM. The reference plugins are here too, checked against plugins/planner.d.ts - which is how a change to the host API breaks them rather than being noticed later.",
   "include": [
     "src/**/*.js",
     "test/browser/**/*.js",
     "test/sidecar-store.test.js",
     "test/file-store.test.js",
+    "test/board-store.test.js",
+    "test/board-asking.test.js",
+    "test/board-writes.test.js",
     "plugins/**/*.js",
     "plugins/**/*.d.ts"
   ]

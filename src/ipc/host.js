@@ -44,6 +44,8 @@
  * @property {(date: string, suffix: string, text: string) => Promise<void>} writeSidecar
  * @property {(date: string, suffix: string) => Promise<void>} deleteSidecar
  * @property {(handler: (change: {date: string, suffix: string}) => void) => void|Promise<void>} onSidecarChanged
+ * @property {(name: string, file: string) => Promise<string|null>} readPluginFile
+ * @property {(name: string, file: string, text: string) => Promise<void>} writePluginFile
  * @property {(path: string) => Promise<string|null>} readFile
  * @property {(path: string, text: string) => Promise<void>} writeFile
  * @property {() => Promise<void>} closeFile
@@ -181,6 +183,12 @@ function tauriHost() {
       tauri.event.listen('spread:view', (/** @type {any} */ event) => {
         handler(String(event.payload ?? ''))
       }),
+    // A plugin's own folder in the vault (spec §2.5). No `onPluginFileChanged`
+    // beside them: nothing under that folder is a page, so the watcher never
+    // announces one, and the window that writes a board is the window that
+    // draws it.
+    readPluginFile: (name, file) => invoke('read_plugin_file', { name, file }),
+    writePluginFile: (name, file, text) => invoke('write_plugin_file', { name, file, text }),
     readFile: (path) => invoke('read_file', { path }),
     writeFile: (path, text) => invoke('write_file', { path, text }),
     closeFile: () => invoke('close_file'),

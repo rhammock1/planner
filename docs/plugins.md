@@ -113,11 +113,19 @@ that the manifest does not declare is never asked either.
 | Slot | You are shown | You may answer with |
 |---|---|---|
 | `vault.contribute` | Nothing but the range of days. | `{date, time, text}[]` |
-| `item.badge` | `{date, items: [{index, text}]}` — every line the parser understood on the page being drawn, and where it sits. Not its note, not its tokens, not the daily note. | `{index, label, href}[]` |
+| `item.badge` | `{date, items: [{index, text, id}]}` — every line the parser understood on the page being drawn, and where it sits. Not its note, not its other tokens, not the daily note. | `{index, label, href}[]` |
 | `theme.tokens` | The clock, and `tokens` — every theme token as the theme set it. You are asked to *move* those, and cannot move what you were never shown. Not the page: what you do with colour is a function of the time of day. | `Record<string, string>` — a partial map of theme tokens |
 | `page.note` | `{date, sidecars: [{suffix, title}]}` — which of *your* files exist on that day, and never anybody else's. | `{suffix, title?}[]` |
+| `page.box` | `{date, glance: {open, done, due, overdue}, theme: {paper, ink, dim, accent, alert}}` — how many lines the day has of each kind, and the five colours it is drawn in. Never a line's words. | `{svg}` or `null` |
 | `item.action` | `{date, index, text}` — the line under the caret when `⌘⇧N` was pressed. | `{open: 'sidecar:…'}` or `null` |
 | `search.provide` | `{query}` — exactly what was typed into ⌘F. | `{text, date?, href?}[]` |
+| `spread.board` | `{date, items: [{index, text, id, state}], board}` — `item.badge`'s grant with each line's state beside it, and your own `board.md` as it stands. Never another plugin's board. | `{columns: [{name, cards}], archive: string[]}` |
+
+A line's `id` is its `^abc123` — the name the file gives it, which survives
+the line being carried to another day ([format.md](format.md)). It is `null`
+far more often than not, and asking never changes that: the app stamps a name
+when a line becomes a card somewhere, never because a question was put about
+it. Read one if it is there; you cannot make one.
 
 A badge's `label` is one line, cut at 16 characters. Its `index` must be one
 the question sent — the lines may have moved while you were thinking, and a
@@ -466,6 +474,65 @@ applied when it closes.
 The title of a file that exists comes from the file's own first `# ` line, not
 from your answer: you name a note once, and after that it is somebody's writing.
 
+### `page.box`
+
+A small picture in the corner of the day, where a notebook gets doodled in:
+
+```toml
+slots = ["page.box"]
+
+[box]
+width = 48
+height = 48
+```
+
+```js
+planner.on('page.box', ({ date, glance, theme }) => {
+  // Four counts and five colours. Nothing here is a line's words.
+  const mood = glance.overdue > 0 ? theme.alert
+    : glance.open === 0 ? theme.dim
+    : theme.accent
+
+  return {
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+            <circle cx="24" cy="24" r="18" fill="${mood}" />
+          </svg>`,
+  }
+})
+```
+
+**You are told counts, never words.** `open` and `done` are of that page;
+`due` and `overdue` are of that page judged from today, and are disjoint. A
+day with nothing on it is four zeroes. Nothing to draw this time is `null`,
+which is an answer, not a mistake — the margin is simply left empty.
+
+The picture is drawn into an `<img>` with a `data:` URI, which is an
+independent document: no script in it runs, it cannot reach the network, and
+it cannot see this page or its stylesheet. That is why `theme` is in the
+question — `currentColor` does not cross into an `<img>`, so a drawing that is
+to sit on the paper it is drawn on has to be handed the paper's colours and
+bake them in.
+
+Before it is drawn the SVG is read, and refused whole if it holds a `<script>`
+or a `<foreignObject>`, any `on…` handler, a doctype or processing
+instruction, anything after `</svg>`, or an `href` that is not a `#fragment`
+within the picture itself. A refusal names your plugin in the day's notice
+band. At most 16 KiB, counted in bytes.
+
+`[box] width` and `height` are what you ask for, between 16 and 64, defaulting
+to 48. They are read from your manifest rather than from your answer: how much
+of somebody's page you take is a thing you declare and they tick, not a thing
+you decide per drawing.
+
+**There is one margin.** If two enabled plugins both answer with a picture,
+neither is drawn and a notice names both — which one you got would otherwise
+depend on the order the plugins happen to be listed in. Turning one off in the
+⌘, pane is the fix.
+
+The question is not put at all in a window under 420 points tall: below that
+the day page is chrome and a sliver of list, and there is nowhere to put a
+picture. Your plugin is simply not asked.
+
 ### `item.action`
 
 A gesture on a line, and a page of your own about it:
@@ -552,6 +619,111 @@ is headed by your plugin's name, and a provider with nothing has no group.
 neither is dropped whole — a result you cannot press would not say why.
 Twenty hits each.
 
+### `spread.board`
+
+A board of your own, in a tab of the spread window beside Week and Month:
+
+```toml
+slots = ["spread.board"]
+
+[tab]
+name = "Kanban"
+```
+
+```js
+planner.on('spread.board', ({ date, items, board }) => {
+  // `board` is your own board.md as it stands. Parse it, decide where
+  // today's lines belong, and hand back the arrangement you want drawn.
+  const open = items.filter((line) => line.state === 'open')
+  return {
+    columns: [
+      { name: 'To do', cards: open.map((line) => ({ index: line.index, text: line.text })) },
+      { name: 'Doing', cards: [] },
+      { name: 'Done', cards: [] },
+    ],
+    archive: [],
+  }
+})
+```
+
+**`date` is today**, whatever week the spread window happens to be showing, and
+`now` is the clock. A task on an older day reaches the board by being carried
+forward to today, which leaves the old line marked as carried and the copy on
+today's page live; seeding the old line instead would put one task on the board
+under a second name, which is why a `migrated` line is refused as a card.
+
+**The file is the board; your answer is an arrangement of it.** You are handed
+the text of `board.md` and you hand back columns — the app merges the two, so a
+card the file holds that your answer never mentions keeps its place. An
+omission is not a deletion. A board that has not answered yet, or whose answer
+this app could not read, draws the file as it stands, which is why the tab is
+never a blank window.
+
+**A card names exactly one of `id` and `index`.** `id` is a line's `^abc123`,
+which survives the line being carried to another day; `index` is a line in the
+`items` you were just sent, and means *give this line a name and put it on the
+board*. The app does the stamping — writing a name into a day file is the
+app's write into its own format, not yours. A card naming both is asking to be
+two things and a card naming neither names no task; both are dropped. `text`
+is optional beside an `index` and falls back to the line's own words; it is one
+line, cut at 200.
+
+**`ended` is optional, and is what the card falls back to.** It is `'done'`,
+`'dropped'` or `null`, and it is ignored whenever the vault can still see the
+card's line — the tick in your day file is the truth about whether a task
+finished. When the vault *cannot* see the line, because somebody deleted it,
+your answer is the only thing left that knows, so echo the marker the file
+already holds. A plugin that leaves `ended` off entirely un-finishes every such
+card on the next merge: the marker comes off and a card that was done reads as
+in flight again.
+
+**`state` is why this slot is not `item.badge`.** A board's difficulty is
+telling *done yesterday* from *carried away*, and the four states —
+`open`, `done`, `dropped`, `migrated` — are what tell them apart. A `migrated`
+line is refused as a card whoever asks: its twin on the later day is the live
+one, and stamping this copy would mint a second name for one task.
+
+**The last column is the done column, by position and not by name.** Call it
+`Shipped` if you like, but do not put a column after it that means something
+else. A line the vault says is ticked is moved there whatever your answer said,
+and its ending is the vault's rather than yours — a `done` or `dropped` marker
+is written on the card, and taken off again if the line is unticked. Where the
+vault has no such line at all, your card's own `ended` stands, which is the one
+case your answer decides. A `dropped` card is *not* moved: a struck line is a
+decision that was made, and the column it was in is where that decision is
+legible.
+
+**`archive` is how a card leaves the board.** Name the ids you are finished
+with and the app moves those lines, as `board.md` held them, to the end of
+`archive.md` — append-only, newest last, never read back. A card the file does
+not hold as *ended* is refused: the archive is a one-way door, and a plugin
+naming an in-flight card would be deleting somebody's task through it. The
+archive is written before the board, so a board write that fails leaves the
+card on the board rather than nowhere.
+
+**The window writes too, and you will see it as a new question.** A card
+dragged between columns is written straight into `board.md` by the app, and the
+next question carries the changed file — so answer the file you are handed
+rather than the arrangement you last sent, or you will put the card back. A
+drop on the last column is refused as a move: a card gets there by its line
+being ticked, so the window goes to that line instead of writing anything. A
+card you pointed at by `index` cannot be dragged until it has a name, which it
+gets on the draw after you first send it.
+
+**Your files live in your folder of the vault**, `<vault>/<your-name>/`, which
+is `board.md` and `archive.md` and nothing else. A name that cannot be a folder
+name — it must begin with a letter, hold only lowercase letters, digits and
+hyphens, and not be `someday` — has nowhere to keep one, so the plugin runs
+with its other grants and simply has no tab. Neither file is created until
+there is something to write in it.
+
+`[tab] name` is what the strip calls your board, at most 16 characters,
+defaulting to your plugin's name. It is a tab and not a heading: longer than
+that and it stops being a tab and starts being the strip.
+
+You are never shown another plugin's board. Two plugins that both keep one get
+two tabs, two folders and two files, and neither is told the other exists.
+
 ### `onContribute`
 
 Called with `{from, to}`, each `YYYY-MM-DD` local, inclusive. Return — or
@@ -602,6 +774,48 @@ no fix yet. Both are ordinary: ask again the next time you are asked
 something. It rejects for good if location services are off, and the message
 says so — which is why `dusk` also has a `location` setting, and why yours
 should too.
+
+### `planner.storage`
+
+One small file that is yours, at `~/.planner/state/<your name>.json`.
+
+```js
+const history = (await planner.storage.get('history')) ?? []
+history.push({ date: question.date, ...question.glance })
+await planner.storage.set('history', history.slice(-7))
+```
+
+**It is not a capability.** No manifest declares it and no tick grants it,
+and that is deliberate: every other capability reaches something outside the
+app — a calendar, a shell, a coordinate, somebody else's writing — and a tick
+is how a person decides about reach. This reaches nothing. The file did not
+exist before you wrote it, it is named after you, and no other plugin and no
+part of the app ever reads it. A tick that grants nothing only teaches people
+to tick without reading.
+
+| | |
+|---|---|
+| `get(key)` | What you stored, or `null` for a key you never set. |
+| `set(key, value)` | Stores it. `set(key)` or `set(key, null)` forgets the key. |
+
+Values are JSON — anything `JSON.stringify` will take. **The whole file is
+capped at 64 KiB**, not each value, so a second key is not a way round it. A
+`set` that would go over rejects and writes nothing, so the file you already
+had is still there to read; the message says what the cap is, because being
+over it means deciding what to drop.
+
+Forgetting rather than storing a null is not a nicety: `get` cannot tell a
+stored null from a key nobody set, so a stored one would be something you pay
+for against the cap and can never read back.
+
+The file is written the way a page is — a temporary file renamed over the
+target — so a crash or a full disk leaves the previous one exactly as it was.
+Your first run reads an empty file rather than an error.
+
+If somebody hand-edits the file into something that is not JSON, both calls
+reject with the path in the message rather than quietly starting again from
+empty. Deleting the file is the fix, and it has to be a person's decision:
+the alternative is your next `set` destroying what they were editing.
 
 ### Settings
 
@@ -699,6 +913,9 @@ and the pane says what it did.
 
 ## Not in v1
 
-`onRender`, `planner.storage`, `planner.vault.read`, `net.fetch`, `fs.read`,
-and the `job` slot. Each arrives when something needs it. A slot with no
-consumer is a guess about an API.
+`onRender`, `planner.vault.read`, `net.fetch`, `fs.read`, and the `job` slot.
+Each arrives when something needs it. A slot with no consumer is a guess
+about an API.
+
+`planner.storage` was on this list until `pet` needed to remember a week of
+days, which is the rule working rather than an exception to it.

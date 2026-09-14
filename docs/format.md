@@ -42,8 +42,8 @@ a **prefix**, and a plugin owns the suffixes beginning with the prefixes it
 declared — two plugins cannot own the same one.
 
 Such a file is **never parsed**. It is free text, LF, one trailing newline,
-never reflowed; nothing in it means anything to this app, and none of the four
-tokens work in it. It is not a day: it holds no items, it is not counted, it
+never reflowed; nothing in it means anything to this app, and none of the
+inline tokens work in it. It is not a day: it holds no items, it is not counted, it
 never carries forward, and it does not appear in the week or the month.
 
 Two things reach past that wall, and both stop at reading. The app reads a
@@ -101,10 +101,40 @@ The `# Someday` header is matched case-insensitively and rewritten to
 | `!YYYY-MM-DD`   | Due date. Feeds the horizon strip.             |
 | `~Nd`           | Lead time — days before the due date it appears in the horizon. |
 | `>YYYY-MM-DD`   | Where the item went when it was carried forward. |
+| `^abc123`       | The line's name. The app writes this one; see below. |
 
 A token is only a token when it has whitespace or a line boundary on both sides, so
 `dana@gotab.io` and `5~10` stay prose. A token whose value is impossible —
 `@25:99`, `!2026-02-30` — is left in the text rather than guessed at.
+
+## The line's name
+
+    - [ ] Firmware sign-off !2026-09-02 ~10d ^k4m2qa
+
+`^` and six lowercase letters and digits, last on the line. It is a name for
+the line, so that something outside the file — a board, a plugin's list — can
+point at it and still be pointing at it tomorrow.
+
+**The app writes these, you don't.** One is stamped at the moment something
+starts referring to a line, and at no other moment: not when a day is drawn,
+not when a plugin is asked about a page, not when a file is saved. A vault
+nothing points into holds none of them, and opening a day to look at it never
+writes a byte.
+
+**A name moves with its line.** When a line is carried forward or dragged to
+another day, the name travels to the new line and comes off the `[>]` line left
+behind — so a week of carrying leaves one named line, not seven. The `>` token
+is what chains those days together, and it still does.
+
+**Two lines may end up with one name anyway.** Copy a line in your editor and
+you copy its name with it; restore a file from a backup and you reinstate a
+name that has since moved on. Nothing is corrupt when that happens. Whatever is
+looking a name up takes the one on the most recent page, and reads `[>]` as
+*moved*, not as *done*.
+
+Delete one by hand and you make the line anonymous, which is a fine thing to
+do: whatever was pointing at it says so, and nothing is thrown away on your
+behalf.
 
 ## Notes
 

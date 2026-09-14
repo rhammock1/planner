@@ -27,6 +27,30 @@ import { items } from './vaultIndex.js'
  */
 
 /**
+ * Whether a line is showing on the horizon today, and which side of its date
+ * it is on.
+ *
+ * The rule itself, in one place, because two readers ask it: the strip, which
+ * wants the lines, and `dayGlances`, which wants them counted. A second copy
+ * of `due - today <= lead` is a second answer to the same question, and this
+ * module and `glance.js` exist precisely so those two can never differ.
+ *
+ * @param {Item} item
+ * @param {string} today `YYYY-MM-DD`
+ * @param {number} defaultLead days, used when an item has no `~Nd`
+ * @returns {'due'|'overdue'|null} null when the line is not on the horizon
+ */
+export function dueState(item, today, defaultLead) {
+  // Only open items. A done or dropped deadline is not a deadline, and a
+  // migrated one has been copied onto another day where the copy carries the
+  // date - counting both would double every carried deadline.
+  if (item.state !== 'open' || item.due === null) return null
+  const daysRemaining = daysBetween(today, item.due)
+  if (daysRemaining > (item.lead ?? defaultLead)) return null
+  return daysRemaining < 0 ? 'overdue' : 'due'
+}
+
+/**
  * Dated items from anywhere in the vault, soonest first.
  *
  * Only open items appear. A done or dropped deadline is not a deadline, and a
@@ -49,13 +73,20 @@ export function horizon(index, today, defaultLead) {
   // sorting stably below is what holds two items with the same due date in a
   // fixed sequence. The strip marquees; a jittering band is unreadable.
   for (const { page, index: at, item } of items(index)) {
-    if (item.state !== 'open' || item.due === null) continue
-
-    const daysRemaining = daysBetween(today, item.due)
-    if (daysRemaining > (item.lead ?? defaultLead)) continue
+    // Pulled out first so `due` narrows to a string for the entry below;
+    // `dueState` refuses a null date anyway.
+    const { due } = item
+    if (due === null) continue
+    const showing = dueState(item, today, defaultLead)
+    if (showing === null) continue
 
     entries.push({
-      page, index: at, item, due: item.due, daysRemaining, overdue: daysRemaining < 0,
+      page,
+      index: at,
+      item,
+      due,
+      daysRemaining: daysBetween(today, due),
+      overdue: showing === 'overdue',
     })
   }
 

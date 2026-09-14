@@ -7,7 +7,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { plan, isPluginName, diff, signature } from '../src/core/plugins.js'
+import { plan, isPluginName, vaultFolder, diff, signature } from '../src/core/plugins.js'
 
 /** @typedef {import('../src/core/config.js').PluginConfig} PluginConfig */
 
@@ -677,4 +677,81 @@ test('a changed prefix restarts the plugin', () => {
   const one = { name: 'a', entry: 'index.js', slots: [], capabilities: [], open: [], run: [], asked: [], askedRun: [], prefixes: ['meeting'], settings: new Map() }
   const other = { ...one, prefixes: ['note'] }
   assert.notEqual(signature(one), signature(other))
+})
+
+test('a plugin owns the folder in the vault its own name makes', () => {
+  assert.equal(vaultFolder('kanban'), 'kanban')
+  assert.equal(vaultFolder('task-notes'), 'task-notes')
+  assert.equal(vaultFolder('a'), 'a')
+})
+
+test('a name that begins with a digit owns no folder in the vault', () => {
+  // The whole reason this rule is stricter than the plugin-folder one. A
+  // folder called `2026` *is* a year folder, and the vault scanner would walk
+  // into it looking for months (spec §2.5).
+  assert.equal(vaultFolder('2026'), null)
+  assert.equal(vaultFolder('2026-planner'), null)
+  // And it is still a perfectly good plugin folder, which is the point: the
+  // plugin runs, it simply keeps nothing in the vault.
+  assert.equal(isPluginName('2026'), true)
+})
+
+test('someday owns no folder in the vault', () => {
+  // Not a collision - `someday.md` is a file and a directory sits beside it
+  // quite happily. A vault holding both is one nobody can read at a glance.
+  assert.equal(vaultFolder('someday'), null)
+  assert.equal(vaultFolder('someday-notes'), 'someday-notes')
+})
+
+test('a name that is not a plugin name owns no folder in the vault either', () => {
+  for (const name of ['', 'Kanban', 'kan ban', 'kan/ban', '..', '-kanban', 'k'.repeat(65)]) {
+    assert.equal(vaultFolder(name), null, `${name} was given a folder`)
+  }
+})
+
+test('a board plugin whose name owns no folder is told, in the rule\'s own words', () => {
+  const folders = [{ name: '2026', manifest: 'entry = "index.js"\nslots = ["spread.board"]\n' }]
+  const configured = new Map([['2026', {
+    enabled: true,
+    approvedSlots: ['spread.board'],
+    approvedCapabilities: [], approvedOpen: [], approvedMoves: [], approvedRun: new Map(), settings: new Map(),
+  }]])
+
+  const planned = plan(folders, configured)
+  // It still starts, with its slot: the board has nowhere to keep a file, and
+  // that is a smaller thing than the plugin not running.
+  assert.deepEqual(planned.start.map((one) => one.name), ['2026'])
+  assert.deepEqual(planned.start[0]?.slots, ['spread.board'])
+  assert.ok(
+    planned.notices.some((one) => one.includes('2026') && one.includes('begin with a letter')),
+    `no notice naming the rule: ${planned.notices.join(' | ')}`,
+  )
+})
+
+test('a plugin that keeps no board is not told about a folder it never wanted', () => {
+  // Every plugin may own one and almost none want one, so a notice on every
+  // name that fails would be a page of complaints about nothing.
+  const folders = [{ name: '2026', manifest: 'entry = "index.js"\nslots = ["item.badge"]\n' }]
+  const configured = new Map([['2026', {
+    enabled: true,
+    approvedSlots: ['item.badge'],
+    approvedCapabilities: [], approvedOpen: [], approvedMoves: [], approvedRun: new Map(), settings: new Map(),
+  }]])
+
+  assert.deepEqual(plan(folders, configured).notices, [])
+})
+
+test('a board plugin whose slot nobody ticked is not told about the folder', () => {
+  // The notice is about a slot that cannot work. An unticked slot does not
+  // work for a reason the person already knows and is already told - saying
+  // both would read as two problems where there is one decision.
+  const folders = [{ name: '2026', manifest: 'entry = "index.js"\nslots = ["spread.board"]\n' }]
+  const configured = new Map([['2026', {
+    enabled: true,
+    approvedSlots: [],
+    approvedCapabilities: [], approvedOpen: [], approvedMoves: [], approvedRun: new Map(), settings: new Map(),
+  }]])
+
+  const { notices } = plan(folders, configured)
+  assert.deepEqual(notices, ['2026 asks for the spread.board slot, which config.toml has not approved'])
 })

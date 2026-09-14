@@ -248,6 +248,12 @@
   min-height: 0;
 }
 
+/* The boards' tabs are patched into a span of their own, so the span must not
+   be a box in the strip: `contents` puts the buttons themselves in the strip's
+   flex flow, spaced by the strip's own gap, exactly as if they had been
+   appended there one by one. */
+.tabs-boards { display: contents; }
+
 /* A file's tab carries the file's own name, which may be a sentence. */
 .spread-head .tab {
   max-width: 22ch;
@@ -255,3 +261,98 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── a board ──────────────────────────────── */
+
+/*
+ * A plugin's board (spec §2.2): columns side by side, each scrolling its own
+ * cards.
+ *
+ * Unlike the week, the number of columns is the plugin's to decide, so they
+ * cannot divide the window into equal shares - four columns would be a grid
+ * and eleven would be eleven slivers. They take a readable width each and the
+ * row scrolls sideways when there are more than fit, which is the one place
+ * in this window where sideways scrolling is the right answer.
+ */
+.board-columns {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 1px;
+  overflow-x: auto;
+  padding: 0 18px 14px;
+  background: var(--edge-soft);
+  border-top: 1px solid var(--edge-soft);
+}
+
+.board-column {
+  flex: 0 0 240px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+}
+
+.board-column-name {
+  margin: 0;
+  padding: 10px 12px 6px;
+  font-family: var(--font-meta);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+}
+
+/* The cards are what scrolls, not the column and not the window - the same
+   rule the day columns follow, for the same reason. */
+.board-cards {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0 8px 8px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.board-card {
+  padding: 8px 10px;
+  border: 1px solid var(--edge-soft);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* Finished the same two ways the day page draws them, so a card and its line
+   never disagree about what happened to it. */
+.board-card.ended { opacity: 0.55; }
+.board-card.ended.done .board-card-text { text-decoration: line-through; }
+.board-card.ended.dropped .board-card-text { text-decoration: line-through wavy; }
+
+/* ── a card in flight ───────────────────────────────────── */
+
+.board-card[draggable='true'] { cursor: grab; }
+
+.board-card.lifting { opacity: 0.4; }
+
+/* The column a card would land in, marked the way a day column is. */
+.board-column.dropping { background: var(--surface); }
+.board-column.dropping .board-column-name { box-shadow: inset 0 2px 0 var(--accent); }
+
+/*
+ * The last column, which is not a drop target (kanban design §6): a card gets
+ * there by its line being ticked, and the board's answer to the gesture is to
+ * show you that line rather than to move the card.
+ *
+ * Marked while the pointer is over it, and marked as the different answer it
+ * is - dimmed rather than lit - so the refusal is legible before the mouse
+ * comes up rather than only after.
+ */
+.board-column.refusing { background: var(--edge-soft); }
+.board-column.refusing .board-column-name { box-shadow: inset 0 2px 0 var(--dim); }

@@ -86,6 +86,8 @@ pub fn run(intent: cli::Intent) {
         vault::list_sidecars,
         vault::write_sidecar,
         vault::delete_sidecar,
+        vault::read_plugin_file,
+        vault::write_plugin_file,
         files::read_file,
         files::write_file,
         files::close_file,

@@ -31,6 +31,10 @@ export function sampleHost() {
   const sidecars = new Map()
   /** @type {((change: {date: string, suffix: string}) => void)[]} */
   const sidecarHandlers = []
+  /** What plugins keep in their own folders, keyed `<name>/<file>`. Empty to
+   *  start with for the reason sidecars are: a board is built by using it, and
+   *  a sample one would be somebody else's board. @type {Map<string, string>} */
+  const folders = new Map()
   /** Files opened by name, keyed by path. A browser has no filesystem, so
    *  this is the whole of one. @type {Map<string, string>} */
   const files = new Map()
@@ -112,6 +116,9 @@ export function sampleHost() {
       for (const handler of sidecarHandlers) handler({ date, suffix })
     },
     onSidecarChanged: (handler) => { sidecarHandlers.push(handler) },
+
+    readPluginFile: async (name, file) => folders.get(`${name}/${file}`) ?? null,
+    writePluginFile: async (name, file, text) => { folders.set(`${name}/${file}`, text) },
 
     readFile: async (path) => files.get(path) ?? null,
     writeFile: async (path, text) => {

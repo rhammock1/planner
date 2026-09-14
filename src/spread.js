@@ -14,7 +14,9 @@ import { applyPluginTokens } from './plugins/theming.js'
 import { moveItem } from './core/move.js'
 import { search } from './core/search.js'
 import { readRef, owns } from './core/sidecars.js'
-import { badgesFor, providedFor, openBadge } from './plugins/pageAsking.js'
+import { badgesFor, boardsFor, providedFor, openBadge } from './plugins/pageAsking.js'
+import { keepBoards, dropCard } from './plugins/boardWrites.js'
+import { lineWithId } from './core/ids.js'
 import { weekOf } from './core/calendar.js'
 import { SOMEDAY } from './core/vaultIndex.js'
 import { createFiles } from './fileStore.js'
@@ -60,6 +62,32 @@ async function start() {
       draw()
     },
     onMove: (from, index, to) => { void move(from, index, to) },
+    onCard: (plugin, id, column, before) => { void dropCard(store, plugin, id, column, before) },
+
+    /**
+     * A card dropped on the last column, which is not a drop target: a card
+     * gets there by its line being ticked, and ticking a line is a write into
+     * your day file that a board does not make (kanban design §6).
+     *
+     * The refusal does the useful half. In the popover that is the day page
+     * with the caret on the line; this window has no day page and no caret,
+     * so it does what a search hit and a provider's hit both already do here
+     * and moves to the week that day sits in - where the line is on screen
+     * with its checkbox, one click from the tick (spec §5.7).
+     */
+    onFinish: (id) => {
+      const found = lineWithId(store.vault(), id)
+      if (found === null) {
+        // A card whose task is nowhere in the vault. Said out loud, because
+        // unlike a stale drawing this one does not fix itself: the card will
+        // sit on the board being undroppable until somebody knows why.
+        store.notice('That card’s line is not in the vault, so there is nothing to tick.')
+        return
+      }
+      view = found.page === SOMEDAY ? 'someday' : 'week'
+      if (found.page !== SOMEDAY) anchor = found.page
+      draw()
+    },
     onBadge: (plugin, href) => {
       const ref = readRef(href)
       // A note of somebody's, and this window cannot show one: it draws weeks
@@ -269,6 +297,12 @@ function closeFile() {
 }
 
 function draw() {
+  // The day this draw is about, settled once. `today()` read twice in one draw
+  // can straddle midnight and give two answers, and the board's writes are
+  // decided against one of them and written into the page named by the other -
+  // an id stamped on the wrong day. One value cannot disagree with itself.
+  const day = today()
+
   // What the plugins have to say about every page a line can be drawn on:
   // the week's seven columns and the back page (spec §2.1). Asked for the
   // week even when another view is on screen - cheap, cache-only reads, so
@@ -287,6 +321,23 @@ function draw() {
   // window asks for itself: the two windows have separate stores and never
   // talk to each other, and each keeps its own minute clock.
   const warmed = applyPluginTokens(store, draw)
+
+  // The boards, which are tabs of their own (spec §2.2). Asked about today,
+  // whatever week the window happens to be showing: a board is an arrangement
+  // of the day you are on, and asking about the anchored day would make
+  // walking back through the weeks stamp ids into those old pages - browsing
+  // that writes to files.
+  //
+  // A task on an older day reaches the board by being carried forward, which
+  // leaves the old line `migrated` and the carried copy live. Seeding the old
+  // line instead would mint a second name for a task that already has one,
+  // which is the case `migrated` exists to refuse.
+  const kept = boardsFor(store, day)
+  // What the answer means for the three files it may change (kanban design
+  // §6). Not awaited: a draw is what the window owes the person in front of
+  // it, and a write is what it owes the vault afterwards. A no-op on almost
+  // every draw, and it tells the window when it is not.
+  void keepBoards(store, day, kept.boards, day)
 
   // The file this window is holding, as the view wants it: a title, a
   // subtitle, a path and an id it never looks inside (spec §3.1).
@@ -312,12 +363,19 @@ function draw() {
 
   spreadPage.render({
     view,
-    today: today(),
+    today: day,
     anchor,
     vault: store.vault(),
     badges,
     file,
-    notices: [...store.notices(), ...badgeNotices, ...warmed, ...unwatched],
+    boards: kept.boards,
+    notices: [
+      ...store.notices(),
+      ...badgeNotices,
+      ...kept.notices,
+      ...warmed,
+      ...unwatched,
+    ],
   })
 
   // The search holds its own query; this is what puts a late answer under it.

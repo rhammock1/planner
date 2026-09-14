@@ -4,8 +4,14 @@
  * `item.badge`: the one thing an annotating plugin reads, and what it may put
  * back (spec §2.1).
  *
- * A plugin is shown every item's index and display text. Not its note, not its
- * tokens, not the daily note, and not a line the parser did not understand.
+ * A plugin is shown every item's index and display text, and the line's id if
+ * it already has one. Not its note, not its other tokens, not the daily note,
+ * and not a line the parser did not understand.
+ *
+ * `id` is null far more often than not, and asking never changes that: a name
+ * is stamped when a line becomes something else's card, never because a
+ * question was put about it (spec §2.3). A plugin may read one and may not
+ * mint one.
  * The pane's sentence says exactly that, and the tick beside the sentence is
  * the consent.
  *
@@ -14,7 +20,7 @@
  */
 
 /** @typedef {import('./model.js').Document} Document */
-/** @typedef {{index: number, text: string}} Line */
+/** @typedef {{index: number, text: string, id: string|null}} Line */
 /** @typedef {{plugin: string, label: string, href: string}} Badge */
 
 /** A marker, not a sentence. Sixteen characters is `#4412` and room to spare. */
@@ -32,7 +38,7 @@ export function linesOf(doc) {
   const lines = []
   doc.nodes.forEach((node, index) => {
     if (node.kind !== 'item') return
-    lines.push({ index, text: node.text })
+    lines.push({ index, text: node.text, id: node.id })
   })
   return lines
 }
@@ -51,7 +57,7 @@ export function linesOf(doc) {
 export function badgeKey(date, lines) {
   let hash = 0x811c9dc5
   for (const line of lines) {
-    for (const char of `${line.index}\t${line.text}\n`) {
+    for (const char of `${line.index}\t${line.text}\t${line.id ?? ''}\n`) {
       hash ^= char.codePointAt(0) ?? 0
       // FNV-1a, in the arithmetic JavaScript actually has. Not a security
       // property: two different pages hashing the same would re-use an answer,

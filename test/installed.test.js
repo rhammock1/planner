@@ -154,6 +154,8 @@ test('a plugin that is switched off is still listed', () => {
     prefixes: [],
     heading: 'macos-calendar',
     actionLabel: 'macos-calendar',
+    box: { width: 48, height: 48 },
+    tab: 'macos-calendar',
     moves: [],
     notices: [],
     problem: null,
@@ -178,6 +180,8 @@ test('a plugin the config has never heard of is listed as off and ungranted', ()
     prefixes: [],
     heading: 'macos-calendar',
     actionLabel: 'macos-calendar',
+    box: { width: 48, height: 48 },
+    tab: 'macos-calendar',
     moves: [],
     notices: [],
     problem: null,
@@ -264,6 +268,39 @@ test('a plugin that does not contribute still has a heading, and it is its name'
   const folders = [{ name: 'ticket-links', manifest: 'entry = "index.js"\nslots = ["item.badge"]\n' }]
   const [one] = installed(folders, new Map())
   assert.equal(one?.heading, 'ticket-links')
+})
+
+test('a board plugin is listed with the tab it asked for', () => {
+  const folders = [{
+    name: 'kanban',
+    manifest: `
+entry = "index.js"
+slots = ["spread.board"]
+
+[tab]
+name = "Board"
+`,
+  }]
+  const [one] = installed(folders, new Map())
+  assert.equal(one?.tab, 'Board')
+})
+
+test('a board plugin with no tab is listed under its own name', () => {
+  const folders = [{ name: 'kanban', manifest: 'entry = "index.js"\nslots = ["spread.board"]\n' }]
+  const [one] = installed(folders, new Map())
+  assert.equal(one?.tab, 'kanban')
+})
+
+test('a tab longer than the strip is cut rather than refused', () => {
+  // The same bargain the heading makes: a manifest is somebody else's file,
+  // and a long name is a plugin asking for more room than a tab has rather
+  // than a plugin doing something wrong.
+  const folders = [{
+    name: 'kanban',
+    manifest: 'entry = "index.js"\nslots = ["spread.board"]\n\n[tab]\nname = "Everything I Am Working On"\n',
+  }]
+  const [one] = installed(folders, new Map())
+  assert.equal(one?.tab, 'Everything I Am…')
 })
 
 test('a plugin that moves colours is listed with the ones it named', () => {

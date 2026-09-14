@@ -110,6 +110,44 @@ declare namespace Planner {
     title?: string
   }
 
+  /** What a day amounts to, in four numbers. `open` and `done` are of that
+   *  page; `due` and `overdue` are of that page judged from today, and are
+   *  disjoint. Dropped and migrated lines are none of the four. */
+  interface DayGlance {
+    open: number
+    done: number
+    due: number
+    overdue: number
+  }
+
+  /** The five colours a drawing is handed. An `<img>` cannot see this page's
+   *  stylesheet, so a picture that is to sit on the paper it is drawn on has
+   *  to bake these in. */
+  interface Paints {
+    paper: string
+    ink: string
+    dim: string
+    accent: string
+    alert: string
+  }
+
+  /** The question behind the `page.box` slot. Counts and colours, and no
+   *  line's words. */
+  interface BoxQuestion {
+    now: Now
+    /** The page being drawn, `YYYY-MM-DD`. Not always today. */
+    date: string
+    glance: DayGlance
+    theme: Paints
+  }
+
+  /** A picture for the day's margin. At most 16 KiB of SVG, with no script,
+   *  no handler and no href that leaves the picture. `null` is an answer:
+   *  nothing to draw this time. */
+  interface BoxAnswer {
+    svg: string
+  }
+
   /** The question behind the `search.provide` slot. */
   interface SearchQuestion {
     now: Now
@@ -129,6 +167,10 @@ declare namespace Planner {
   interface Line {
     index: number
     text: string
+    /** The line's `^abc123`, or null - which is the usual answer. The app
+     *  stamps one when a line becomes a card somewhere, never because you
+     *  were asked about it. Read it; you cannot make one. */
+    id: string | null
   }
 
   /** The question behind the `item.badge` slot. */
@@ -213,6 +255,64 @@ declare namespace Planner {
     /** Opened by the app when it is clicked, if the config approves it. */
     href: string
   }
+
+  /**
+   * One line on the day being drawn, as a board is shown it.
+   *
+   * `id` is the durable id the line already carries, and null for a line that
+   * has none: asking a question never writes a file, so an unstamped line
+   * arrives unstamped. Answer with its `index` to ask for it to be stamped
+   * and seeded - a plugin never mints an id.
+   */
+  interface BoardItem {
+    index: number
+    id: string | null
+    text: string
+    /** How the line stands on the page. Only an `open` one is ever seeded:
+     *  the other three are decisions already made, and `migrated` is a line
+     *  whose task has moved on, carrying its id to the new line. An ended
+     *  card's line is usually not on this page at all. */
+    state: 'open' | 'done' | 'migrated' | 'dropped'
+  }
+
+  /** The question behind the `spread.board` slot. */
+  interface BoardQuestion {
+    now: Now
+    /** The day being drawn, `YYYY-MM-DD`. */
+    date: string
+    /** Every line the parser understood on that page, on the `item.badge`
+     *  precedent. Never the vault. */
+    items: BoardItem[]
+    /** Your board file, verbatim, or `''` when there is not one yet. */
+    board: string
+  }
+
+  /**
+   * One card in an answer. Exactly one of `id` and `index` is set: `id` names
+   * a card the board file already holds, `index` asks for the line at that
+   * index on the day being drawn to be given an id and seeded.
+   */
+  interface BoardCard {
+    id: string | null
+    index: number | null
+    text: string
+    /** How it finished, or null while it is still in flight. */
+    ended: 'done' | 'dropped' | null
+  }
+
+  interface BoardColumn {
+    name: string
+    cards: BoardCard[]
+  }
+
+  /** What `spread.board` answers with. A column the file does not have is
+   *  dropped, and a card the file has that the answer omits is kept where
+   *  the file has it: an omission is not a deletion. */
+  interface BoardAnswer {
+    columns: BoardColumn[]
+    /** The ids of ended cards old enough to move to `archive.md`. */
+    archive: string[]
+  }
 }
 
 declare const planner: {
@@ -227,8 +327,12 @@ declare const planner: {
     Record<string, string> | Promise<Record<string, string>>): void
   on(slot: 'page.note', handler: (question: Planner.SectionQuestion) =>
     Planner.SectionAnswer[] | Promise<Planner.SectionAnswer[]>): void
+  on(slot: 'page.box', handler: (question: Planner.BoxQuestion) =>
+    Planner.BoxAnswer | null | Promise<Planner.BoxAnswer | null>): void
   on(slot: 'search.provide', handler: (question: Planner.SearchQuestion) =>
     Planner.SearchHit[] | Promise<Planner.SearchHit[]>): void
+  on(slot: 'spread.board', handler: (question: Planner.BoardQuestion) =>
+    Planner.BoardAnswer | Promise<Planner.BoardAnswer>): void
 
   /** `vault.contribute` under the name it has always had. */
   onContribute(
@@ -247,6 +351,30 @@ declare const planner: {
   capability(name: 'macos.location.read'): Planner.LocationCapability
 
   capability(name: 'vault.sidecar.read'): Planner.SidecarCapability
+
+  /**
+   * This plugin's own small file: `~/.planner/state/<your name>.json`.
+   *
+   * Not a capability - no manifest declares it and no tick grants it. The
+   * file is yours, nothing else reads it, and it is there on your first run
+   * as an empty one.
+   *
+   * JSON values, and at most 64 KiB for the whole file. A `set` that would go
+   * over the cap rejects and writes nothing, so the previous file is still
+   * there to read.
+   */
+  readonly storage: {
+    /** What you stored under this key, or `null` for one you never set. */
+    get(key: string): Promise<unknown>
+    /**
+     * Stores a value under this key.
+     *
+     * No value, or `null`, forgets the key instead of storing a null: `get`
+     * cannot tell a stored null from a key nobody set, so storing one would
+     * leave you paying against the cap for something you cannot read back.
+     */
+    set(key: string, value?: unknown): Promise<void>
+  }
 
   /**
    * This plugin's own settings, as `config.toml` holds them, keyed the way
