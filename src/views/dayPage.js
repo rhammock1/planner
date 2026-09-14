@@ -43,6 +43,9 @@ import { createSettingsPanel } from './settingsPanel.js'
  * @property {Map<string, string[]>} prefixes  who owns which sidecar prefix; a
  *   contributed row's note is found through these, never through a name
  * @property {Map<number, import('../core/badges.js').Badge[]>} [badges]  markers, keyed by line index
+ * @property {import('../core/box.js').Box|null} [box]  the picture in the
+ *   day's margin, when a plugin drew one and the window is tall enough to
+ *   have asked (spec §5.1, phase four §1.1)
  * @property {string[]} notices
  * @property {Action[]} actions  offered under the notices; usually none
  */
@@ -110,7 +113,40 @@ let currentState = null
  * @property {ReturnType<typeof createCarryBand>} carry
  * @property {ReturnType<typeof createDaySections>} sections
  * @property {HTMLElement} note
+ * @property {HTMLElement} noteRow
+ * @property {HTMLElement} margin
  */
+
+/**
+ * How tall the window has to be before the day's margin is asked for at all
+ * (phase four §1.1).
+ *
+ * The popover opens at 560 and may be dragged down to 240. At the bottom of
+ * that range the page is chrome and a sliver of list, and a picture 48 points
+ * tall is a fifth of what is left - so below this the question is not put,
+ * which also means a plugin is not woken to draw something nobody can see.
+ *
+ * 420 rather than a rounder number: it is the height at which the list still
+ * holds about half a screen of lines after the note's row has grown to fit a
+ * box. Measured against the default theme's metrics; a theme with a larger
+ * body size moves the real figure, which is why this is the app's rule about
+ * its own page rather than anything a plugin declares.
+ */
+export const ROOM_FOR_A_BOX = 420
+
+/**
+ * Whether this window is tall enough for the day to have a margin.
+ *
+ * Read on every draw rather than watched: a resize redraws the page anyway by
+ * the time anything else on it has moved, and a listener that redrew on every
+ * frame of a drag would put the question to a plugin sixty times a second.
+ *
+ * @param {Window} view
+ * @returns {boolean}
+ */
+export function roomForABox(view) {
+  return view.innerHeight >= ROOM_FOR_A_BOX
+}
 
 /**
  * Builds the page once. Everything after this is a patch.
@@ -174,12 +210,20 @@ export function mount(root, handlers) {
   note.setAttribute('role', 'textbox')
   note.setAttribute('aria-label', 'A note on the day')
 
+  // The margin, at the right-hand end of the note's row (phase four §1.1).
+  // Outside the note rather than inside it: the note is contenteditable, and
+  // anything within it is something the caret can be put in and the person
+  // can delete.
+  const margin = el('div', 'box')
+  const noteRow = el('div', 'note-row')
+  noteRow.append(note, margin)
+
   const foot = createDayFooter(handlers.onOpenSpread)
 
   const surface = el('div', 'page')
   surface.append(
     head, notices.element, carry.element, horizon.element, items.element,
-    add.element, sections.element, note, sections.evidence,
+    add.element, sections.element, noteRow, sections.evidence,
     foot.element, search.element, settings.element, noteView.element,
   )
   root.replaceChildren(surface)
@@ -224,7 +268,7 @@ export function mount(root, handlers) {
     note.ownerDocument.execCommand('insertText', false, text)
   })
 
-  page = { weekday, date, todayButton, head, pin, notices, foot, horizon, items, carry, sections, note, search, settings, noteView }
+  page = { weekday, date, todayButton, head, pin, notices, foot, horizon, items, carry, sections, note, noteRow, margin, search, settings, noteView }
 }
 
 /**
@@ -298,6 +342,11 @@ export function render(state) {
   page.items.render(state.doc, state.badges)
   page.sections.render({ contributed: state.sections, blocks: state.blocks, prefixes: state.prefixes })
   renderNote(page.note, state.doc)
+  renderBox(page.margin, state.box ?? null)
+  // The row is only there for what is in it. A day with no file and no
+  // picture keeps the blank bottom the page had before this row existed,
+  // rather than a rule across it with nothing under.
+  page.noteRow.hidden = page.note.hidden && page.margin.hidden
 
   page.foot.render(openCount(state.doc))
 }
@@ -324,6 +373,47 @@ function renderNote(element, doc) {
   // cannot start; the placeholder is where the day's line goes.
   element.hidden = doc === null
   setText(element, doc?.dailyNote ?? '')
+}
+
+/**
+ * The picture in the day's margin.
+ *
+ * An `<img>` with a `data:` URI, and that is the whole of the isolation: an
+ * SVG loaded this way is an independent document with no script, no network
+ * and no reach into this one, whatever `picture.js` may have missed. The
+ * reader is a belt over these braces rather than the other way round.
+ *
+ * Rebuilt only when the drawing actually changed. `render` runs on every
+ * keystroke in the add row, and re-assigning the same `src` makes the browser
+ * decode the picture again.
+ *
+ * @param {HTMLElement} element
+ * @param {import('../core/box.js').Box|null} box
+ * @returns {void}
+ */
+function renderBox(element, box) {
+  element.hidden = box === null
+  if (box === null) {
+    element.replaceChildren()
+    return
+  }
+
+  const src = `data:image/svg+xml,${encodeURIComponent(box.picture.svg)}`
+  const showing = element.firstElementChild
+  /** @type {HTMLImageElement} */
+  const img = showing instanceof HTMLImageElement
+    ? showing
+    : element.ownerDocument.createElement('img')
+  if (img !== showing) element.replaceChildren(img)
+
+  if (img.getAttribute('src') !== src) img.setAttribute('src', src)
+  img.width = box.width
+  img.height = box.height
+  // The only word the app has for it. A plugin is never asked for one: a slot
+  // that is told no line's words cannot be trusted to describe the page, and
+  // a picture that could put text on screen is a picture that could say
+  // something about a day it was never shown.
+  img.alt = box.plugin
 }
 
 /**

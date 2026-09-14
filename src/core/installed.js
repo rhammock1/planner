@@ -15,6 +15,7 @@
  */
 
 import { readManifest, slotOptions, optionText, optionNames } from './manifest.js'
+import { boxSize, SIDE } from './box.js'
 import { settled, resolveOpen, personSet, valueOf, isApproved } from './pluginSettings.js'
 import { isPluginName, BAD_NAME, both } from './plugins.js'
 import { TOKEN_NAMES } from './theme.js'
@@ -71,6 +72,10 @@ const HEADING = 40
  * @property {string} heading  what the day page calls this plugin's section
  * @property {string} actionLabel  the gesture this plugin adds to a line, as
  *   the ⌘, pane names it. Its folder name when the manifest gives none
+ * @property {{width: number, height: number}} box  how much of the day's
+ *   margin its picture asks for, already held between the bounds the page can
+ *   pay. Always a size, the way `heading` is always a word: a plugin that
+ *   never draws one simply never has it read
  * @property {string[]} moves  the theme tokens this plugin says it moves, of
  *   the names this version knows. A name no theme has is dropped here rather
  *   than shown: the pane is a consent surface, and offering a tick over
@@ -117,6 +122,7 @@ export function installed(folders, configured) {
         prefixes: [],
         heading: folder.name,
         actionLabel: folder.name,
+        box: { width: SIDE, height: SIDE },
         moves: [],
         approvedMoves: [],
         notices: [],
@@ -177,6 +183,10 @@ export function installed(folders, configured) {
       // does not draw; the pane is its consumer instead, so the sentence you
       // tick says which gesture rather than naming none.
       actionLabel: optionText(slotOptions(read, 'item.action'), 'label', HEADING) || folder.name,
+      // Read here rather than where the margin is drawn, so the pane and the
+      // day page agree about how big a plugin's picture is without the view
+      // having to parse a manifest on its draw path.
+      box: boxSize(read),
       moves,
       approvedMoves: both(moves, configEntry?.approvedMoves),
       notices,

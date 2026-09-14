@@ -101,6 +101,25 @@ export function applyPluginTokens(store, redraw) {
 }
 
 /**
+ * What the window is actually wearing: the theme's own tokens, with whatever a
+ * plugin has moved over the top.
+ *
+ * Here because `painted` lives here, and it is the only honest answer to "what
+ * colour is the paper". A margin picture is handed these rather than the
+ * theme's own, because an `<img>` cannot see a stylesheet and a drawing built
+ * from the colours underneath a plugin's would sit on the page as a patch.
+ *
+ * Read after `applyPluginTokens` has run for this draw, which is the order
+ * `app.js` already draws in.
+ *
+ * @param {Store} store
+ * @returns {Map<string, string>}
+ */
+export function wearing(store) {
+  return new Map([...store.themeTokens(), ...painted])
+}
+
+/**
  * Starts the minute clock while somebody is claiming a colour, and stops it
  * when nobody is.
  *

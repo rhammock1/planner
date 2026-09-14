@@ -116,6 +116,7 @@ that the manifest does not declare is never asked either.
 | `item.badge` | `{date, items: [{index, text}]}` — every line the parser understood on the page being drawn, and where it sits. Not its note, not its tokens, not the daily note. | `{index, label, href}[]` |
 | `theme.tokens` | The clock, and `tokens` — every theme token as the theme set it. You are asked to *move* those, and cannot move what you were never shown. Not the page: what you do with colour is a function of the time of day. | `Record<string, string>` — a partial map of theme tokens |
 | `page.note` | `{date, sidecars: [{suffix, title}]}` — which of *your* files exist on that day, and never anybody else's. | `{suffix, title?}[]` |
+| `page.box` | `{date, glance: {open, done, due, overdue}, theme: {paper, ink, dim, accent, alert}}` — how many lines the day has of each kind, and the five colours it is drawn in. Never a line's words. | `{svg}` or `null` |
 | `item.action` | `{date, index, text}` — the line under the caret when `⌘⇧N` was pressed. | `{open: 'sidecar:…'}` or `null` |
 | `search.provide` | `{query}` — exactly what was typed into ⌘F. | `{text, date?, href?}[]` |
 
@@ -465,6 +466,65 @@ applied when it closes.
 
 The title of a file that exists comes from the file's own first `# ` line, not
 from your answer: you name a note once, and after that it is somebody's writing.
+
+### `page.box`
+
+A small picture in the corner of the day, where a notebook gets doodled in:
+
+```toml
+slots = ["page.box"]
+
+[box]
+width = 48
+height = 48
+```
+
+```js
+planner.on('page.box', ({ date, glance, theme }) => {
+  // Four counts and five colours. Nothing here is a line's words.
+  const mood = glance.overdue > 0 ? theme.alert
+    : glance.open === 0 ? theme.dim
+    : theme.accent
+
+  return {
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+            <circle cx="24" cy="24" r="18" fill="${mood}" />
+          </svg>`,
+  }
+})
+```
+
+**You are told counts, never words.** `open` and `done` are of that page;
+`due` and `overdue` are of that page judged from today, and are disjoint. A
+day with nothing on it is four zeroes. Nothing to draw this time is `null`,
+which is an answer, not a mistake — the margin is simply left empty.
+
+The picture is drawn into an `<img>` with a `data:` URI, which is an
+independent document: no script in it runs, it cannot reach the network, and
+it cannot see this page or its stylesheet. That is why `theme` is in the
+question — `currentColor` does not cross into an `<img>`, so a drawing that is
+to sit on the paper it is drawn on has to be handed the paper's colours and
+bake them in.
+
+Before it is drawn the SVG is read, and refused whole if it holds a `<script>`
+or a `<foreignObject>`, any `on…` handler, a doctype or processing
+instruction, anything after `</svg>`, or an `href` that is not a `#fragment`
+within the picture itself. A refusal names your plugin in the day's notice
+band. At most 16 KiB, counted in bytes.
+
+`[box] width` and `height` are what you ask for, between 16 and 64, defaulting
+to 48. They are read from your manifest rather than from your answer: how much
+of somebody's page you take is a thing you declare and they tick, not a thing
+you decide per drawing.
+
+**There is one margin.** If two enabled plugins both answer with a picture,
+neither is drawn and a notice names both — which one you got would otherwise
+depend on the order the plugins happen to be listed in. Turning one off in the
+⌘, pane is the fix.
+
+The question is not put at all in a window under 420 points tall: below that
+the day page is chrome and a sliver of list, and there is nowhere to put a
+picture. Your plugin is simply not asked.
 
 ### `item.action`
 
