@@ -771,6 +771,20 @@ function showOn(view, tabs = [], boards = [], count = 6) {
     onCard: (plugin, id, column, before) => { dropped = { plugin, id, column, before } },
     onFinish: (id) => { finished = id },
   })
+  drawOn(view, tabs, boards, count)
+}
+
+/**
+ * Another draw of the page already mounted, for a test about what one draw
+ * leaves the next one holding.
+ *
+ * @param {string} view
+ * @param {import('../../src/views/dayFooter.js').BoardTab[]} [tabs]
+ * @param {import('../../src/plugins/pageAsking.js').Board[]} [boards]
+ * @param {number} [count]
+ * @returns {void}
+ */
+function drawOn(view, tabs = [], boards = [], count = 6) {
   dayPage.render({
     today: '2026-09-01',
     page: '2026-09-01',
@@ -787,6 +801,13 @@ function showOn(view, tabs = [], boards = [], count = 6) {
     notices: [],
     actions: [],
   })
+}
+
+/** The same board with nothing answered yet: the frame after its file changed,
+ *  while the plugin is working out what it now says.
+ *  @returns {import('../../src/plugins/pageAsking.js').Board[]} */
+function waiting() {
+  return [{ plugin: 'kanban', tab: 'Kanban', board: '', answer: null }]
 }
 
 /** The words on every tab the strip is actually showing, in order.
@@ -973,6 +994,14 @@ function boardPart(selector) {
   return found
 }
 
+/** The same, for a test about something being *gone*: null rather than a throw.
+ *  @param {string} selector
+ *  @returns {HTMLElement|null} */
+function onBoard(selector) {
+  const found = part('.board').querySelector(selector)
+  return found instanceof HTMLElement ? found : null
+}
+
 check('a card dragged into another stacked column writes the move', () => {
   showOn('board:kanban', KANBAN_TAB, kanban())
   drag(boardPart('[data-card="k4m2qa"]'), boardPart('[data-column="Doing"]'))
@@ -1001,6 +1030,36 @@ check('a card dropped on the last column is a question, not a move', () => {
   drag(boardPart('[data-card="k4m2qa"]'), boardPart('[data-column="Done"]'))
   equal(dropped, null, 'the done column took a move')
   equal(finished, 'k4m2qa', 'the refusal said nothing useful')
+})
+
+check('a board waiting on a new answer keeps the cards it is showing', () => {
+  // The frame after a drop. Moving a card rewrites `board.md`, the file is
+  // the board's cache key, so the next draw is a miss and the answer is null
+  // until the plugin has read the file it has just been handed. Drawn as the
+  // empty board, that is the whole board blinking out on every drop.
+  showOn('board:kanban', KANBAN_TAB, kanban())
+  drawOn('board:kanban', KANBAN_TAB, waiting())
+  equal(boardPart('[data-column="To do"]').querySelectorAll('.board-card').length, 2, 'the columns emptied')
+  ok(onBoard('[data-card="p9x1bb"]') !== null, 'a card vanished while the plugin was thinking')
+})
+
+check('and a board that has never answered is still the empty board', () => {
+  // The other half: nothing to keep, so the tab is an empty board rather than
+  // a blank window, and says why.
+  showOn('board:kanban', KANBAN_TAB, waiting())
+  equal(onBoard('.board-column'), null, 'columns appeared for an answer nobody gave')
+  equal(part('.board .count').textContent, 'waiting', 'the count did not say why the board is empty')
+})
+
+check('and one board s cards are never left under another board s name', () => {
+  // Keeping what is on screen is only right while it is the same board's. A
+  // tab pressed for a board that has not answered yet must not leave the
+  // board beside it drawn under the new one's title.
+  showOn('board:kanban', KANBAN_TAB, kanban())
+  drawOn('board:other', [{ plugin: 'other', tab: 'Other' }], [
+    { plugin: 'other', tab: 'Other', board: '', answer: null },
+  ])
+  equal(onBoard('.board-column'), null, 'the kanban board was left under the other board s name')
 })
 
 report()

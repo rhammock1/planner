@@ -176,6 +176,25 @@ export function createBoardView(showing, onDrop, onFinish) {
     onDrop(plugin, id, name, onto === '' || onto === id ? null : onto)
   })
 
+  /**
+   * The arrangement the columns are holding, and whose it is.
+   *
+   * A board's answer is cached against its own file, so the draw that follows
+   * a drop is always a miss: the file has changed, and the plugin has not yet
+   * said what it now makes of it. Drawing that miss as the empty board is the
+   * whole board blinking out on every drop, so what is on screen stays there
+   * until there is something newer to put in its place.
+   *
+   * Drawn only, and that is the point of keeping it here rather than in
+   * `boardsFor`. The write path reads the same `Board` and must go on seeing
+   * the null answer: an arrangement kept from before the drop, merged onto the
+   * file the drop just wrote, would put the card back where it came from
+   * (`boardWrites.js`).
+   *
+   * @type {{plugin: string, columns: import('../core/board.js').Column[]}|null}
+   */
+  let held = null
+
   return {
     element,
     render: () => {
@@ -188,17 +207,29 @@ export function createBoardView(showing, onDrop, onFinish) {
         setText(title, '')
         setText(count, '')
         patchList(columns, [], SPEC)
+        held = null
         return
       }
 
       setText(title, board.tab)
-      const held = board.answer?.columns ?? []
-      const cards = held.reduce((total, column) => total + column.cards.length, 0)
+      // The answer if there is one; otherwise what is already on screen, and
+      // only while that is this board's own. A tab pressed for a board that
+      // has not answered yet draws the empty board rather than leaving the
+      // board beside it under the new one's name.
+      const drawing = board.answer?.columns
+        ?? (held !== null && held.plugin === board.plugin ? held.columns : [])
+      const cards = drawing.reduce((total, column) => total + column.cards.length, 0)
       setText(
         count,
-        board.answer === null ? 'waiting' : cards === 1 ? '1 card' : `${cards} cards`,
+        // `waiting` says there is nothing to show, not that there is nothing
+        // newer: a board still holding its cards counts the cards, which is
+        // what the person is looking at.
+        board.answer === null && drawing.length === 0
+          ? 'waiting'
+          : cards === 1 ? '1 card' : `${cards} cards`,
       )
-      patchList(columns, held, SPEC)
+      patchList(columns, drawing, SPEC)
+      held = { plugin: board.plugin, columns: drawing }
     },
   }
 }
