@@ -113,6 +113,7 @@ test('a board is read once, written by the app, and never announced back', async
 
   // A write. The queue holds the new text while the call is in flight, so the
   // tab draws what it just did rather than what the file said before it.
+  const drawnBefore = draws
   const writing = boards.change('kanban', 'board', '## To do\n## Doing\n- A ^k4m2qa\n')
   await flush()
   assert.equal(boards.text('kanban', 'board'), '## To do\n## Doing\n- A ^k4m2qa\n')
@@ -131,6 +132,16 @@ test('a board is read once, written by the app, and never announced back', async
   // cache now holds it, and no read was made to find that out.
   assert.equal(boards.text('kanban', 'board'), '## To do\n## Doing\n- A ^k4m2qa\n')
   assert.equal(stub.pending('read_plugin_file'), 0)
+
+  // And it asks for a redraw, which is the other half of recording its own
+  // write. A read that lands redraws because the window is holding something
+  // staler than the file; a write that lands is the same situation arrived at
+  // from the other side, and there is no watcher coming to say so. Without
+  // this a card dropped in another column is written to `board.md` and then
+  // never drawn there: the window keeps the arrangement it already has until
+  // something unrelated - a page edited, the popover reopened - happens to
+  // draw it again.
+  assert.ok(draws > drawnBefore, 'a write that landed did not ask for a redraw')
 
   // A write that fails says so and leaves the file saying what it said.
   const failing = boards.change('kanban', 'board', 'never lands')

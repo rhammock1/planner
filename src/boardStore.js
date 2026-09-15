@@ -65,6 +65,13 @@ export function createBoards(deps) {
       // mask anything read later.
       boardText.set(key, text)
       writes.observed(key)
+      // And announces it, which is the other half of the same absence. A
+      // sidecar's write is drawn because the watcher hands the file back and
+      // that is the redraw; nothing hands one of these back, so a write that
+      // did not say so would change the file under a window still drawing the
+      // arrangement it had before - a card dropped in another column, written
+      // to `board.md`, and never seen to move.
+      deps.onChanged()
     }),
   )
 
