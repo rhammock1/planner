@@ -54,6 +54,10 @@ pub fn show(app: &AppHandle) {
         .skip_taskbar(true)
         .center()
         .visible(false)
+        // Nothing here drags today, but the reason is the same one every
+        // other window has: the app listens for no OS file drop, so there is
+        // nothing to claim one for (`tray.rs`).
+        .disable_drag_drop_handler()
         // The app's own origin only. The same hook fires for subframes, and
         // the app has none (spec §0.2).
         .on_navigation(crate::plugins::app_navigable)

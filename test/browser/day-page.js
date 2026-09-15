@@ -810,6 +810,39 @@ function waiting() {
   return [{ plugin: 'kanban', tab: 'Kanban', board: '', answer: null }]
 }
 
+/**
+ * Robert's own board, which is the shape the drop was reported broken on: a
+ * middle column holding nothing, between one that holds the work and the done
+ * column that refuses drops. The empty middle is the only place there is to
+ * drop a card, and it is the one arrangement the checks above never build.
+ *
+ * @returns {import('../../src/plugins/pageAsking.js').Board[]}
+ */
+function emptyMiddle() {
+  return [{
+    plugin: 'kanban',
+    tab: 'Kanban',
+    board: '',
+    answer: {
+      columns: [
+        {
+          name: 'To do',
+          cards: [
+            { id: 'gwt7lj', index: null, text: 'Tabs page optimizations', ended: null },
+            { id: '98ff41', index: null, text: 'Gift card promotions', ended: null },
+          ],
+        },
+        { name: 'Doing', cards: [] },
+        {
+          name: 'Done',
+          cards: [{ id: '101jw5', index: null, text: 'Fix saving clutch gift card', ended: 'done' }],
+        },
+      ],
+      archive: [],
+    },
+  }]
+}
+
 /** The words on every tab the strip is actually showing, in order.
  *  @returns {string[]} */
 function tabWords() {
@@ -1021,6 +1054,33 @@ check('and dropped onto a card, it lands in front of it', () => {
   equal(move.id, 'p9x1bb', 'the wrong card moved')
   equal(move.column, 'To do', 'the wrong column took it')
   equal(move.before, 'c1d2e3', 'the card did not land in front of the one under it')
+})
+
+check('a column holding nothing is still somewhere to drop', () => {
+  // The shape a board reaches once the middle column is cleared, and the one
+  // the checks above never build: every drop they make lands on a column that
+  // already has cards in it. An empty one has no `.board-cards` to speak of,
+  // so the column itself is the whole of the target.
+  showOn('board:kanban', KANBAN_TAB, emptyMiddle())
+  const empty = boardPart('[data-column="Doing"]')
+  equal(empty.querySelectorAll('.board-card').length, 0, 'the middle column was not empty')
+  drag(boardPart('[data-card="gwt7lj"]'), empty)
+  const move = dropped
+  ok(move !== null, 'a drop on an empty column went nowhere')
+  equal(move.id, 'gwt7lj', 'the wrong card moved')
+  equal(move.column, 'Doing', 'the empty column did not take the card')
+  equal(move.before, null, 'an empty column put the card in front of something')
+})
+
+check('and dropped on the name of an empty column, which is what is on screen', () => {
+  // The heading is sticky and, in a column with no cards, most of what there
+  // is to aim at - so it is the element the pointer is actually over.
+  showOn('board:kanban', KANBAN_TAB, emptyMiddle())
+  const name = boardPart('[data-column="Doing"] .board-column-name')
+  drag(boardPart('[data-card="gwt7lj"]'), name)
+  const move = dropped
+  ok(move !== null, 'a drop on the column name went nowhere')
+  equal(move.column, 'Doing', 'the wrong column took it')
 })
 
 check('a card dropped on the last column is a question, not a move', () => {

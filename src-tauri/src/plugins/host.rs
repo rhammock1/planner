@@ -66,6 +66,10 @@ pub fn start(app: &AppHandle, granting: super::registry::Granting) -> Result<(),
     let handle = app.clone();
     let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::CustomProtocol(url))
         .visible(false)
+        // A plugin's page is a page, and it drags the way one does. Claiming
+        // the OS drop would take that from it to feed an event the app does
+        // not listen for (`tray.rs`).
+        .disable_drag_drop_handler()
         .on_navigation(move |url| {
             if super::navigable(&refused, url) {
                 return true;
