@@ -143,6 +143,10 @@ fn create(app: &AppHandle) {
         .resizable(true)
         .center()
         .visible(false)
+        // No OS file drop here either, and this window drags more than the
+        // popover does - the board's cards and the week's lines both
+        // (`tray.rs` says what claiming it costs).
+        .disable_drag_drop_handler()
         // The app's own origin only. The same hook fires for subframes, and
         // the app has none (spec §0.2).
         .on_navigation(crate::plugins::app_navigable)

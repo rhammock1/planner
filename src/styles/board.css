@@ -81,6 +81,19 @@
   line-height: 1.35;
 }
 
+/* The card's note, reachable from the board (spec §8). The chip sits after
+   the words rather than on its own row: a card is one line of text most of
+   the time, and a row per marker would make every card two lines tall for the
+   sake of the few that have one. `.item-badge` itself is shared with the day
+   page - a marker is a marker, and two dim little links that looked different
+   in two places would be two things to keep in step. */
+.board-card-badges { display: inline-flex; gap: 0.4em; margin-left: 0.5em; }
+.board-card-badges[hidden] { display: none; }
+
+/* Not grabbable, and saying so: the rest of the card is `grab`, and a chip
+   that looked the same would be a note you expect to drag. */
+.board-card[draggable='true'] .board-card-badges { cursor: pointer; }
+
 /* Finished the same two ways the day page draws them, so a card and its line
    never disagree about what happened to it. */
 .board-card.ended { opacity: 0.55; }

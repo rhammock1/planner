@@ -168,12 +168,44 @@ electing one: electing the popover would mean the window's board stops keeping
 itself when the popover is put away, and electing the window would mean a board
 never seeds unless you open a window you did not want.
 
-## 6. No change in Rust
+## 6. Rust: nothing to permit, one thing to give back
 
 `plugins::allowed(label, command)` gates plugin webviews only - both app
 windows are unrestricted. The popover may ask `spread.board` and may read and
 write plugin files exactly as the spread window does. Verified rather than
 assumed.
+
+### The window has to let go of the drag
+
+What that verification missed, because it was looking at permissions, is that
+the drag never reached the page at all. Robert: *"Drag works, but dropping into
+an empty column isn't moving the task."* It was not the empty column, and it
+was not the board - the same drop fails everywhere in the app, and always has.
+
+A Tauri webview keeps its drag-and-drop handler unless told not to, and that
+handler is not a listener - it is an answer. `wry`'s `WryWebView` overrides
+`draggingUpdated:` and `performDragOperation:`, and hands the drag on to
+WebKit only when its handler *declines* it. Tauri's handler never declines:
+it posts a `DragDropEvent` and returns `true`. So AppKit's drop is answered by
+the runtime, WebKit is never told, and `dragover` and `drop` are never
+dispatched into the document. The card lifts, follows the pointer, and springs
+back - the gesture is intact and only its end is missing, which is why this
+reads as a board bug rather than a window one.
+
+Nothing in the app listens for the event that is bought with it: there is no
+`DragDropEvent` anywhere in `src-tauri`, and no `tauri://drag-drop` in the
+frontend. So every webview the app builds - the popover, the spread window,
+quick add, and a plugin's own - calls `.disable_drag_drop_handler()`. A
+plugin's page is included on its own merits: it is a page, it drags like one,
+and claiming its drops to feed an event nobody reads is a loss with no other
+side.
+
+The rule is checked on the source (`tests/windows.rs`), which is unusual here
+and is the point: a new window inherits the handler by *default*, the failure
+raises nothing and logs nothing, and the browser suite cannot see it - that
+harness runs in a browser, where there is no handler to claim anything. The
+count of windows is asserted too, so removing the rule cannot pass as a file
+that stopped building any.
 
 ## 7. Tests
 
@@ -191,11 +223,107 @@ Browser:
   and not for a plugin whose name cannot be a vault folder.
 - Choosing it draws the stacked board and snaps the header to today.
 - The `...` menu opens at a narrowed width and its rows do what their tabs do.
-- A card dragged between two stacked columns writes the move.
+- A card dragged between two stacked columns writes the move, including into a
+  column holding nothing - the arrangement the other drop checks never build,
+  and the one Robert's own board is in.
+
+Rust:
+
+- Every webview the app builds disables the drag-drop handler, and the number
+  of them is the number the rule was written for (§6).
+
+## 8. A note is reachable from its card
+
+Robert asked for it in these words: *"It would also be really nice if I could
+access the task-note for a task from within the board"*. Asked which cards
+should carry a marker he chose every card that has a note, rather than only
+the cards whose line is on today's page; asked which markers, he chose the
+note's alone rather than every marker the day shows.
+
+### The board asks about its own cards
+
+`badgesFor` asks `item.badge` about the day's lines, and answers arrive keyed
+by line index. A board's cards are not the day's lines: a card that has sat in
+`Doing` since Friday is on the board with no line on today's page at all, and
+matching cards to the day's answers by index would leave exactly those cards
+bare - the ones most likely to have a note, because they are the ones that have
+been around long enough to need one.
+
+So `cardBadgesFor(store, boards)` puts the same `item.badge` question about the
+cards of the board being drawn, each card going out as an item whose `index` is
+its place in *this* question rather than a line number anywhere. `task-notes`
+keys a note on the task's words and looks back thirty days for it, so a card
+finds its note wherever the line that made it now lives.
+
+The slot and the envelope are unchanged; only the key differs. The day's badges
+and a board's are two entries under one slot, so neither evicts the other and
+a board drawn over the day does not cost the day its markers when it closes.
+
+A card the answer pointed at by line, which has no id yet, is asked about by
+its words like any other: a note is found by words, and the name a card is
+waiting for has nothing to do with it.
+
+### Only what leads into the vault
+
+A card draws a marker only when the marker's href resolves to a sidecar ref -
+`readRef(href)` - which is the test `openMarker` already applies to decide
+between opening a note in this window and opening an address in a browser.
+
+Stated that way rather than as the name of a plugin. The app has no notion of
+which plugin is "the note one", and a rule naming `task-notes` would stop being
+true the day a second note-keeping plugin is installed. A ticket link or a
+commit marker still belongs on the day page, where there is room for it.
+
+### The chip does not fight the drag
+
+A card is draggable, so a press target inside it is a hazard in both
+directions: a chip that starts a drag is a note you cannot open, and a chip
+that swallows one is a card you cannot move by grabbing its right-hand end.
+
+The chip is therefore `draggable="false"`, which stops it being a drag source
+of its own - an anchor with an href otherwise is. That alone is not enough,
+because a press on a *non*-draggable descendant still lifts its draggable
+ancestor, and `dragstart` cannot tell where the press was: by then the event's
+target is the card. So the press is remembered on `mousedown` and the drag
+refused on `dragstart`, which leaves the rest of the card dragging exactly as
+it does now.
+
+Pressing it calls `onMarker(plugin, href)`, which both windows already have in
+the handler they hand the day's badges - `openMarker` - so the note opens in
+the overlay the day page uses, lying over the board, and `‹` or Escape puts it
+away with the board where it was left.
+
+`drawBadges` and `badgeClicked` are the day page's own, reused rather than
+rewritten: a marker is a marker, and two dim little links that behaved
+differently in two places would be two things to keep in step. `draggable =
+false` goes on every marker the app draws rather than the board's alone,
+because dragging one means nothing anywhere here.
+
+A card's markers are looked up by `cardMarkKey(plugin, card)`, which puts the
+board's name in front of the card's: two boards can hold a card of the same
+name - two plugins, two files, and nothing saying their ids may not collide.
+
+### 9. Tests
+
+Node:
+
+- `cardBadgesFor` asks about the cards of the board being drawn, not the day's
+  lines, and gives each card the index it was asked under.
+- A card whose marker points out of the vault carries no chip; one whose marker
+  resolves to a sidecar ref does.
+- Two boards' questions are two cache entries, and neither is the day's.
+
+Browser:
+
+- A card with a note draws a chip, a card without one draws nothing.
+- Pressing the chip asks to open that ref, and does not start a drag.
+- A card still drags from anywhere else on it, chip or no chip.
 
 ## Out of scope
 
-- The spread window's board is untouched, other than sharing the archive fix.
-- No new plugin question, no new slot, no manifest change.
+- The spread window's board is untouched, other than sharing the archive fix
+  and gaining the same card markers.
+- No new slot, no manifest change, no change to what a plugin may answer. §8
+  puts an existing question about a different list of items.
 - `Week`, `Month` and `Someday` still open the other window. Only boards and
   the day are drawn here.

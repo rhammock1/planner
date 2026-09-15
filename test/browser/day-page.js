@@ -15,6 +15,7 @@ import * as dayPage from '../../src/views/dayPage.js'
 import { buildIndex } from '../../src/core/vaultIndex.js'
 import { search as searchVault } from '../../src/core/search.js'
 import { DAY_VIEW } from '../../src/views/dayFooter.js'
+import { cardMarkKey } from '../../src/core/board.js'
 
 const found = document.querySelector('#stage')
 if (!(found instanceof HTMLElement)) throw new Error('no stage')
@@ -712,6 +713,10 @@ let dropped = null
 /** The card the last drop on the done column asked about. @type {string|null} */
 let finished = null
 
+/** The marker the last press on a chip asked to open.
+ *  @type {{plugin: string, href: string}|null} */
+let marked = null
+
 /** @type {import('../../src/views/dayFooter.js').BoardTab[]} */
 const KANBAN_TAB = [{ plugin: 'kanban', tab: 'Kanban' }]
 
@@ -754,12 +759,14 @@ function kanban(extra = 0) {
  * @param {import('../../src/views/dayFooter.js').BoardTab[]} [tabs]
  * @param {import('../../src/plugins/pageAsking.js').Board[]} [boards]
  * @param {number} [count]  lines on the day underneath
+ * @param {Map<string, import('../../src/core/badges.js').Badge[]>} [cardBadges]
  * @returns {void}
  */
-function showOn(view, tabs = [], boards = [], count = 6) {
+function showOn(view, tabs = [], boards = [], count = 6, cardBadges = new Map()) {
   went = null
   dropped = null
   finished = null
+  marked = null
 
   stage.replaceChildren()
   const root = document.createElement('main')
@@ -770,8 +777,9 @@ function showOn(view, tabs = [], boards = [], count = 6) {
     ...handlersFor(),
     onCard: (plugin, id, column, before) => { dropped = { plugin, id, column, before } },
     onFinish: (id) => { finished = id },
+    onBadge: (plugin, href) => { marked = { plugin, href } },
   })
-  drawOn(view, tabs, boards, count)
+  drawOn(view, tabs, boards, count, cardBadges)
 }
 
 /**
@@ -782,15 +790,17 @@ function showOn(view, tabs = [], boards = [], count = 6) {
  * @param {import('../../src/views/dayFooter.js').BoardTab[]} [tabs]
  * @param {import('../../src/plugins/pageAsking.js').Board[]} [boards]
  * @param {number} [count]
+ * @param {Map<string, import('../../src/core/badges.js').Badge[]>} [cardBadges]
  * @returns {void}
  */
-function drawOn(view, tabs = [], boards = [], count = 6) {
+function drawOn(view, tabs = [], boards = [], count = 6, cardBadges = new Map()) {
   dayPage.render({
     today: '2026-09-01',
     page: '2026-09-01',
     view,
     tabs,
     boards,
+    cardBadges,
     doc: parse(pageOf(count)),
     horizon: [],
     carry: [],
@@ -808,6 +818,39 @@ function drawOn(view, tabs = [], boards = [], count = 6) {
  *  @returns {import('../../src/plugins/pageAsking.js').Board[]} */
 function waiting() {
   return [{ plugin: 'kanban', tab: 'Kanban', board: '', answer: null }]
+}
+
+/**
+ * Robert's own board, which is the shape the drop was reported broken on: a
+ * middle column holding nothing, between one that holds the work and the done
+ * column that refuses drops. The empty middle is the only place there is to
+ * drop a card, and it is the one arrangement the checks above never build.
+ *
+ * @returns {import('../../src/plugins/pageAsking.js').Board[]}
+ */
+function emptyMiddle() {
+  return [{
+    plugin: 'kanban',
+    tab: 'Kanban',
+    board: '',
+    answer: {
+      columns: [
+        {
+          name: 'To do',
+          cards: [
+            { id: 'gwt7lj', index: null, text: 'Tabs page optimizations', ended: null },
+            { id: '98ff41', index: null, text: 'Gift card promotions', ended: null },
+          ],
+        },
+        { name: 'Doing', cards: [] },
+        {
+          name: 'Done',
+          cards: [{ id: '101jw5', index: null, text: 'Fix saving clutch gift card', ended: 'done' }],
+        },
+      ],
+      archive: [],
+    },
+  }]
 }
 
 /** The words on every tab the strip is actually showing, in order.
@@ -1021,6 +1064,93 @@ check('and dropped onto a card, it lands in front of it', () => {
   equal(move.id, 'p9x1bb', 'the wrong card moved')
   equal(move.column, 'To do', 'the wrong column took it')
   equal(move.before, 'c1d2e3', 'the card did not land in front of the one under it')
+})
+
+check('a column holding nothing is still somewhere to drop', () => {
+  // The shape a board reaches once the middle column is cleared, and the one
+  // the checks above never build: every drop they make lands on a column that
+  // already has cards in it. An empty one has no `.board-cards` to speak of,
+  // so the column itself is the whole of the target.
+  showOn('board:kanban', KANBAN_TAB, emptyMiddle())
+  const empty = boardPart('[data-column="Doing"]')
+  equal(empty.querySelectorAll('.board-card').length, 0, 'the middle column was not empty')
+  drag(boardPart('[data-card="gwt7lj"]'), empty)
+  const move = dropped
+  ok(move !== null, 'a drop on an empty column went nowhere')
+  equal(move.id, 'gwt7lj', 'the wrong card moved')
+  equal(move.column, 'Doing', 'the empty column did not take the card')
+  equal(move.before, null, 'an empty column put the card in front of something')
+})
+
+check('and dropped on the name of an empty column, which is what is on screen', () => {
+  // The heading is sticky and, in a column with no cards, most of what there
+  // is to aim at - so it is the element the pointer is actually over.
+  showOn('board:kanban', KANBAN_TAB, emptyMiddle())
+  const name = boardPart('[data-column="Doing"] .board-column-name')
+  drag(boardPart('[data-card="gwt7lj"]'), name)
+  const move = dropped
+  ok(move !== null, 'a drop on the column name went nowhere')
+  equal(move.column, 'Doing', 'the wrong column took it')
+})
+
+/** The markers `cardBadgesFor` would have found for one card of `kanban()`.
+ *  @param {string} card  the card's id
+ *  @returns {Map<string, import('../../src/core/badges.js').Badge[]>} */
+function noteOn(card) {
+  return new Map([[
+    cardMarkKey('kanban', { id: card, index: null, text: '', ended: null }),
+    [{ plugin: 'task-notes', label: 'note', href: 'sidecar:2026-09-01/note' }],
+  ]])
+}
+
+check('a card with a note draws a chip, and one without draws nothing', () => {
+  showOn('board:kanban', KANBAN_TAB, kanban(), 6, noteOn('k4m2qa'))
+  const marks = boardPart('[data-card="k4m2qa"]').querySelectorAll('.item-badge')
+  equal(marks.length, 1, 'the card with a note has no chip')
+  equal(marks[0]?.textContent, 'note', 'the chip says the wrong thing')
+  equal(
+    onBoard('[data-card="c1d2e3"] .item-badge'),
+    null,
+    'a card with no note drew a chip anyway',
+  )
+})
+
+check('pressing the chip asks to open that ref', () => {
+  showOn('board:kanban', KANBAN_TAB, kanban(), 6, noteOn('k4m2qa'))
+  boardPart('[data-card="k4m2qa"] .item-badge').click()
+  const opened = marked
+  ok(opened !== null, 'the press went nowhere')
+  equal(opened.plugin, 'task-notes', 'the wrong plugin was asked')
+  equal(opened.href, 'sidecar:2026-09-01/note', 'the wrong ref')
+})
+
+check('and pressing it does not start a drag', () => {
+  // The hazard the chip sits in the middle of: a card is draggable, so a press
+  // inside one lifts it unless the press is spoken for.
+  showOn('board:kanban', KANBAN_TAB, kanban(), 6, noteOn('k4m2qa'))
+  const card = boardPart('[data-card="k4m2qa"]')
+  const chip = boardPart('[data-card="k4m2qa"] .item-badge')
+  equal(chip.draggable, false, 'the chip is its own drag source')
+
+  chip.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+  const data = new DataTransfer()
+  const start = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: data })
+  card.dispatchEvent(start)
+  ok(start.defaultPrevented, 'a press on the chip lifted the card')
+  equal(data.types.includes('application/x-planner-card'), false, 'the card was picked up anyway')
+})
+
+check('a card still drags from anywhere else on it, chip or no chip', () => {
+  showOn('board:kanban', KANBAN_TAB, kanban(), 6, noteOn('k4m2qa'))
+  const card = boardPart('[data-card="k4m2qa"]')
+  // The press lands on the words, which is the rest of the card.
+  boardPart('[data-card="k4m2qa"] .board-card-text')
+    .dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+  drag(card, boardPart('[data-column="Doing"]'))
+  const move = dropped
+  ok(move !== null, 'a card with a chip could not be moved')
+  equal(move.id, 'k4m2qa', 'the wrong card moved')
+  equal(move.column, 'Doing', 'the wrong column took it')
 })
 
 check('a card dropped on the last column is a question, not a move', () => {

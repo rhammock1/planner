@@ -32,6 +32,11 @@ export function drawBadges(into, badges) {
     const mark = el('a', 'item-badge', badge.label)
     mark.setAttribute('href', '#')
     mark.setAttribute('role', 'link')
+    // An anchor with an href is a drag source by default, and on a board it
+    // sits inside a card that is one too. Dragging a marker means nothing
+    // anywhere in this app, so it is off everywhere rather than on the board
+    // alone (spec §8).
+    mark.draggable = false
     mark.title = `${badge.plugin}: ${badge.href}`
     mark.dataset['plugin'] = badge.plugin
     mark.dataset['href'] = badge.href

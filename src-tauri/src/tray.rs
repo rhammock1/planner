@@ -199,6 +199,13 @@ fn create_popover(app: &AppHandle) {
         .always_on_top(true)
         .skip_taskbar(true)
         .visible(false)
+        // The app handles no OS file drop, and a webview that claims one
+        // takes the page's drags with it: wry answers `performDragOperation:`
+        // itself rather than letting WebKit have it, so `dragover` and `drop`
+        // never reach the DOM. A card lifts, follows the pointer, and springs
+        // back - which is the board's drag not working, with nothing in the
+        // page to see it by.
+        .disable_drag_drop_handler()
         // The app's own origin only. The same hook fires for subframes, and
         // the app has none (spec §0.2).
         .on_navigation(crate::plugins::app_navigable)

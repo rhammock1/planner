@@ -14,7 +14,8 @@ import { applyPluginTokens } from './plugins/theming.js'
 import { moveItem } from './core/move.js'
 import { search } from './core/search.js'
 import { readRef, owns } from './core/sidecars.js'
-import { badgesFor, boardsFor, providedFor, openBadge } from './plugins/pageAsking.js'
+import { badgesFor, cardBadgesFor, boardsFor, providedFor, openBadge } from './plugins/pageAsking.js'
+import { boardViewOf } from './views/boardView.js'
 import { keepBoards, dropCard } from './plugins/boardWrites.js'
 import { lineWithId } from './core/ids.js'
 import { weekOf } from './core/calendar.js'
@@ -339,6 +340,12 @@ function draw() {
   // every draw, and it tells the window when it is not.
   void keepBoards(store, day, kept.boards, day)
 
+  // What the plugins say about the cards of the board on screen, and only
+  // that one: a question about cards nobody is looking at is a plugin woken
+  // for nothing. A card's note is found by the card's words, so a card whose
+  // line is on no page in view still finds one (spec §8).
+  const marks = cardBadgesFor(store, day, kept.boards.filter((one) => boardViewOf(one.plugin) === view))
+
   // The file this window is holding, as the view wants it: a title, a
   // subtitle, a path and an id it never looks inside (spec §3.1).
   const open = files.showing()
@@ -367,12 +374,14 @@ function draw() {
     anchor,
     vault: store.vault(),
     badges,
+    cardBadges: marks.badges,
     file,
     boards: kept.boards,
     notices: [
       ...store.notices(),
       ...badgeNotices,
       ...kept.notices,
+      ...marks.notices,
       ...warmed,
       ...unwatched,
     ],
