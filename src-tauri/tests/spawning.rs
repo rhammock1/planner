@@ -47,7 +47,10 @@ fn a_program_inside_the_planner_folder_is_refused_however_it_is_reached() {
     // whatever the plugin called `git`. Planted in a folder of its own rather
     // than pointed at `/bin`, so this tests the rule and not the coincidence
     // that `/bin/echo` is under `/bin`.
-    let refused = std::env::temp_dir().join("planner-spawning-refused");
+    // Named after this process, because `$TMPDIR` is shared and this test both
+    // empties the folder and plants a file in it: a second `cargo test` out of
+    // another checkout would be clearing the very folder this one is reading.
+    let refused = std::env::temp_dir().join(format!("planner-spawning-refused-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&refused);
     std::fs::create_dir_all(&refused).expect("could not make the folder");
     let planted = refused.join("git");
@@ -105,9 +108,18 @@ fn a_program_that_overruns_is_killed_and_has_no_status() {
 fn a_program_that_starts_another_takes_it_with_it() {
     // The process group, not the child. A `sh` that backgrounded something
     // would otherwise leave it running with nothing left to kill it.
-    let marker = std::env::temp_dir().join("planner-spawning-group-check");
+    // Named after this process for the same reason the refused folder is: the
+    // marker's whole job is to be absent, and a shared path is one another run
+    // can create.
+    let marker = std::env::temp_dir().join(format!("planner-spawning-group-check-{}", std::process::id()));
     let _ = std::fs::remove_file(&marker);
-    let script = format!("(sleep 1; touch {}) & sleep 30", marker.display());
+    // Three seconds against a limit of two hundred milliseconds. The gap is
+    // slack for the scheduler rather than patience: the deadline is kept by a
+    // loop sleeping in twenty-millisecond steps, on one thread of a binary
+    // running its whole suite at once. Held off for longer than the
+    // grandchild's own timer, the grandchild touches the marker on time and a
+    // kill that works reads here as a kill that did not.
+    let script = format!("(sleep 3; touch {}) & sleep 30", marker.display());
 
     let done = limited(
         &mut plain("/bin/sh", &["-c", &script]),
@@ -117,7 +129,8 @@ fn a_program_that_starts_another_takes_it_with_it() {
     .unwrap();
     assert_eq!(done.status, None);
 
-    std::thread::sleep(Duration::from_millis(1500));
+    // Past the grandchild's timer, so one that lived has had its say.
+    std::thread::sleep(Duration::from_millis(3500));
     assert!(!marker.exists(), "a grandchild outlived the group it was killed with");
 }
 
