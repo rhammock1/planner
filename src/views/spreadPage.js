@@ -30,6 +30,10 @@ import { createSearchPanel } from './searchPanel.js'
  * @property {string} anchor  a date in the week, or month, being looked at
  * @property {VaultIndex} vault
  * @property {Map<string, Map<number, import('../core/badges.js').Badge[]>>} [badges]  markers, by page
+ * @property {Map<string, import('../core/badges.js').Badge[]>} [cardBadges]
+ *   markers on the cards of the board being drawn, keyed
+ *   `${plugin}\u0000${cardKey(card)}` - a separate question from `badges`,
+ *   because a card need have no line on any page in view (spec §8)
  * @property {import('./noteView.js').Note|null} file  the file the window has
  *   open, or null. Not a member of `VIEWS`: its tab exists only while it does
  * @property {import('../plugins/pageAsking.js').Board[]} [boards]  a tab each,
@@ -92,7 +96,15 @@ export function mount(root, handlers) {
     // One view for however many boards there are (spec §2.2). Which one it
     // draws is whichever the strip has picked, so it is here under one name
     // rather than being built and torn down as plugins come and go.
-    ['board', createBoardView(() => boardShowing(), handlers.onCard, handlers.onFinish)],
+    // `onBadge` is this window's marker handler, unchanged: a card's chip
+    // leads where a line's does (spec §8).
+    ['board', createBoardView(
+      () => boardShowing(),
+      () => currentState?.cardBadges ?? new Map(),
+      handlers.onCard,
+      handlers.onFinish,
+      handlers.onBadge,
+    )],
   ])
 
   /** @type {Map<string, HTMLElement>} */

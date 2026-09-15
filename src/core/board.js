@@ -71,6 +71,42 @@ export function boardLinesOf(doc) {
 }
 
 /**
+ * What names one card, wherever a card has to be looked up rather than drawn.
+ *
+ * A card names exactly one of the two - `readCard` guarantees it - so this is
+ * a name and not a guess. The prefix keeps a card called `4` from sharing a
+ * name with the line at index 4.
+ *
+ * Here rather than in the view because two places now have to agree on it:
+ * the list that draws the cards, and the question `cardBadgesFor` puts about
+ * them. A marker that came back under a name the view spells differently is a
+ * marker that is never drawn, and nothing would say so.
+ *
+ * @param {Card} card
+ * @returns {string}
+ */
+export function cardKey(card) {
+  return card.id === null ? `line:${card.index}` : `id:${card.id}`
+}
+
+/**
+ * What names one card's markers, across every board at once.
+ *
+ * Two boards can hold a card of the same name - two plugins, two files, and
+ * nothing saying their ids may not collide - so the board's own name is in
+ * front of the card's. Written once here because it is spelled in two places
+ * that must agree, and because the separator is an escape rather than the
+ * byte: it may go through a key and may not sit in a file this repo tracks.
+ *
+ * @param {string} plugin
+ * @param {Card} card
+ * @returns {string}
+ */
+export function cardMarkKey(plugin, card) {
+  return `${plugin}\u0000${cardKey(card)}`
+}
+
+/**
  * What makes an old answer wrong.
  *
  * The lines sent and the file, because the answer is a function of both: a

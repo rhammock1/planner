@@ -280,12 +280,28 @@ A card is draggable, so a press target inside it is a hazard in both
 directions: a chip that starts a drag is a note you cannot open, and a chip
 that swallows one is a card you cannot move by grabbing its right-hand end.
 
-The chip is therefore `draggable="false"` and stops `mousedown` from reaching
-the card, which leaves the rest of the card dragging exactly as it does now.
+The chip is therefore `draggable="false"`, which stops it being a drag source
+of its own - an anchor with an href otherwise is. That alone is not enough,
+because a press on a *non*-draggable descendant still lifts its draggable
+ancestor, and `dragstart` cannot tell where the press was: by then the event's
+target is the card. So the press is remembered on `mousedown` and the drag
+refused on `dragstart`, which leaves the rest of the card dragging exactly as
+it does now.
+
 Pressing it calls `onMarker(plugin, href)`, which both windows already have in
 the handler they hand the day's badges - `openMarker` - so the note opens in
 the overlay the day page uses, lying over the board, and `‹` or Escape puts it
 away with the board where it was left.
+
+`drawBadges` and `badgeClicked` are the day page's own, reused rather than
+rewritten: a marker is a marker, and two dim little links that behaved
+differently in two places would be two things to keep in step. `draggable =
+false` goes on every marker the app draws rather than the board's alone,
+because dragging one means nothing anywhere here.
+
+A card's markers are looked up by `cardMarkKey(plugin, card)`, which puts the
+board's name in front of the card's: two boards can hold a card of the same
+name - two plugins, two files, and nothing saying their ids may not collide.
 
 ### 9. Tests
 

@@ -44,6 +44,10 @@ import { createSettingsPanel } from './settingsPanel.js'
  * @property {Map<string, string[]>} prefixes  who owns which sidecar prefix; a
  *   contributed row's note is found through these, never through a name
  * @property {Map<number, import('../core/badges.js').Badge[]>} [badges]  markers, keyed by line index
+ * @property {Map<string, import('../core/badges.js').Badge[]>} [cardBadges]
+ *   markers on the cards of the board being drawn, keyed
+ *   `${plugin}\u0000${cardKey(card)}` - a separate question from `badges`,
+ *   because a card need have no line on this page at all (spec §8)
  * @property {import('../core/box.js').Box|null} [box]  the picture in the
  *   day's margin, when a plugin drew one and the window is tall enough to
  *   have asked (spec §5.1, phase four §1.1)
@@ -254,7 +258,16 @@ export function mount(root, handlers) {
   // rather than rebuilt by a second component: a board drawn twice by two
   // modules would be two things to keep in step, and the half that drifted
   // would be the drag.
-  const board = createBoardView(() => boardShowing(), handlers.onCard, handlers.onFinish)
+  // `onBadge` is the day's marker handler, unchanged: a card's chip opens the
+  // note the same way a line's does, in the overlay this page already has
+  // (spec §8).
+  const board = createBoardView(
+    () => boardShowing(),
+    () => currentState?.cardBadges ?? new Map(),
+    handlers.onCard,
+    handlers.onFinish,
+    handlers.onBadge,
+  )
   board.element.classList.add('stacked')
 
   const surface = el('div', 'page')

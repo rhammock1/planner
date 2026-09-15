@@ -13,7 +13,7 @@
 import { horizon } from './core/horizon.js'
 import { unfinished, carryForward } from './core/carry.js'
 import { readContributions } from './core/contributions.js'
-import { badgesFor, sectionsFor, providedFor, boxFor, boardsFor, boardPlugins } from './plugins/pageAsking.js'
+import { badgesFor, cardBadgesFor, sectionsFor, providedFor, boxFor, boardsFor, boardPlugins } from './plugins/pageAsking.js'
 import { keepBoards, dropCard } from './plugins/boardWrites.js'
 import { boardViewOf, pluginOfView } from './views/boardView.js'
 import { DAY_VIEW } from './views/dayFooter.js'
@@ -355,6 +355,14 @@ function draw() {
   // a write is what it owes the vault afterwards.
   if (showingBoard) void keepBoards(store, now, kept.boards, now)
 
+  // What the plugins say about the board's own cards, asked only while one is
+  // on screen and only about the board that is - the same rule `boardsFor`
+  // itself is called under. A card's note is found by the card's words, so a
+  // card with no line on today's page still finds one (spec §8).
+  const marks = showingBoard
+    ? cardBadgesFor(store, now, kept.boards.filter((one) => boardViewOf(one.plugin) === view))
+    : { badges: new Map(), notices: [] }
+
   // Nothing draws the day's margin while a board is up, so nothing asks for
   // one - the threshold rule again, applied to a hidden page rather than a
   // short one.
@@ -387,6 +395,7 @@ function draw() {
     // through any prefix name of its own.
     prefixes: store.pluginPrefixes(),
     badges: marked.badges,
+    cardBadges: marks.badges,
     box: drawn.box,
     view,
     tabs,
@@ -396,7 +405,7 @@ function draw() {
     actions: store.vaultExists() ? [] : [{ label: 'Choose a folder…', run: () => { void pickVault(store, ipc) } }],
     // Worked out on the way to the page rather than kept, so redrawing the
     // same contributions does not say the same thing twice.
-    notices: [...store.notices(), ...given.notices, ...marked.notices, ...blocked.notices, ...warmed, ...drawn.notices, ...kept.notices],
+    notices: [...store.notices(), ...given.notices, ...marked.notices, ...blocked.notices, ...warmed, ...drawn.notices, ...kept.notices, ...marks.notices],
   })
 
   // Tried on every draw until it lands: a note just created is not in the

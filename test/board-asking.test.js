@@ -18,7 +18,9 @@ import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { parse } from '../src/core/parse.js'
-import { boardsFor } from '../src/plugins/pageAsking.js'
+import { boardsFor, cardBadgesFor } from '../src/plugins/pageAsking.js'
+import { cardMarkKey } from '../src/core/board.js'
+import { badgeKey, linesOf } from '../src/core/badges.js'
 import { moveCard } from '../src/core/boardWrite.js'
 
 const PAGE = `- [ ] Review PR #4412 @14:00
@@ -217,5 +219,149 @@ describe('what comes back', () => {
     })
     const { notices } = boardsFor(store, '2026-09-01')
     assert.deepEqual(notices, ['Board: the board returned no columns'])
+  })
+})
+
+/**
+ * A board, as `boardsFor` would have returned it, for the questions `§8` puts
+ * about its cards rather than about the day.
+ *
+ * @param {string} name
+ * @param {import('../src/core/board.js').Card[]} cards
+ * @returns {any}
+ */
+function board(name, cards) {
+  return {
+    plugin: name,
+    tab: name,
+    board: '',
+    answer: { columns: [{ name: 'To do', cards }], archive: [] },
+  }
+}
+
+/**
+ * @param {string} text
+ * @param {string|null} [id]
+ * @returns {import('../src/core/board.js').Card}
+ */
+function card(text, id = null) {
+  return { id, index: id === null ? 0 : null, text, ended: null }
+}
+
+const NOTE = 'sidecar:2026-09-01/note'
+
+describe('a card asks about itself', () => {
+  test('the cards of the board, not the lines of the day', () => {
+    const { store, asked } = storeWith({ installed: [plugin('kanban')] })
+    // Deliberately nothing this page has a line for: a card that has sat in a
+    // column since Friday is exactly the case the day's own question misses.
+    cardBadgesFor(store, '2026-09-01', [board('kanban', [
+      card('Ship the release notes', 'aaa111'),
+      card('Call the vet', 'bbb222'),
+    ])])
+
+    const put = asked.filter((one) => one.slot === 'item.badge')
+    assert.equal(put.length, 1, 'the board s cards were not asked about once')
+    assert.deepEqual(put[0]?.params.items, [
+      { index: 0, text: 'Ship the release notes', id: 'aaa111' },
+      { index: 1, text: 'Call the vet', id: 'bbb222' },
+    ])
+    // The day is still the day: a note is found by looking back from it.
+    assert.equal(put[0]?.params.date, '2026-09-01')
+  })
+
+  test('and a marker comes back on the card it was asked under', () => {
+    const first = card('Ship the release notes', 'aaa111')
+    const second = card('Call the vet', 'bbb222')
+    const cards = [first, second]
+    const { store } = storeWith({
+      installed: [plugin('kanban')],
+      answer: (slot) => slot !== 'item.badge' ? [] : [{
+        plugin: 'notes',
+        value: [{ index: 1, label: 'note', href: NOTE }],
+      }],
+    })
+    const { badges } = cardBadgesFor(store, '2026-09-01', [board('kanban', cards)])
+
+    assert.deepEqual([...badges.keys()], [cardMarkKey('kanban', second)])
+    assert.deepEqual(badges.get(cardMarkKey('kanban', second)), [
+      { plugin: 'notes', label: 'note', href: NOTE },
+    ])
+  })
+
+  test('a card the answer pointed at by line is asked about by its words', () => {
+    // It has no id to be asked under and does not need one: a note is found by
+    // what the task says, and the name a card is waiting for is not part of it.
+    const { store, asked } = storeWith({ installed: [plugin('kanban')] })
+    cardBadgesFor(store, '2026-09-01', [board('kanban', [card('Water the plants')])])
+    const put = asked.filter((one) => one.slot === 'item.badge')
+    assert.deepEqual(put[0]?.params.items, [{ index: 0, text: 'Water the plants', id: null }])
+  })
+
+  test('a marker that leads out of the vault is not one a card draws', () => {
+    const cards = [card('Review PR #4412', 'aaa111')]
+    const { store } = storeWith({
+      installed: [plugin('kanban')],
+      answer: (slot) => slot !== 'item.badge' ? [] : [{
+        plugin: 'forge',
+        value: [{ index: 0, label: '#4412', href: 'https://example.com/pr/4412' }],
+      }],
+    })
+    const { badges } = cardBadgesFor(store, '2026-09-01', [board('kanban', cards)])
+    // Not a refusal of the plugin - the same marker still belongs on the day
+    // page, where there is room for it. A card has room for the note and no
+    // more, and what makes it the note is where it leads.
+    assert.equal(badges.size, 0)
+  })
+
+  test('and the same card with a marker into the vault draws one', () => {
+    const cards = [card('Review PR #4412', 'aaa111')]
+    const { store } = storeWith({
+      installed: [plugin('kanban')],
+      answer: (slot) => slot !== 'item.badge' ? [] : [{
+        plugin: 'task-notes',
+        value: [{ index: 0, label: 'note', href: NOTE }],
+      }],
+    })
+    const { badges } = cardBadgesFor(store, '2026-09-01', [board('kanban', cards)])
+    assert.equal(badges.size, 1)
+  })
+
+  test('two boards are two questions, and neither of them is the day s', () => {
+    const { store, asked } = storeWith({ installed: [plugin('kanban'), plugin('later')] })
+    cardBadgesFor(store, '2026-09-01', [
+      board('kanban', [card('Ship the release notes', 'aaa111')]),
+      board('later', [card('Ship the release notes', 'aaa111')]),
+    ])
+
+    const keys = asked.filter((one) => one.slot === 'item.badge').map((one) => one.key)
+    assert.equal(keys.length, 2, 'two boards did not put two questions')
+    assert.notEqual(keys[0], keys[1], 'two boards shared one cache entry')
+    // The same cards in both, so what separates them is the board's own name -
+    // without it the second board would answer with the first board's markers.
+    assert.ok(keys[0]?.startsWith('board:kanban:'))
+    assert.ok(keys[1]?.startsWith('board:later:'))
+
+    // And the day's, which is the entry a board must not evict: the day page
+    // is still behind the board and gets its markers back when it closes.
+    const day = badgeKey('2026-09-01', linesOf(parse(PAGE)))
+    assert.ok(!keys.includes(day), 'a board asked the day s own question')
+  })
+
+  test('a board that has not answered is not asked about', () => {
+    const { store, asked } = storeWith({ installed: [plugin('kanban')] })
+    cardBadgesFor(store, '2026-09-01', [{ plugin: 'kanban', tab: 'kanban', board: '', answer: null }])
+    assert.equal(asked.filter((one) => one.slot === 'item.badge').length, 0)
+  })
+
+  test('a notice about a card says which board it is about', () => {
+    const { store } = storeWith({
+      installed: [plugin('kanban', { tab: 'Board' })],
+      answer: (slot) => slot !== 'item.badge' ? [] : [{ plugin: 'notes', value: 'not a list' }],
+    })
+    const { notices } = cardBadgesFor(store, '2026-09-01', [
+      board('kanban', [card('Review PR #4412', 'aaa111')]),
+    ])
+    assert.deepEqual(notices, ['kanban: notes returned something that is not a list'])
   })
 })

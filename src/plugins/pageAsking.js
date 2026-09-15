@@ -13,12 +13,12 @@
  */
 
 import { linesOf, badgeKey, readBadges } from '../core/badges.js'
-import { BOARD, boardLinesOf, boardKey, readBoard } from '../core/board.js'
+import { BOARD, boardLinesOf, boardKey, cardMarkKey, readBoard } from '../core/board.js'
 import { vaultFolder } from '../core/plugins.js'
 import { readSections, sectionKey } from '../core/sections.js'
 import { boxQuestion, readBox, paints } from '../core/box.js'
 import { readProvided } from '../core/provided.js'
-import { owns } from '../core/sidecars.js'
+import { owns, readRef } from '../core/sidecars.js'
 import { mayOpen } from '../core/urls.js'
 import * as ipc from '../ipc.js'
 
@@ -46,6 +46,85 @@ export function badgesFor(store, page) {
     store.pluginAnswers('item.badge', badgeKey(page, lines), { date: page, items: lines }),
     lines,
   )
+}
+
+/**
+ * What the plugins have to say about the cards of a board being drawn
+ * (spec §8).
+ *
+ * The same slot and the same envelope as `badgesFor`; only the list of items
+ * differs, and with it the key. A board's cards are not the day's lines: a
+ * card that has sat in `Doing` since Friday has no line on today's page at
+ * all, and matching cards to the day's answers by index would leave exactly
+ * those cards bare - the ones most likely to have a note, because they are
+ * the ones that have been around long enough to need one.
+ *
+ * So each card goes out as an item whose `index` is its place in *this*
+ * question rather than a line number anywhere, and comes back named by
+ * `cardKey` - which is what the view draws them under. `task-notes` keys a
+ * note on the task's words and looks back thirty days for it, so a card finds
+ * its note wherever the line that made it now lives. A card the answer
+ * pointed at by line, which has no id yet, is asked about by its words like
+ * any other: a note is found by words, and the name a card is waiting for has
+ * nothing to do with it.
+ *
+ * `board:<plugin>:` in front of the key is what keeps this from being the
+ * day's entry under a different hash. Two boards are two entries and neither
+ * is the day's, so a board drawn over the day does not cost the day its
+ * markers when it closes.
+ *
+ * Draw-on-miss like everything else here, and called with the boards actually
+ * on screen: a question about cards nobody is looking at is a plugin woken
+ * for nothing, which is the rule `boardsFor` itself is called under.
+ *
+ * @param {Store} store
+ * @param {string} page  `YYYY-MM-DD`
+ * @param {Board[]} boards  the boards being drawn
+ * @returns {{badges: Map<string, Badge[]>, notices: string[]}} keyed
+ *   `${plugin}\u0000${cardKey(card)}`
+ */
+export function cardBadgesFor(store, page, boards) {
+  /** @type {Map<string, Badge[]>} */
+  const badges = new Map()
+  /** @type {string[]} */
+  const notices = []
+
+  for (const board of boards) {
+    // A board that has not answered has no cards to ask about. Not the empty
+    // question either: that would be a second cache entry saying nothing,
+    // evicted and re-asked on the frame the real answer arrives.
+    if (board.answer === null) continue
+
+    const cards = board.answer.columns.flatMap((column) => column.cards)
+    /** @type {import('../core/badges.js').Line[]} */
+    const items = cards.map((card, index) => ({ index, text: card.text, id: card.id }))
+    if (items.length === 0) continue
+
+    const read = readBadges(
+      store.pluginAnswers(
+        'item.badge',
+        `board:${board.plugin}:${badgeKey(page, items)}`,
+        { date: page, items },
+      ),
+      items,
+    )
+    for (const line of read.notices) notices.push(`${board.tab}: ${line}`)
+    for (const [index, on] of read.badges) {
+      const card = cards[index]
+      if (card === undefined) continue
+      // Only what leads back into the vault. Stated as what the href resolves
+      // to rather than as the name of a plugin: the app has no notion of
+      // which plugin is "the note one", and a rule naming `task-notes` would
+      // stop being true the day a second note-keeping plugin is installed. A
+      // ticket link or a commit marker still belongs on the day page, where
+      // there is room for it - a card has room for the note and no more.
+      const leading = on.filter((badge) => readRef(badge.href) !== null)
+      if (leading.length === 0) continue
+      badges.set(cardMarkKey(board.plugin, card), leading)
+    }
+  }
+
+  return { badges, notices }
 }
 
 /**
