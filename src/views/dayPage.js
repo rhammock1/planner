@@ -22,7 +22,8 @@ import { createItemList } from './itemList.js'
 import { indexOf, textOf } from './itemRow.js'
 import { createCarryBand } from './carryBand.js'
 import { createDaySections } from './daySections.js'
-import { createDayFooter } from './dayFooter.js'
+import { createDayFooter, DAY_VIEW } from './dayFooter.js'
+import { createBoardView, pluginOfView } from './boardView.js'
 import { createNotices } from './notices.js'
 import { createNoteView } from './noteView.js'
 import { createSearchPanel } from './searchPanel.js'
@@ -46,6 +47,15 @@ import { createSettingsPanel } from './settingsPanel.js'
  * @property {import('../core/box.js').Box|null} [box]  the picture in the
  *   day's margin, when a plugin drew one and the window is tall enough to
  *   have asked (spec §5.1, phase four §1.1)
+ * @property {string} view  what this window is showing: `DAY_VIEW`, or a
+ *   board's view name (phase four §8.3)
+ * @property {readonly import('./dayFooter.js').BoardTab[]} tabs  every plugin
+ *   keeping a board, from the config rather than from any answer - a tab
+ *   exists because a manifest says so, so the strip is drawn whether or not a
+ *   board has been asked anything
+ * @property {readonly import('../plugins/pageAsking.js').Board[]} boards  what
+ *   those plugins made of today. Empty while the day itself is showing: a
+ *   question nobody can see the answer to is not put (spec §1.4)
  * @property {string[]} notices
  * @property {Action[]} actions  offered under the notices; usually none
  */
@@ -64,7 +74,14 @@ import { createSettingsPanel } from './settingsPanel.js'
  * @property {(line: string) => Promise<boolean>} onAdd  false if it was not saved
  * @property {(decisions: import('../core/carry.js').CarryDecision[]) => void} onCarry
  * @property {(pinned: boolean) => void} onPin
- * @property {(view: string) => void} onOpenSpread  week, month or someday
+ * @property {(view: string) => void} onView  a tab in the footer: `DAY_VIEW`
+ *   and a board are views of this window, week, month and someday open the
+ *   other one. Which is which is not decided here (phase four §8.3)
+ * @property {(plugin: string, id: string, column: string, before: string|null) => void} onCard
+ *   a card dropped in another of a board's columns
+ * @property {(id: string) => void} onFinish  a card dropped on the last
+ *   column, which is not a drop target: a card gets there by its line being
+ *   ticked (kanban design §6)
  * @property {(query: string) => {groups: import('../core/search.js').Group[], found: number}} onSearch
  * @property {(query: string) => {groups: {plugin: string, hits: import('../core/provided.js').Provided[]}[], notices: string[]}} onProviders
  * @property {(hit: import('../core/search.js').Hit) => void} onJump
@@ -108,6 +125,8 @@ let currentState = null
  * @property {ReturnType<typeof createSettingsPanel>} settings
  * @property {ReturnType<typeof createNoteView>} noteView
  * @property {ReturnType<typeof createDayFooter>} foot
+ * @property {ReturnType<typeof createBoardView>} board
+ * @property {HTMLElement} dayBody
  * @property {ReturnType<typeof createHorizonStrip>} horizon
  * @property {ReturnType<typeof createItemList>} items
  * @property {ReturnType<typeof createCarryBand>} carry
@@ -218,12 +237,29 @@ export function mount(root, handlers) {
   const noteRow = el('div', 'note-row')
   noteRow.append(note, margin)
 
-  const foot = createDayFooter(handlers.onOpenSpread)
+  const foot = createDayFooter(handlers.onView)
+
+  // The day's own parts, gathered so that the board can take their place
+  // rather than sit under them (phase four §8.3). Exactly one of these two is
+  // on screen; the header, the notices and the footer stand above and below
+  // both, because the date, the app's voice and the way out belong to the
+  // window rather than to either view.
+  const dayBody = el('div', 'day-body')
+  dayBody.append(
+    carry.element, horizon.element, items.element,
+    add.element, sections.element, noteRow, sections.evidence,
+  )
+
+  // The same board the spread window draws, laid out downwards by a class
+  // rather than rebuilt by a second component: a board drawn twice by two
+  // modules would be two things to keep in step, and the half that drifted
+  // would be the drag.
+  const board = createBoardView(() => boardShowing(), handlers.onCard, handlers.onFinish)
+  board.element.classList.add('stacked')
 
   const surface = el('div', 'page')
   surface.append(
-    head, notices.element, carry.element, horizon.element, items.element,
-    add.element, sections.element, noteRow, sections.evidence,
+    head, notices.element, dayBody, board.element,
     foot.element, search.element, settings.element, noteView.element,
   )
   root.replaceChildren(surface)
@@ -268,7 +304,46 @@ export function mount(root, handlers) {
     note.ownerDocument.execCommand('insertText', false, text)
   })
 
-  page = { weekday, date, todayButton, head, pin, notices, foot, horizon, items, carry, sections, note, noteRow, margin, search, settings, noteView }
+  page = { weekday, date, todayButton, head, pin, notices, foot, board, dayBody, horizon, items, carry, sections, note, noteRow, margin, search, settings, noteView }
+}
+
+/**
+ * The view on screen, which is the one asked for unless there is nothing
+ * behind it.
+ *
+ * A plugin can be switched off while its board is the tab you are looking at,
+ * and a page left showing a board that no longer exists is a page showing
+ * nothing. The same rule the spread window's `showing()` follows, and the day
+ * is this window's fallback the way the week is that one's.
+ *
+ * @returns {string}
+ */
+export function showing() {
+  const asked = currentState?.view ?? DAY_VIEW
+  if (pluginOfView(asked) === null) return DAY_VIEW
+  return boardShowing() === null ? DAY_VIEW : asked
+}
+
+/**
+ * The board on screen, or null when what is on screen is not one.
+ *
+ * Read off `tabs` rather than `boards`: a tab exists because a manifest says
+ * so, and a board whose plugin has not answered yet is still the board you
+ * asked for. The answer, when there is one, comes from `boards`.
+ *
+ * @returns {import('../plugins/pageAsking.js').Board|null}
+ */
+function boardShowing() {
+  const plugin = pluginOfView(currentState?.view ?? '')
+  if (plugin === null) return null
+  const answered = (currentState?.boards ?? []).find((board) => board.plugin === plugin)
+  if (answered !== undefined) return answered
+
+  // Named in the strip but not yet asked - the draw that switched to it. Drawn
+  // as the empty board rather than as nothing, so the tab is never a blank
+  // page.
+  const tab = (currentState?.tabs ?? []).find((one) => one.plugin === plugin)
+  return tab === undefined ? null : { plugin, tab: tab.tab, board: '', answer: null }
 }
 
 /**
@@ -336,7 +411,24 @@ export function render(state) {
   setText(page.date, FULL_DATE.format(when))
   setClass(page.todayButton, 'now', state.page === state.today)
 
+  const on = showing()
+  const board = pluginOfView(on) !== null
+  page.dayBody.hidden = board
+  page.board.element.hidden = !board
+  // Stepping through days while a board is up would move a date that the
+  // board does not follow: a board is an arrangement of today and only today
+  // (spec, `.plan/spec.md`). The date itself stays - it says which day the
+  // board is about - but the way to change it does not.
+  setClass(page.head, 'on-board', board)
+
   page.notices.render(state.notices, state.actions)
+  // Only what is on screen is drawn, the way the spread window's views are: a
+  // hidden list measures nothing correctly and redrawing it on every keystroke
+  // is work nobody can see.
+  if (board) page.board.render()
+  page.foot.render({ open: openCount(state.doc), boards: state.tabs, view: on })
+  if (board) return
+
   page.carry.render(state.carry, state.today)
   page.horizon.render(state.horizon)
   page.items.render(state.doc, state.badges)
@@ -347,8 +439,6 @@ export function render(state) {
   // picture keeps the blank bottom the page had before this row existed,
   // rather than a rule across it with nothing under.
   page.noteRow.hidden = page.note.hidden && page.margin.hidden
-
-  page.foot.render(openCount(state.doc))
 }
 
 /**

@@ -202,6 +202,37 @@ function appendArchive(text, cards) {
 }
 
 /**
+ * Every card the archive already holds, by name.
+ *
+ * The one thing the archive is ever read for, and it exists because the file
+ * is append-only with no watcher behind it: a card written into it twice
+ * stays there twice, silently, for good. That was safe while one window kept
+ * the boards. Both windows keep them now - the popover draws a board of its
+ * own (phase four §8.3) - and two windows deciding on the same frame that the
+ * same card has aged out is a race with a permanent loser.
+ *
+ * So the append is made idempotent rather than the windows made exclusive.
+ * The other two writes in that path already are: `mergeBoard` returns the file
+ * it was given when nothing moved, and `stampAll` mints nothing for a line
+ * that has an id. This is the third.
+ *
+ * `cardOf` rather than a regular expression of its own, so a change to the
+ * line's grammar cannot leave this reading the old one.
+ *
+ * @param {string} text  the archive as it stands, `''` when there is none
+ * @returns {Set<string>}
+ */
+function archivedIds(text) {
+  /** @type {Set<string>} */
+  const held = new Set()
+  for (const line of text.split('\n')) {
+    const card = cardOf(line)
+    if (card !== null) held.add(card.id)
+  }
+  return held
+}
+
+/**
  * A line with nothing on it. Blank rather than empty, because a line of
  * spaces is a gap to the eye and the file is read by one.
  *
@@ -382,4 +413,4 @@ function mergeBoard(text, columns, today, leaving = []) {
   return serialiseBoard({ preamble: board.preamble, columns: merged })
 }
 
-export { CARD, HEADING, FRESH, cardOf, lineOf, parseBoard, serialiseBoard, appendArchive, mergeBoard }
+export { CARD, HEADING, FRESH, cardOf, lineOf, parseBoard, serialiseBoard, appendArchive, archivedIds, mergeBoard }

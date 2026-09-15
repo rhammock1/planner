@@ -1,0 +1,154 @@
+/*
+ * A plugin's board (spec §2.2), in whichever window is drawing it.
+ *
+ * Its own sheet because it is the one view both windows have. The spread
+ * window draws it as columns side by side, which is what a board looks like
+ * when there is a window's width to put it in; the popover draws the same
+ * component stacked, because 380 points is one column wide and three columns
+ * of 110 would be three stacks of broken words (phase four §8.3).
+ *
+ * Loaded after `components.css` and before any theme, so a theme still moves
+ * the colours these rules take from the tokens.
+ */
+
+/* The boards' tabs are patched into a span of their own, so the span must not
+   be a box in the strip: `contents` puts the buttons themselves in the strip's
+   flex flow, spaced by the strip's own gap, exactly as if they had been
+   appended there one by one. */
+.tabs-boards { display: contents; }
+
+/* ── side by side ───────────────────────────────────────── */
+
+/*
+ * Unlike the week, the number of columns is the plugin's to decide, so they
+ * cannot divide the window into equal shares - four columns would be a grid
+ * and eleven would be eleven slivers. They take a readable width each and the
+ * row scrolls sideways when there are more than fit, which is the one place
+ * in the spread window where sideways scrolling is the right answer.
+ */
+.board-columns {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 1px;
+  overflow-x: auto;
+  padding: 0 18px 14px;
+  background: var(--edge-soft);
+  border-top: 1px solid var(--edge-soft);
+}
+
+.board-column {
+  flex: 0 0 240px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+}
+
+.board-column-name {
+  margin: 0;
+  padding: 10px 12px 6px;
+  font-family: var(--font-meta);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+}
+
+/* The cards are what scrolls, not the column and not the window - the same
+   rule the day columns follow, for the same reason. */
+.board-cards {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0 8px 8px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.board-card {
+  padding: 8px 10px;
+  border: 1px solid var(--edge-soft);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* Finished the same two ways the day page draws them, so a card and its line
+   never disagree about what happened to it. */
+.board-card.ended { opacity: 0.55; }
+.board-card.ended.done .board-card-text { text-decoration: line-through; }
+.board-card.ended.dropped .board-card-text { text-decoration: line-through wavy; }
+
+/* ── stacked ────────────────────────────────────────────── */
+
+/*
+ * The popover's board: the columns run down the page and the whole stack is
+ * one scroll, which is what makes a drag a single up-and-down gesture rather
+ * than a sideways reach followed by a vertical one.
+ *
+ * One scroller, not four. Each column scrolling its own cards would mean a
+ * drag had to scroll the column it started in to get out of it and then the
+ * page to get anywhere - so the columns give up their overflow here and the
+ * stack takes it. `dragScroll.js` moves this element, and there is only ever
+ * this one to move.
+ */
+.board.stacked .board-columns {
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  gap: 1px;
+  padding: 0 0 12px;
+}
+
+.board.stacked .board-column {
+  /* Tall enough to hold a card, and no taller: a column's height is how many
+     cards are in it, because an empty column reserving a screenful would push
+     the next one off the bottom. The floor leaves somewhere to drop onto when
+     it holds nothing at all. */
+  flex: 0 0 auto;
+  min-height: 46px;
+}
+
+.board.stacked .board-cards {
+  flex: none;
+  min-height: 0;
+  overflow-y: visible;
+  padding: 0 14px 10px;
+}
+
+/* The name of the column you are dragging through stays put at the top of the
+   stack while its cards scroll past under it. */
+.board.stacked .board-column-name {
+  padding: 8px 14px 5px;
+  z-index: 1;
+}
+
+/* ── a card in flight ───────────────────────────────────── */
+
+.board-card[draggable='true'] { cursor: grab; }
+
+.board-card.lifting { opacity: 0.4; }
+
+/* The column a card would land in, marked the way a day column is. */
+.board-column.dropping { background: var(--surface); }
+.board-column.dropping .board-column-name { box-shadow: inset 0 2px 0 var(--accent); }
+
+/*
+ * The last column, which is not a drop target (kanban design §6): a card gets
+ * there by its line being ticked, and the board's answer to the gesture is to
+ * show you that line rather than to move the card.
+ *
+ * Marked while the pointer is over it, and marked as the different answer it
+ * is - dimmed rather than lit - so the refusal is legible before the mouse
+ * comes up rather than only after.
+ */
+.board-column.refusing { background: var(--edge-soft); }
+.board-column.refusing .board-column-name { box-shadow: inset 0 2px 0 var(--dim); }

@@ -2,117 +2,200 @@
 approved: yes
 ---
 
-# The board is an arrangement of today
+# A board in the popover
 
-Settles the open question from phase four item 11: which day seeds a
-`spread.board` plugin's board.
+Settles the popover half of phase four item 11, and with it the open question
+from phase four spec §8.3 about what the day footer does when its tabs stop
+fitting.
 
-## The decision
+Robert asked for it in these words: *"I want access to the kanban board from
+the popout day-view. I don't see a tab for it there, only in the detached
+window."* Asked what "access" should mean, he chose to draw the board in the
+popover rather than open the window on it, **with the columns stacked
+vertically** - a drag is up and down through one list, and the page scrolls
+itself when the pointer nears an edge. Asked what happens when the tabs stop
+fitting, he chose a `...` menu, described by three cases that this spec turns
+into one rule.
 
-**Today seeds the board, and only today.** A task on an older day reaches the
-board by being carried forward, which the app already does and which leaves the
-old page correctly marked `migrated`. There is no second door: no "add this to
-the board?" offer on a past day.
+## 1. The board is a view of the popover
 
-Robert decided both halves (2026-09-14). The reasoning for refusing the offer
-is that a card seeded from a page you have moved past is exactly the `migrated`
-case `readCard` already refuses - its twin on the later day is the live one -
-so an offer would either mint a second name for one task or be carrying with
-extra steps. If carrying ever proves too slow, the fix is to make carrying
-easier, not to give the board its own door.
+The popover gains board views. `Day` and each board switch what this window
+draws; `Week`, `Month` and `Someday` still open the other window, as they do
+today. One strip, two kinds of destination - which is already true of the
+strip, since `Day` is where you are and the other three are elsewhere.
 
-## What is wrong today
+`dayPage` mounts the same `createBoardView` the spread window uses. One
+component, two layouts: a board drawn in two places by two components would be
+two things to keep in step, and the divergence would land on the drag - the
+part hardest to test and easiest to get subtly wrong.
 
-`src/spread.js:323` asks `boardsFor(store, anchor)` and `:328` passes the same
-`anchor` to `keepBoards`. `anchor` moves whenever somebody walks back through
-the weeks. Two consequences, and the second is the one that matters:
+The day's own parts - the carry band, the horizon strip, the list, the add
+row, the sections, the note row, the evidence - move into a `.day-body`
+wrapper. Exactly one of that wrapper and the board is on screen. The page
+header (date, navigation, pin) stays above both, shared, and the notice band
+stays under it: a board that could not be written needs somewhere to say so,
+and the pin has to stay reachable, because pinning the popover is what makes a
+long drag possible at all.
 
-1. The board redraws as an arrangement of whatever day is being looked at.
-2. `unnamed` and `stampNames` stamp `^abc123` into whatever page is anchored,
-   and add that page's open lines to the board. From a person's side, browsing
-   old weeks silently writes to old day files.
+### Switching to a board snaps the page to today
 
-The comment justifying the anchor says the anchored day is "the one a card
-dragged onto it would land on". No such gesture exists: the board's drag moves
-a card between columns and writes `board.md` alone. The justification was
-speculative and nothing depends on it.
+The board is an arrangement of today and only today, which `.plan/spec.md`
+settled and `spread.js` now enforces by hoisting one `today()` per draw. The
+popover, unlike the spread window, has a date in its header. Opening a board
+while the page shows last Tuesday would put Tuesday's date above an
+arrangement of today.
 
-## The change
+So opening a board tab calls `showing.go(today())`. The header then reads the
+day the board is actually about. Switching back to `Day` leaves you on today,
+which is where a person who just looked at today's board wants to be.
 
-**`src/spread.js`** - ask about today, write to today, and settle the day once:
+The board view keeps its own head - the board's name and its card count -
+under the shared page header. That is not a duplicate: the header names the
+day, the view names the board.
 
-- `draw()` (299-371) hoists `const day = today()` at the top.
-- `:323` `boardsFor(store, anchor)` becomes `boardsFor(store, day)`.
-- `:328` `keepBoards(store, anchor, ..., today())` becomes
-  `keepBoards(store, day, ..., day)`.
-- `:354` `today: today()` becomes `today: day`.
-- The comment above them is rewritten: the board is an arrangement of today,
-  and walking back through the weeks does not move it.
+### What is not asked for while a board is up
 
-The hoist is not tidying. `draw()` currently calls `today()` at 328 and 354
-independently and this change would add a third at 323, so a draw that straddles
-midnight gets different days from them - an answer computed for one day and a
-stamp written into the other day's page. One value per draw makes that
-impossible rather than merely caught.
+`boxFor` is not called: nothing draws the day's margin while the board is on
+screen, and a question nobody can see the answer to is not worth waking a
+plugin for. This is the rule `roomForABox` already applies to a short window,
+applied to a hidden one.
 
-**`src/plugins/boardWrites.js`** - refuse to write to a page that is not today:
+`boardsFor` is called only while a board tab is showing, for the same reason
+in reverse. Which boards *exist* is read from `store.installed()` on every
+draw - that is a config question, not a plugin question - so the tabs are
+drawn whether or not any board has been asked anything.
 
-`keepBoards(store, page, boards, today)` already receives both, so it returns
-without writing when `page !== today`.
+## 2. Vertical is a direction, not a component
 
-This guard is not an assertion about a call site that always passes, and its
-comment must not read as one or somebody will delete it as dead code. What it
-defends is the midnight straddle above, for any caller that computes the day
-more than once - this window after a careless edit, or the next window to ask.
-Without it, such a caller stamps ids into the wrong day's page; with it, the
-draw writes nothing and the next draw a minute later does the work.
+`.board-columns` in the popover is `flex-direction: column`, scrolling as one
+column of sections rather than sideways through parallel ones. Column names
+become `position: sticky; top: 0`, so the name of the section you are in stays
+visible while you drag through it.
 
-Silent - no notice. Firing means a straddle that the following draw fixes, and
-a notice would alarm somebody about something already handled.
+The drag code needs no change. It finds the drop column with
+`closest('.board-column')` and the insertion point with
+`closest('.board-card')`; both resolve identically in a stacked layout. The
+last column is not a drop target, and "last" is `columns.lastElementChild` -
+by position, which is still what it is when the positions run downwards.
 
-**`plugins/kanban/index.js:27`** - the header says "the day the spread window is
-anchored on, which is today until somebody navigates". It ships to a person's
-machine via `tools/update`, so it has to agree with the code. The kanban session
-owns the file and gave the replacement wording, to land in the same commit as
-the `spread.js` change so no branch ever carries a plugin and a window that
-disagree:
+The scrolling container moves from each column's own `.board-cards` to the
+`.board-columns` stack, which is what makes "the page auto-scrolls" a single
+thing to scroll rather than three.
 
-```
- * "The page" is always today. The spread window asks about today whatever
- * week it happens to be showing, so `items` is today's lines and the
- * question's `date` is `now.date`. A task on an older page reaches the board
- * by being carried forward, which leaves the old line `migrated` and the
- * carried copy live - seeding the old line instead would mint a second name
- * for a task that already has one, which is the case `migrated` exists to
- * refuse. `now` is also the clock: a card ages off the board against the
- * actual date, so a board does not un-archive itself because somebody looked
- * at last month.
-```
+## 3. Auto-scroll
 
-No code change goes with it: `seeds()` reads `items` and never looks at `date`,
-so "only today is asked" is a property of the question rather than something the
-plugin enforces.
+The one genuinely new behaviour. HTML5 drag-and-drop does not scroll a
+container under the pointer in WebKit, so a card cannot be dragged to a column
+that is off-screen - which, stacked in a 560pt window, is most of them.
 
-**`docs/plugins.md`** - the `date` paragraph in the `spread.board` section says
-`date` is "today until somebody walks back through the weeks". It becomes:
-`date` is always today, `now` is the clock, and a task on an older day reaches
-the board by being carried forward. The warning comment in the example, which
-tells an author that seeding from `items` seeds from whichever day is being
-looked at, comes out - it stops being true.
+A new `src/views/dragScroll.js`, split so the decision is testable without a
+browser:
 
-## Tests
+- `scrollStep(top, bottom, y)` - pure. Signed pixels per frame: negative near
+  the top edge, positive near the bottom, zero between. Ramps linearly from 0
+  at the band's inner limit to `FASTEST` at the edge itself.
+- `autoScroll(element)` - attaches `dragover` to record the pointer and
+  `dragend`/`drop`/`dragleave` to stop, driving `requestAnimationFrame` while
+  a step is non-zero.
 
-- `test/board-writes.test.js`: a board asked about a page that is not today
-  writes nothing - no stamp into the day page, no archive append, no board
-  write, and no notice. The regression test for both the browsing-writes-files
-  defect and the midnight straddle.
-- `test/board-writes.test.js`: the existing cases keep passing with `page`
-  equal to `today`, which is what they already pass.
-- The two-line `spread.js` change is not unit-testable - nothing imports the
-  window's entry - which is why the refusal above exists to carry the
-  guarantee.
+`EDGE = 44` and `FASTEST = 14`. The band is clamped to a third of the
+container's height on each side, so at the 240pt minimum window the two bands
+do not meet and leave no neutral middle.
 
-## Not in this change
+## 4. The tab strip, and the `...` menu
 
-The `...` menu in the day footer (phase-four spec §8.3) and the two edits to
-the gitignored kanban design spec. Both still need Robert.
+Robert gave three cases:
+
+1. At minimum width the bar is `DAY WEEK MONTH ...`, with Someday in the menu.
+2. When there is room, show Someday **and** one more board.
+3. Past five, show `...` and put Someday in it.
+
+These are one rule:
+
+> `Day`, `Week` and `Month` are fixed. `Someday` and the boards are demotable,
+> `Someday` first and then the boards from the last backwards. The strip shows
+> at most five tabs, and no more than fit. Whatever is demoted goes in `...`.
+
+Each case falls out of it rather than being special-cased. Measured against
+the real metrics - 10.5px uppercase, 0.08em tracking, 8px padding each side,
+3px gap, a 16px footer gutter, and the open count on the right:
+
+| window | tab budget | strip |
+| --- | --- | --- |
+| 300pt (minimum) | ~200px | `DAY WEEK MONTH ...` - Someday demoted, and Kanban does not fit either: the three plus Kanban plus `...` needs ~235px |
+| 380pt (default) | ~280px | `DAY WEEK MONTH SOMEDAY KANBAN` - ~280px, which fits |
+| many boards | any | Someday demoted first, boards fill, the rest in `...` |
+
+The figures above are estimates from the CSS; the implementation measures
+rather than assumes, and the table is what the measurement is expected to
+agree with rather than a set of constants to hard-code.
+
+### Where each half lives
+
+- `src/core/tabFit.js` - pure. Given tabs in display order with their measured
+  widths, a demotion order, the available width, the gap, the `...` button's
+  width and the cap, returns which keys are shown and which are hidden. The
+  fixed three are simply absent from the demotion order, so if even they do not
+  fit the strip clips rather than emptying: a floor has to exist somewhere.
+- `src/views/moreMenu.js` - the `...` button and the list it opens above the
+  footer. Closes on Escape, on a click outside, and on choosing. Its rows are
+  buttons, for the reason the tabs are.
+- `src/views/dayFooter.js` - measures each label once and caches by text,
+  re-fits on a `ResizeObserver`, and skips the work when neither the width nor
+  the set of labels has changed. `render` runs on every keystroke in the add
+  row, so an unconditional measure would thrash layout for a strip that has
+  not moved.
+
+## 5. Two windows, one board file
+
+Both windows can now show a board at once, and `keepBoards` writes from each.
+`inFlight` is module scope - one webview's - so it does not help here.
+
+Two of the three writes are already safe to make twice:
+
+- `mergeBoard` returns the file it was given, byte for byte, when the
+  arrangement has not changed, and `keepBoard` writes nothing when it does.
+- `stampAll` mints no id for a line that already has one.
+
+`appendArchive` is not. It would write the same card into `archive.md` twice,
+and that file is append-only with no watcher behind it, so the duplicate is
+permanent and unnoticed - the exact hazard `inFlight`'s own comment names.
+
+So `archiveEnded` filters out cards whose id is already in the archive, using a
+new `archivedIds(text)` in `boardFile.js` - the module that owns the archive's
+format. This closes the hazard for any number of writers, which is better than
+electing one: electing the popover would mean the window's board stops keeping
+itself when the popover is put away, and electing the window would mean a board
+never seeds unless you open a window you did not want.
+
+## 6. No change in Rust
+
+`plugins::allowed(label, command)` gates plugin webviews only - both app
+windows are unrestricted. The popover may ask `spread.board` and may read and
+write plugin files exactly as the spread window does. Verified rather than
+assumed.
+
+## 7. Tests
+
+Node:
+
+- `tabFit` - Robert's three cases by name, the cap, the floor when the fixed
+  three do not fit, and a board list that changes between fits.
+- `scrollStep` - zero in the middle, signed at each edge, the ramp, and the
+  clamp in a container shorter than two bands.
+- `archivedIds`, and `archiveEnded` archiving the same card twice writing once.
+
+Browser:
+
+- The board's tab appears in the popover footer for an installed board plugin,
+  and not for a plugin whose name cannot be a vault folder.
+- Choosing it draws the stacked board and snaps the header to today.
+- The `...` menu opens at a narrowed width and its rows do what their tabs do.
+- A card dragged between two stacked columns writes the move.
+
+## Out of scope
+
+- The spread window's board is untouched, other than sharing the archive fix.
+- No new plugin question, no new slot, no manifest change.
+- `Week`, `Month` and `Someday` still open the other window. Only boards and
+  the day are drawn here.

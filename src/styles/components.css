@@ -444,16 +444,83 @@
   white-space: nowrap;
 }
 
+/*
+ * A view with a heading, in either window.
+ *
+ * Here rather than in `spread.css` because the popover draws a board now, and
+ * a board is a view: the day page loads this sheet and not that one, so a box
+ * defined only there would leave the board a heap (phase four §8.3).
+ */
+.view {
+  flex: 1;
+  /* Both, and for one reason: a flex item's minimum is its content unless it
+     is told otherwise, so a view without these grows to whatever it holds and
+     takes the window with it. Sideways was the only way that showed until the
+     popover drew a board stacked - three columns down a 560-point window,
+     with nothing inside them scrolling. */
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.view[hidden] { display: none; }
+
+.view-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 14px 18px 8px;
+}
+
+.view-title {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* The day's own parts, gathered so a board can take their place rather than
+   sit under them. `min-height: 0` is what lets the list inside shrink to the
+   window instead of pushing past the bottom of it. */
+.day-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.day-body[hidden] { display: none; }
+
+/* A board is an arrangement of today and only today, so while one is up the
+   way to step through days goes: the date stays, because it says which day
+   the board is about, and the pin stays, because a long drag wants a window
+   that will not close under it. */
+.page-head.on-board .page-nav > button:not(.pin) { display: none; }
+
 .page-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 8px 16px;
   border-top: 1px solid var(--edge-soft);
   background: var(--surface);
 }
 
-.tabs { display: flex; gap: 3px; }
+/* Takes what the open count leaves, and no more: `clientWidth` on this element
+   is what `dayFooter.js` measures the tabs against, and a strip that grew to
+   fit its contents would always report that they fit. `hidden` is the floor -
+   when even the fixed three are wider than the window, they clip here rather
+   than pushing the count off the end. */
+.tabs {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
 
 .tab {
   font-family: var(--font-meta);
@@ -466,6 +533,66 @@
 }
 
 .tab.on {
+  color: var(--paper);
+  background: var(--accent);
+}
+
+.tab[hidden] { display: none; }
+
+/* ── the rest of the views ──────────────────────────────── */
+
+/*
+ * The `...` and the list it opens (phase four §8.3).
+ *
+ * Upwards, because the strip is at the bottom of the window and a list hanging
+ * below it would hang off the screen. Positioned against this wrapper rather
+ * than the footer so it opens where the button is, wherever the fit has left
+ * the button sitting.
+ */
+.more {
+  position: relative;
+  display: flex;
+}
+
+.more[hidden] { display: none; }
+
+.more-list {
+  position: absolute;
+  bottom: calc(100% + 5px);
+  left: 0;
+  z-index: 3;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  min-width: 120px;
+  border: 1px solid var(--edge);
+  border-radius: 7px;
+  background: var(--paper);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+}
+
+.more-list[hidden] { display: none; }
+
+/* A row is a tab that has room for its whole name, so it is set in the tab's
+   own type and left-aligned across the width of the menu rather than sized to
+   its words. */
+.more-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: var(--font-meta);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  padding: 5px 9px;
+  border-radius: 5px;
+}
+
+.more-row:hover { background: var(--surface); }
+.more-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.more-row.on {
   color: var(--paper);
   background: var(--accent);
 }
